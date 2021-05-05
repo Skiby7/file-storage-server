@@ -1,0 +1,5 @@
+WORKERS: 10
+MAXMEM: 100
+MAXFILES: 100
+SOCKNAME: sockfile
+LOGFILE: bin/server.log

@@ -14,11 +14,17 @@ int parseConfig(FILE *conf, config *configuration) {
 			token[strcspn(token, "\n")] = 0;
 			configuration->workers = atoi(token);
 		}
-		else if(strcmp(token, "MEM") == 0){
+		else if(strcmp(token, "MAXMEM") == 0){
 			token = strtok_r(NULL, " ", &tmpstr);
 			token[strcspn(token, "\n")] = 0;
 			configuration->mem = atoi(token);
 		}
+		else if(strcmp(token, "MAXFILES") == 0){
+			token = strtok_r(NULL, " ", &tmpstr);
+			token[strcspn(token, "\n")] = 0;
+			configuration->files = atoi(token);
+		}
+		
 		else if(strcmp(token, "SOCKNAME") == 0){
 			token = strtok_r(NULL, " ", &tmpstr);
 			token[strcspn(token, "\n")] = 0;
@@ -26,6 +32,14 @@ int parseConfig(FILE *conf, config *configuration) {
 			configuration->sockname = (char *) malloc(tokenlen + 1);
 			memset(configuration->sockname, 0, tokenlen + 1);
 			strncpy(configuration->sockname, token, tokenlen);
+		}
+		else if(strcmp(token, "LOGFILE") == 0){
+			token = strtok_r(NULL, " ", &tmpstr);
+			token[strcspn(token, "\n")] = 0;
+			tokenlen = strlen(token);
+			configuration->log = (char *) malloc(tokenlen + 1);
+			memset(configuration->log, 0, tokenlen + 1);
+			strncpy(configuration->log, token, tokenlen);
 		}
 		else{
 			free(buff);

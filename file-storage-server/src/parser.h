@@ -16,7 +16,9 @@
 typedef struct _config{
 	int workers;
 	int mem;
+	int files;
 	char *sockname;
+	char *log;
 } config;
 
 

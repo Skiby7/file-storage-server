@@ -1,3 +1,0 @@
-WORKERS: 10
-MEM: 100
-SOCKNAME: sockfile
