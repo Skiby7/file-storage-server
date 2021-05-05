@@ -9,20 +9,35 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#define MAX_BUFFER_LEN 151
+#include "parser.h"
 
-int init(){
-	char *buff = (char *) malloc(MAX_BUFFER_LEN);
-	memset(buff, 0, MAX_BUFFER_LEN);
-	FILE *config = NULL;
-	if((config = fopen("config.txt", "r")) == NULL){
+config *configuration; // Server config
 
-	}
+void printconf(){
+	printf("Workers: %d\nMem: %d\nSockname: %s\n", configuration->workers, configuration->mem, configuration->sockname);
+}
 
+void init(){
 	
+	FILE *conf = NULL;
+	configuration = (config *) malloc(sizeof(config));
+	memset(configuration, 0, sizeof(config));
+	if((conf = fopen("config.txt", "r")) == NULL){
+		perror("Error while opening config file");
+		exit(EXIT_FAILURE);
+	}
+	if(parseConfig(conf, configuration) < 0){
+		fprintf(stderr, ANSI_COLOR_RED "Error while parsing config.txt!\n" ANSI_COLOR_RESET);
+		exit(EXIT_FAILURE);
+	}
+	fclose(conf);
 }
 
 int main(int argc, char* argv[]){
+	init(); // Configuration struct is now initialized
+	printconf();
 
+	free(configuration); // free config struct memory
+	return 0;
 
 }
