@@ -1,4 +1,4 @@
-#include <clientApi.h>
+#include "fssApi.h"
 
 int openFile(const char* pathname, int flags){
 	int filein;
@@ -6,6 +6,7 @@ int openFile(const char* pathname, int flags){
 		perror("Filein");
 		exit(EXIT_FAILURE);
 	}
+	return 0;
 }
 
 
