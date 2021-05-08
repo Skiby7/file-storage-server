@@ -1,17 +1,12 @@
-#ifndef STD_
-#define STD_
+#ifndef STD_H
+#define STD_H
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#endif
-
-#ifndef SYS_
-#define SYS_
 #include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
-#include <pthread.h>
 #include <time.h>
 #include <fcntl.h>
 #include <sys/socket.h>

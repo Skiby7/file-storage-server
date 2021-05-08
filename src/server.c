@@ -2,23 +2,22 @@
 #include "parser.h"
 
 config configuration; // Server config
+bool can_accept = true;
 
 
+int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 
-int main(int argc, char* argv[]){
+
+	
 	char SOCKETADDR[UNIX_MAX_PATH];
 	struct sockaddr_un sockaddress;
+	
+	int socket_fd = 0, com = 0, i = 0; 
+	unsigned int seed = time(NULL);
+	init(SOCKETADDR); // Configuration struct is now initialized
 	pthread_t *workers = (pthread_t *) malloc(configuration.workers*sizeof(pthread_t));
-	int socket_fd, com;
-	
-	init(); // Configuration struct is now initialized	
 	memset(workers, 0, configuration.workers*sizeof(pthread_t));
-	memset(SOCKETADDR, 0 , UNIX_MAX_PATH);
 	printconf();
-	
-	
-	sprintf(SOCKETADDR, "/tmp/");
-	strncat(SOCKETADDR, configuration.sockname, strlen(configuration.sockname));
 	puts(SOCKETADDR);
 	strncpy(sockaddress.sun_path, SOCKETADDR, UNIX_MAX_PATH);
 	
@@ -29,8 +28,11 @@ int main(int argc, char* argv[]){
 	listen(socket_fd, 10);
 	while(true){
 		com = accept(socket_fd, NULL, 0);
-		sleep(2);
-		// close(com);
+		if(can_accept){
+			i = rand_r(&seed)%configuration.workers;
+			pthread_create(&workers[i], NULL, conneciton_handler, (void *) com);
+			pthread_detach(workers[i]);
+		}
 	}
 	close(socket_fd);
 	free(workers);
@@ -38,14 +40,19 @@ int main(int argc, char* argv[]){
 
 }
 
-void* conneciton_handler(void* com){
-	int com_fd = (int) com;
+void* conneciton_handler(void *args){
+	int com = (int) args;
+
+
+	close(com);
 }
+	
+	
 
 void printconf(){
 	printf("Workers: %d\nMem: %d\nFiles: %d\nSockname: %s\nLog: %s\n", configuration.workers, configuration.mem, configuration.files, configuration.sockname, configuration.log);
 }
-void init(){
+void init(char *sockname){
 	
 	FILE *conf = NULL;
 	if((conf = fopen("bin/config.txt", "r")) == NULL){
@@ -57,4 +64,8 @@ void init(){
 		exit(EXIT_FAILURE);
 	}
 	fclose(conf);
+	memset(sockname, 0 , UNIX_MAX_PATH);
+	sprintf(sockname, "/tmp/");
+	strncat(sockname, configuration.sockname, strlen(configuration.sockname));
+
 }

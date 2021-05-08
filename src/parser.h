@@ -1,5 +1,5 @@
-#ifndef STD_
-#define STD_
+#ifndef STD_H
+#define STD_H
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
