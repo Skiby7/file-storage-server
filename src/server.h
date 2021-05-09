@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#endif
 #include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -12,7 +13,8 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#endif
+#include <signal.h>
+
 
 #define UNIX_MAX_PATH 108
 
@@ -25,10 +27,14 @@
 #define ANSI_COLOR_RESET   "\x1b[0m"
 #define ANSI_CLEAR_SCREEN "\033[2J\033[H"
 
-
+typedef struct pargs_{
+	int socket_fd;
+	unsigned short whoami;
+}pargs;
 
 void printconf();
 void init(char* sockname);
 void* conneciton_handler(void* com);
 int rand_r(unsigned int *seedp);
+static void signal_handler(int signum);
 

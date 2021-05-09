@@ -26,7 +26,9 @@ int main(int argc, char* argv[]){
 	printf(ANSI_CLEAR_SCREEN);
 	int opt, socket_fd;
 	bool f = false, p = false;
+	char buffer[100];
 	struct sockaddr_un sockaddress;
+	memset(buffer, 0, 100);
 	
 	while ((opt = getopt(argc,argv, "hpf:")) != -1) {
 		switch(opt) {
@@ -62,7 +64,29 @@ int main(int argc, char* argv[]){
 	
 	socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
-	while(connect(socket_fd,(struct sockaddr*)&sockaddress,sizeof(sockaddress)) == -1);
-	puts(ANSI_COLOR_CYAN"Connected"ANSI_COLOR_RESET);
+	while(connect(socket_fd,(struct sockaddr*) &sockaddress,sizeof(sockaddress)) == -1);
+	read(socket_fd, buffer, sizeof(buffer));
+	if(strcmp(buffer, "accepted") == 0){
+		memset(buffer, 0, sizeof(buffer));
+		puts(ANSI_COLOR_CYAN"Connected\n"ANSI_COLOR_RESET);
+
+		while(true){
+			fgets(buffer, 98, stdin);
+			buffer[strcspn(buffer, "\n")] = 0;
+			if(strncmp(buffer, "quit", 100) == 0){
+				write(socket_fd, buffer, strlen(buffer));
+				break;
+			}
+			write(socket_fd, buffer, strlen(buffer));
+			memset(buffer, 0, 100);
+			read(socket_fd, buffer, 99);
+			puts(buffer);
+			memset(buffer, 0, 100);
+
+		}
+	}
+	else
+		puts(ANSI_COLOR_RED"Connection refused\n"ANSI_COLOR_RESET);
+	close(socket_fd);
 	return 0;
 }
