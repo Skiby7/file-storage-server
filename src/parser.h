@@ -21,5 +21,5 @@ typedef struct _config{
 } config;
 
 
-
+char *strtok_r(char *str, const char *delim, char **saveptr);
 int parseConfig(FILE *conf, config *configuration);
