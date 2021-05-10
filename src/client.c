@@ -1,6 +1,8 @@
+#ifndef COMMON_INCLUDES_H
+#define COMMON_INCLUDES_H
+#include "common_includes.h"
+#endif
 #include <getopt.h>
-#include "fssApi.h"
-
 bool verbose = false; // tipo di op, file su cui si opera, exito e byte letti/scritti
 
 void print_help(){
@@ -69,11 +71,13 @@ int main(int argc, char* argv[]){
 	if(strcmp(buffer, "accepted") == 0){
 		memset(buffer, 0, sizeof(buffer));
 		puts(ANSI_COLOR_CYAN"Connected\n"ANSI_COLOR_RESET);
-
+		strcpy(buffer, "Client is ready!");
+		write(socket_fd, buffer, strlen(buffer));
+		memset(buffer, 0, sizeof(buffer));
 		while(true){
 			fgets(buffer, 98, stdin);
 			buffer[strcspn(buffer, "\n")] = 0;
-			if(strncmp(buffer, "quit", 100) == 0){
+			if(strncmp(buffer, "quit", strlen(buffer)) == 0){
 				write(socket_fd, buffer, strlen(buffer));
 				break;
 			}

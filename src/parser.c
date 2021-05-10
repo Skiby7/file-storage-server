@@ -7,10 +7,10 @@ static inline removeChar(char *token){
 			token[i] = '\0';
 			break;
 		}
-	
 }
 
 int parseConfig(FILE *conf, config *configuration) {
+
 	char *tmpstr, *token;
 	char *buff = (char *) malloc(MAX_BUFFER_LEN);
 	int tokenlen = 0;
@@ -18,17 +18,19 @@ int parseConfig(FILE *conf, config *configuration) {
 	while(fgets(buff, MAX_BUFFER_LEN, conf) != NULL){
 		token = strtok_r(buff, DELIM, &tmpstr);
 		if(token[0] == '\n' || token[0] == '#') continue;
-		// if(strcmp(token, "\n") == 0 || strcmp(token, "#") == 0) continue;
+
 		else if(strcmp(token, "WORKERS") == 0){
 			token = strtok_r(NULL, " ", &tmpstr);
 			removeChar(token);
 			configuration->workers = atoi(token);
 		}
+
 		else if(strcmp(token, "MAXMEM") == 0){
 			token = strtok_r(NULL, " ", &tmpstr);
 			removeChar(token);
 			configuration->mem = atoi(token);
 		}
+
 		else if(strcmp(token, "MAXFILES") == 0){
 			token = strtok_r(NULL, " ", &tmpstr);
 			removeChar(token);
@@ -44,6 +46,7 @@ int parseConfig(FILE *conf, config *configuration) {
 			memset(configuration->sockname, 0, tokenlen + 1);
 			strncpy(configuration->sockname, token, tokenlen);
 		}
+
 		else if(strcmp(token, "LOGFILE") == 0){
 			token = strtok_r(NULL, " ", &tmpstr);
 			removeChar(token);
@@ -52,8 +55,8 @@ int parseConfig(FILE *conf, config *configuration) {
 			memset(configuration->log, 0, tokenlen + 1);
 			strncpy(configuration->log, token, tokenlen);
 		}
+
 		else{
-			// puts(token);
 			free(buff);
 			return -1;
 		} 

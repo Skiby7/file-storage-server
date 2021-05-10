@@ -1,5 +1,5 @@
 WORKERS: 10
 MAXMEM: 100
 MAXFILES: 100
-SOCKNAME: sockfile
+SOCKNAME: sockfile.sk
 LOGFILE: bin/server.log
