@@ -9,7 +9,7 @@ TARGETS = server client
 all: server client
 
 server:  libutils
-		$(CC) $(CFLAGS) src/server.c -o bin/server  -lpthread -L ./build -lutils
+		$(CC) $(CFLAGS) src/server.c src/connections.c -o bin/server  -lpthread -L ./build -lutils
 
 client: libutils
 		$(CC) $(CFLAGS) src/client.c -o bin/client -L ./build -lutils 

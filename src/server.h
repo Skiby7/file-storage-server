@@ -40,9 +40,9 @@ typedef struct workers_{
 
 void printconf();
 void init(char* sockname);
-static void* conneciton_handler(void* com);
-static void* wait_workers(void* args);
-static void* refuse_connection(void* args);
+void* conneciton_handler(void* com);
+void* wait_workers(void* args);
+void* refuse_connection(void* args);
 int rand_r(unsigned int *seedp);
-static void signal_handler(int signum);
+void signal_handler(int signum);
 
