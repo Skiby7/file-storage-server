@@ -12,6 +12,7 @@
 #include <signal.h>
 
 #define UNIX_MAX_PATH 108
+#define EALLOC "Error while allocating memory!"
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -21,5 +22,3 @@
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 #define ANSI_CLEAR_SCREEN "\033[2J\033[H"
-
-int init_storage(int max_file_num, int max_size);
