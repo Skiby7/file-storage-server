@@ -94,6 +94,29 @@ void* wait_workers(void* args){
 	return (void *) 0;
 }
 
+
+void* worker(void* args){
+	int com = 0;
+	char buffer[MAX_BUFFER_LEN];
+	memset(buffer, 0, MAX_BUFFER_LEN);
+	while(true){
+		// Thread waits for work to be assigned
+		pthread_mutex_lock(NULL);
+		pthread_cond_wait(NULL, NULL); // NULL -> placeholder
+		
+		
+		com = pop(NULL); // Pop dalla lista dei socked ready che va fatta durante il lock
+
+		pthread_mutex_unlock(NULL);
+
+		read(NULL, NULL, NULL); 
+
+	}
+}
+
+
+
+
 // static connection* insert_com(connection *head, int com)
 // {
 //     connection *new = (connection *)malloc(sizeof(connection));
