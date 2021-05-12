@@ -22,7 +22,11 @@
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 #define ANSI_CLEAR_SCREEN "\033[2J\033[H"
+#define CONF_LINE "├────────────────────────────────────┤\n"
+#define CONF_LINE_TOP "┌────────────────────────────────────┐\n"
+#define CONF_LINE_BOTTOM "└────────────────────────────────────┘\n"
 
+					
 #define WELCOME_MESSAGE "            __ _ _            _                             \n"\
 "           / _(_) |          | |                            \n"\
 "          | |_ _| | ___   ___| |_ ___  _ __ __ _  __ _  ___ \n"\

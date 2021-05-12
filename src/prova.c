@@ -57,6 +57,16 @@ static void insert_client(int com, ready_clients **head, ready_clients **tail){
 	(*head) = new;	
 } 
 
+void printconf(){
+	printf(ANSI_COLOR_GREEN CONF_LINE_TOP"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
+			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
+			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
+			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
+			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, "Workers:",
+			10, "Mem:", 200, "Files:", 
+			3000, "Socket file:", "sockname", "Log:", "logfile");
+}
+
 int main(){
 	// ready_clients *head = NULL;
 	// ready_clients *tail = NULL;
@@ -79,6 +89,7 @@ int main(){
 	// clean_list(&head);
 
 	PRINT_WELCOME;
+	printconf();
 	return 0;
 
 }
