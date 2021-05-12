@@ -109,25 +109,44 @@ void* worker(void* args){
 	fflush(stdout);
 	while(true){
 		// Thread waits for work to be assigned
+		// printf(ANSI_COLOR_RED"Thread %d -> queue mutex lock\n"ANSI_COLOR_RESET, whoami);
 		pthread_mutex_lock(&ready_queue_mtx);
 
 		while(ready_queue[1] == NULL){
+			// printf(ANSI_COLOR_RED"Thread %d -> wait signal\n"ANSI_COLOR_RESET, whoami);
 			pthread_cond_wait(&client_is_ready, &ready_queue_mtx); // NULL -> placeholder
+			// printf(ANSI_COLOR_RED"Thread %d -> stopped wait signal\n"ANSI_COLOR_RESET, whoami);
 		}
 		pthread_mutex_lock(&free_threads_mtx);
 		free_threads[whoami] = false;
 		pthread_mutex_unlock(&free_threads_mtx);
 		com = pop_client(&ready_queue[0], &ready_queue[1]); // Pop dalla lista dei socked ready che va fatta durante il lock
 		pthread_mutex_unlock(&ready_queue_mtx);
+		// printf(ANSI_COLOR_RED"Thread %d -> queue mutex unlock\n"ANSI_COLOR_RESET, whoami);
 		printf(ANSI_COLOR_MAGENTA"Thread %d accepted request from client %d\n"ANSI_COLOR_RESET, whoami, com);
-		CHECKERRNO((write(com, accepted, strlen(accepted) ) < 0), "Writing to client");
+		// puts("provo a fare la write");
+		// CHECKERRNO((write(com, accepted, strlen(accepted) ) < 0), "Writing to client");
+		// puts("e crasho");
 		CHECKERRNO((read(com, buffer, sizeof(buffer)) < 0), "Reading from client");
-		CHECKERRNO((write(com, ready, strlen(ready) ) < 0), "Writing to client");
+		if(strcmp(buffer, "quit") == 0) {
+			close(com);
+			memset(buffer, 0, sizeof(buffer));
+			pthread_mutex_lock(&free_threads_mtx);
+			free_threads[whoami] = true;
+			pthread_mutex_unlock(&free_threads_mtx);
+			continue;
+		}	
+		CHECKERRNO((write(com, accepted, strlen(accepted) ) < 0), "Writing to client");
+		
+		// CHECKERRNO((write(com, ready, strlen(ready) ) < 0), "Writing to client");
 		printf(ANSI_COLOR_MAGENTA"[Thread %d - client %d]:"ANSI_COLOR_CYAN" %s\n"ANSI_COLOR_RESET, whoami, com, buffer);
 		memset(buffer, 0, sizeof(buffer));
 		sprintf(buffer, "%d", com);
 		CHECKERRNO((write(m_w_pipe[1], buffer, strlen(buffer) ) < 0), "Return com");
-		memset(buffer, 0, sizeof(buffer));		
+		memset(buffer, 0, sizeof(buffer));	
+		pthread_mutex_lock(&free_threads_mtx);
+		free_threads[whoami] = true;
+		pthread_mutex_unlock(&free_threads_mtx);
 	}
 }
 

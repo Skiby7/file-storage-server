@@ -16,7 +16,6 @@ client: libutils
 
 libutils: parser.o fssApi.o client_queue.o connections.o
 		ar rvs build/libutils.a build/parser.o build/fssApi.o build/client_queue.o build/connections.o
-		# gcc -shared -o build/libutils.so build/parser.o build/fssApi.o 
 		rm build/parser.o
 		rm build/fssApi.o
 		rm build/client_queue.o
