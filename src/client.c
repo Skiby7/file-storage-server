@@ -68,12 +68,15 @@ int main(int argc, char* argv[]){
 
 	while(connect(socket_fd,(struct sockaddr*) &sockaddress,sizeof(sockaddress)) == -1);
 	read(socket_fd, buffer, sizeof(buffer));
+
 	if(strcmp(buffer, "accepted") == 0){
 		memset(buffer, 0, sizeof(buffer));
 		puts(ANSI_COLOR_CYAN"Connected\n"ANSI_COLOR_RESET);
 		strcpy(buffer, "Client is ready!");
 		write(socket_fd, buffer, strlen(buffer));
 		memset(buffer, 0, sizeof(buffer));
+		read(socket_fd, buffer, 99);
+		puts(buffer);
 		while(true){
 			fgets(buffer, 98, stdin);
 			buffer[strcspn(buffer, "\n")] = 0;
@@ -83,8 +86,8 @@ int main(int argc, char* argv[]){
 			}
 			write(socket_fd, buffer, strlen(buffer));
 			memset(buffer, 0, 100);
-			read(socket_fd, buffer, 99);
-			puts(buffer);
+			
+			
 			memset(buffer, 0, 100);
 
 		}

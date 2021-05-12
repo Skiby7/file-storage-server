@@ -1,18 +1,23 @@
 #include "server.h"
 #include "parser.h"
 #include "file.h"
+#include "client_queue.h"
 #define _GNU_SOURCE 
-#define DEFAULTFDS 100
+#define DEFAULTFDS 10
+
+
 
 config configuration; // Server config
 volatile sig_atomic_t can_accept = true;
 volatile sig_atomic_t abort_connections = false;
-pthread_mutex_t targs_mtx = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t targs_read_cond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t ready_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t pollfd_access = PTHREAD_COND_INITIALIZER;
-bool targs_read = false;
-
-unsigned int *active_connecitons;
+pthread_cond_t client_is_ready = PTHREAD_COND_INITIALIZER;
+bool *free_threads;
+ready_clients *ready_queue[2];
+int m_w_pipe[2]; // 1 lettura, 0 scrittura
+extern void* worker(void* args);
+pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 
 /* TODO:
@@ -25,78 +30,123 @@ unsigned int *active_connecitons;
 *	- Wait su cond di empty client queue da parte dei thread spawnati
 *
 */
+
 int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	
-	int socket_fd = 0, com = 0, i = 0, read_bytes = 0, tmp = 0, poll_val = 0;
-	int m_w_pipe[2]; // 0 lettura, 1 scrittura
+	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0; // i = 0, ready_com = 0
+	
 	char buff[20]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
 	char SOCKETADDR[UNIX_MAX_PATH]; // Indirizzo del socket
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));
 	nfds_t com_count = 0;
 	nfds_t com_size = 0;
+	ready_queue[0] = NULL;
+	ready_queue[1] = NULL;
 	CHECKALLOC(com_fd, "pollfd");
-	pthread_t waiter; // Thread che molto probabilmente non serviranno
-	pthread_t refuser;
+	
 	pthread_t *workers;
 	struct sockaddr_un sockaddress; // Socket init
-	pargs targs; // Argomenti da passare al thread che molto probabilmente non serviranno
-	unsigned int seed = time(NULL);
-	ready_clients *ready_clients_head = NULL;
-	ready_clients *ready_clients_tail = NULL;
+	// unsigned int seed = time(NULL);
 	
-	// Signal handler
-	struct sigaction sig; 
-	memset(&sig, 0, sizeof(sig));
-	sig.sa_handler=signal_handler;
-	sigaction(SIGINT,&sig,NULL);
-	sigaction(SIGHUP,&sig,NULL);
-	sigaction(SIGQUIT,&sig,NULL);
-	// END signal handler
-
-
 	init(SOCKETADDR); // Configuration struct is now initialized
-	printconf();
+	PRINT_WELCOME;
+	printconf(SOCKETADDR);
+	// Signal handler
+	// struct sigaction sig; 
+	// memset(&sig, 0, sizeof(sig));
+	// sig.sa_handler=signal_handler;
+	// sigaction(SIGINT,&sig,NULL);
+	// sigaction(SIGHUP,&sig,NULL);
+	// sigaction(SIGQUIT,&sig,NULL);
+	// END signal handler
+	puts(">> Signal_handler installato...");
+
+	
+	puts(">> Inizializzo i workers...");
 	workers = (pthread_t *) malloc(configuration.workers*sizeof(pthread_t)); // Pool di workers
 	CHECKALLOC(workers, "workers array");
-	active_connecitons = (unsigned int *) malloc(configuration.workers*sizeof(unsigned int));
-	memset(com_fd, -1, sizeof(struct pollfd));
 	memset(workers, 0, configuration.workers*sizeof(pthread_t));
-	memset(active_connecitons, 0, configuration.workers*sizeof(int));
-	memset(&targs, 0, sizeof(pargs));
+	puts(">> Workers array inizializzato...");
+
+	free_threads = (bool *) malloc(configuration.workers*sizeof(bool));
+	memset(free_threads, true, configuration.workers*sizeof(bool));
+	CHECKALLOC(free_threads, "workers array");
+
+	memset(com_fd, -1, sizeof(struct pollfd));
 	memset(buff, 0, 10);
 	CHECKEXIT((pipe(m_w_pipe) == -1), true, "Impossibile inizializzare la pipe");
-	printconf();
-	return 0;
+	puts(">> Pipe inzializzata...");
+
 	strncpy(sockaddress.sun_path, SOCKETADDR, UNIX_MAX_PATH);
-	
 	sockaddress.sun_family = AF_UNIX;
 	socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	unlink(SOCKETADDR);
 	CHECKSCEXIT(bind(socket_fd, (struct sockaddr *) &sockaddress, sizeof(sockaddress)), true, "Non sono riuscito a fare la bind");
 	CHECKSCEXIT(listen(socket_fd, 10), true, "Impossibile effettuare la listen");
+	puts(">> Ho inizializzato il socket ed ho eseguito la bind e la listen...");
+
 	com_fd[0].fd = socket_fd;
 	com_fd[0].events = POLLIN;
 	com_fd[1].fd = m_w_pipe[0];
 	com_fd[1].events = POLLIN;
 	com_count = 2;
 	com_size = com_count;
+	puts(">> Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1...");
+	printf(ANSI_COLOR_MAGENTA">> Partito Thread");
+	for (int i = 0; i < configuration.workers; i++){
+		printf(", %d", i);
+		pthread_create(&workers[i], NULL, &worker, &i);
+		pthread_detach(workers[i]);
+	}
+	puts(ANSI_COLOR_RESET);
 	while(true){
 
-		if(can_accept){
-	restart_polling:		
-			poll_val = poll(com_fd, com_count, 100);
+		if(can_accept){	
+			puts(ANSI_COLOR_GREEN"Polling..."ANSI_COLOR_RESET);
+			poll_val = poll(com_fd, com_count, -1);
+			printf("\t\t\t\t\t\t\t\t%d\n\n\n", poll_val);
 			CHECKSCEXIT(poll_val, true, "Error while polling");
-			if(poll_val == 0){
-				// Check if a thread is not busy and assign work
+			// if(poll_val == 0){ // inutile
+			// 	// Check if a thread is not busy and assign work
+			// 	for (size_t i = 0; i < configuration.workers; i++){
+			// 		 if(free_threads[i]){
+			// 			pthread_mutex_lock(&ready_queue_mtx);
+			// 			if(ready_queue[0] != NULL){
+			// 				pthread_mutex_unlock(&ready_queue);	
+			// 				pthread_cond_signal(&client_is_ready);
+			// 				continue;
+			// 	 		}
+			// 			pthread_mutex_unlock(&ready_queue);	
+			// 		}
+			// 	}
+			// 	continue;
+			// }
+				
 			}
 			if(com_fd[0].revents & POLLIN){
+				printf("\t\t\t\t\t\t\t\tSOCKET\n\n\n");
+
 				com = accept(socket_fd, NULL, 0);
 				CHECKERRNO((com < 0), "Errore durante la accept");
-				pthread_mutex_lock(&pollfd_access);
-				insert_com_fd(com, &com_size, &com_count, com_fd);
-				pthread_mutex_unlock(&pollfd_access);
-			}
+				for (size_t i = 0; i < configuration.workers; i++){
+					 if(free_threads[i]){
+						pthread_mutex_lock(&ready_queue_mtx);
+						insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
+						pthread_mutex_unlock(&ready_queue_mtx);	
+						pthread_cond_signal(&client_is_ready);
+						break;
+				 		}
+						insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
+						pthread_mutex_unlock(&ready_queue_mtx);	
+					}
+				}	
+				// pthread_mutex_lock(&pollfd_access);
+				// insert_com_fd(com, &com_size, &com_count, com_fd);
+				// pthread_mutex_unlock(&pollfd_access);
+			
 			if(com_fd[1].revents & POLLIN){
+				printf("\t\t\t\t\t\t\t\tPIPE\n\n\n");
+
 				read_bytes = read(m_w_pipe[0], buff, sizeof(buff));
 				CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
 				tmp = atoi(buff);
@@ -105,56 +155,43 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 					fflush(stderr);
 					continue;
 				}
-				pthread_mutex_lock(&pollfd_access);
+				// pthread_mutex_lock(&pollfd_access);
 				insert_com_fd(tmp, &com_size, &com_count, com_fd);
-				pthread_mutex_unlock(&pollfd_access);
+				continue;
+				// pthread_mutex_unlock(&pollfd_access);
 			}
+				
+			
 			for(int i = 2; i < com_size; i++){
-				if(com_fd[i].fd == -1) continue;
-
+				puts("ciao");
 				if(com_fd[i].revents & POLLIN){
-					insert_client_ready_list(com_fd[i].fd, &ready_clients_head, &ready_clients_tail);
+					pthread_mutex_lock(&ready_queue_mtx);
+					insert_client_ready_list(com_fd[i].fd, &ready_queue[0], &ready_queue[1]);
+					pthread_mutex_lock(&ready_queue_mtx);
 					com_fd[i].fd = -1;
 					com_fd[i].events = 0;
 					com_count--;
 				}
 					
 			}
-
-			
-			com = accept(socket_fd, NULL, 0);
-			CHECKERRNO((com < 0), "Errore durante la accept");
-			sprintf(buff, "accepted");
-			write(com, buff, strlen(buff));
-			memset(buff, 0, sizeof(buff));
-			i = rand_r(&seed)%configuration.workers;
-			targs.socket_fd = com;
-			targs.whoami = i;
-			pthread_create(&workers[i], NULL, connection_handler, (void *) &targs);
-			sleep(2);
-			pthread_mutex_lock(&targs_mtx);
-			while(!targs_read) pthread_cond_wait(&targs_read_cond, &targs_mtx);
-			targs_read = false;
-			pthread_mutex_unlock(&targs_mtx);
-			
-		}
-		else{
-			
-			pthread_create(&waiter, NULL, wait_workers, &workers);
-			pthread_create(&refuser, NULL, refuse_connection, &socket_fd);
-			
-			pthread_detach(refuser);
-			
-			puts(ANSI_COLOR_BLUE"Tutti i client si sono disconnesi e sono uscito dal dispatcher"ANSI_COLOR_RESET);
-						
-			break;
-			
+			puts("");
+			for (size_t i = 0; i < configuration.workers; i++){
+					 if(free_threads[i]){
+						pthread_mutex_lock(&ready_queue_mtx);
+						if(ready_queue[0] != NULL){
+							pthread_mutex_unlock(&ready_queue_mtx);	
+							pthread_cond_signal(&client_is_ready);
+							continue;
+				 		}
+						pthread_mutex_unlock(&ready_queue_mtx);	
+					}
+				}	
 		}
 		
-	}
-	pthread_join(waiter, NULL);
+	
+	
 	close(socket_fd);
-	clean_list(&ready_clients_head);
+	clean_list(&ready_queue[0]);
 	free(workers);
 	return 0;
 
@@ -185,14 +222,14 @@ void signal_handler(int signum){
 
 
 
-void printconf(){
+void printconf(const char* socketaddr){
 	printf(ANSI_COLOR_GREEN CONF_LINE_TOP"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, "Workers:",
 			configuration.workers, "Mem:", configuration.mem, "Files:", 
-			configuration.files, "Socket file:", configuration.sockname, "Log:", configuration.log);
+			configuration.files, "Socket file:", socketaddr, "Log:", configuration.log);
 }
 	
 void init(char *sockname){
@@ -213,18 +250,17 @@ void init(char *sockname){
 
 }
 
-static void insert_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){
+void insert_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){
 	int free_slot = 0;
-	while(free_slot < *size && com_fd[free_slot].fd != -1)
-		free_slot++;
+	while(free_slot < *size && com_fd[free_slot].fd != -1){	free_slot++;}
 	if(free_slot == *size)
 		*size = realloc_com_fd(com_fd, free_slot);
 	com_fd[free_slot].fd = com;
 	com_fd[free_slot].events = POLLIN;
-	*count++;
+	*count += 1;
 }
 
-static nfds_t realloc_com_fd(struct pollfd *com_fd, nfds_t free_slot){
+nfds_t realloc_com_fd(struct pollfd *com_fd, nfds_t free_slot){
 
 	size_t new_size = free_slot*2;
 	com_fd = realloc(com_fd, new_size);
@@ -251,38 +287,4 @@ static nfds_t realloc_com_fd(struct pollfd *com_fd, nfds_t free_slot){
 // 	*count--;
 // }
 
-static void insert_client_ready_list(int com, ready_clients **head, ready_clients **tail){
-	ready_clients* new = (ready_clients*) malloc(sizeof(ready_clients));
-	CHECKALLOC(new, "Errore inserimento nella lista pronti");
-	new->com = com;
-	new->next = (*head);
-	new->prev = NULL;
-	if((*tail) == NULL)
-		(*tail) = new;
-	if((*head) != NULL)
-		(*head)->prev = new;
-	(*head) = new;	
-} 
 
-static int pop_client(ready_clients **tail){
-	int retval = 0;
-	ready_clients *befree = NULL;
-	if((*tail) == NULL)
-		return -1;
-	retval = (*tail)->com;
-	befree = (*tail);
-	(*tail)->prev->next = NULL;
-	(*tail) = (*tail)->prev;
-	free(befree);
-	return(retval);
-	
-} 
-
-static void clean_list(ready_clients **head){
-	ready_clients *befree = NULL;
-	while((*head)!=NULL){
-		befree = (*head);
-		(*head) = (*head)->next;
-		free(befree);
-	}
-}

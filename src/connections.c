@@ -1,65 +1,68 @@
 #include "server.h"
 #include "parser.h"
 #include "file.h"
+#include "client_queue.h"
 
 extern config configuration; // Server config
 extern volatile sig_atomic_t can_accept;
 extern volatile sig_atomic_t abort_connections;
-extern pthread_mutex_t targs_mtx;
-extern unsigned int *active_connecitons;
-extern pthread_cond_t targs_read_cond;
-extern bool targs_read;
+extern ready_clients *ready_queue[2];
+extern bool *free_threads;
+extern pthread_mutex_t free_threads_mtx;
+
+extern pthread_mutex_t ready_queue_mtx;
+extern pthread_cond_t client_is_ready;
 
 
-static pthread_mutex_t active_connections_mutex = PTHREAD_MUTEX_INITIALIZER;
+extern int m_w_pipe[2];
 
-static connection *active_coms = NULL;
+// static connection *active_coms = NULL;
 
-void* connection_handler(void *args){
+// void* connection_handler(void *args){
 	
-	pthread_mutex_lock(&targs_mtx);
-	pargs *targs = args;
-	int com = targs->socket_fd;
-	short whoami = targs->whoami;
-	targs_read = true;
-	pthread_cond_signal(&targs_read_cond);
-	pthread_mutex_unlock(&targs_mtx);
+// 	pthread_mutex_lock(&targs_mtx);
+// 	pargs *targs = args;
+// 	int com = targs->socket_fd;
+// 	short whoami = targs->whoami;
+// 	targs_read = true;
+// 	pthread_cond_signal(&targs_read_cond);
+// 	pthread_mutex_unlock(&targs_mtx);
 
-	pthread_mutex_lock(&active_connections_mutex);
-	active_connecitons[whoami]++;
-	pthread_mutex_unlock(&active_connections_mutex);
+// 	pthread_mutex_lock(&active_connections_mutex);
+// 	active_connecitons[whoami]++;
+// 	pthread_mutex_unlock(&active_connections_mutex);
 
-	int read_bytes;
-	char buff[100];
-	memset(buff, 0, 100);
-	printf(ANSI_COLOR_MAGENTA"Thread %d ready on client %d\n"ANSI_COLOR_RESET, whoami, com);
-	// active_coms = insert_com(active_coms, com);
-	while (true){
-		if(abort_connections){
-				close(com);
-				printf(ANSI_COLOR_CYAN"Closed connection with client %d\n"ANSI_COLOR_RESET, whoami);
-				return (void *)0;
-			}
-		if((read_bytes = read(com, buff, 99)) > 0){
-			if(strcmp(buff, "quit") == 0){
-				printf(ANSI_COLOR_YELLOW"Exiting from thread %d\n"ANSI_COLOR_RESET, whoami);
+// 	int read_bytes;
+// 	char buff[100];
+// 	memset(buff, 0, 100);
+// 	printf(ANSI_COLOR_MAGENTA"Thread %d ready on client %d\n"ANSI_COLOR_RESET, whoami, com);
+// 	// active_coms = insert_com(active_coms, com);
+// 	while (true){
+// 		if(abort_connections){
+// 				close(com);
+// 				printf(ANSI_COLOR_CYAN"Closed connection with client %d\n"ANSI_COLOR_RESET, whoami);
+// 				return (void *)0;
+// 			}
+// 		if((read_bytes = read(com, buff, 99)) > 0){
+// 			if(strcmp(buff, "quit") == 0){
+// 				printf(ANSI_COLOR_YELLOW"Exiting from thread %d\n"ANSI_COLOR_RESET, whoami);
 
-				close(com);
-				pthread_mutex_lock(&targs_mtx);
-				active_connecitons[whoami]--;
-				pthread_mutex_unlock(&targs_mtx);
-				return (void *) 0;
-			}
+// 				close(com);
+// 				pthread_mutex_lock(&targs_mtx);
+// 				active_connecitons[whoami]--;
+// 				pthread_mutex_unlock(&targs_mtx);
+// 				return (void *) 0;
+// 			}
 			
-			printf("Read %d bytes -> %s\n", read_bytes, buff);
-			memset(buff, 0, 100);
-			sprintf(buff, "Read %d bytes", read_bytes);
-			write(com, buff, strlen(buff));
-			memset(buff, 0, 100);
-		}
-	}
-	close(com);
-}
+// 			printf("Read %d bytes -> %s\n", read_bytes, buff);
+// 			memset(buff, 0, 100);
+// 			sprintf(buff, "Read %d bytes", read_bytes);
+// 			write(com, buff, strlen(buff));
+// 			memset(buff, 0, 100);
+// 		}
+// 	}
+// 	close(com);
+// }
 
 void* refuse_connection(void* args){
 	int com, socket_fd;
@@ -74,43 +77,57 @@ void* refuse_connection(void* args){
 
 }
 
-void* wait_workers(void* args){
-	pthread_t *workers = *((pthread_t**)args);
-	int i = 0;
-	while(true){
-		pthread_mutex_lock(&active_connections_mutex);
-		while(i < configuration.workers && active_connecitons[i] == 0) {i++;}
-		pthread_mutex_unlock(&active_connections_mutex);
-		puts("ho controllato le connessioni");
-		if(i != configuration.workers)
-			printf("Waiting thread %d\n", i);
-		if(i == configuration.workers)
-			break;
-		else
-			pthread_join(workers[i], NULL);
-		i = 0;
-	}
+// void* wait_workers(void* args){
+// 	pthread_t *workers = *((pthread_t**)args);
+// 	int i = 0;
+// 	while(true){
+// 		pthread_mutex_lock(&active_connections_mutex);
+// 		while(i < configuration.workers && active_connecitons[i] == 0) {i++;}
+// 		pthread_mutex_unlock(&active_connections_mutex);
+// 		puts("ho controllato le connessioni");
+// 		if(i != configuration.workers)
+// 			printf("Waiting thread %d\n", i);
+// 		if(i == configuration.workers)
+// 			break;
+// 		else
+// 			pthread_join(workers[i], NULL);
+// 		i = 0;
+// 	}
 	
-	return (void *) 0;
-}
+// 	return (void *) 0;
+// }
 
 
 void* worker(void* args){
 	int com = 0;
+	int whoami = *(int*) args;
 	char buffer[MAX_BUFFER_LEN];
+	char accepted[] = "accepted";
+	char ready[] = "Ready to work";
 	memset(buffer, 0, MAX_BUFFER_LEN);
+
+	fflush(stdout);
 	while(true){
 		// Thread waits for work to be assigned
-		pthread_mutex_lock(NULL);
-		pthread_cond_wait(NULL, NULL); // NULL -> placeholder
-		
-		
-		com = pop(NULL); // Pop dalla lista dei socked ready che va fatta durante il lock
+		pthread_mutex_lock(&ready_queue_mtx);
 
-		pthread_mutex_unlock(NULL);
-
-		read(NULL, NULL, NULL); 
-
+		while(ready_queue[1] == NULL){
+			pthread_cond_wait(&client_is_ready, &ready_queue_mtx); // NULL -> placeholder
+		}
+		pthread_mutex_lock(&free_threads_mtx);
+		free_threads[whoami] = false;
+		pthread_mutex_unlock(&free_threads_mtx);
+		com = pop_client(&ready_queue[0], &ready_queue[1]); // Pop dalla lista dei socked ready che va fatta durante il lock
+		pthread_mutex_unlock(&ready_queue_mtx);
+		printf(ANSI_COLOR_MAGENTA"Thread %d accepted request from client %d\n"ANSI_COLOR_RESET, whoami, com);
+		CHECKERRNO((write(com, accepted, strlen(accepted) ) < 0), "Writing to client");
+		CHECKERRNO((read(com, buffer, sizeof(buffer)) < 0), "Reading from client");
+		CHECKERRNO((write(com, ready, strlen(ready) ) < 0), "Writing to client");
+		printf(ANSI_COLOR_MAGENTA"[Thread %d - client %d]:"ANSI_COLOR_CYAN" %s\n"ANSI_COLOR_RESET, whoami, com, buffer);
+		memset(buffer, 0, sizeof(buffer));
+		sprintf(buffer, "%d", com);
+		CHECKERRNO((write(m_w_pipe[1], buffer, strlen(buffer) ) < 0), "Return com");
+		memset(buffer, 0, sizeof(buffer));		
 	}
 }
 
