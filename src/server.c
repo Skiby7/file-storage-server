@@ -49,7 +49,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	char SOCKETADDR[UNIX_MAX_PATH]; // Indirizzo del socket
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));
 	nfds_t com_count = 0;
-	nfds_t com_size = 0;
+	nfds_t com_size = DEFAULTFDS;
 	ready_queue[0] = NULL;
 	ready_queue[1] = NULL;
 	CHECKALLOC(com_fd, "pollfd");
@@ -100,7 +100,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	com_fd[1].fd = m_w_pipe[0];
 	com_fd[1].events = POLLIN;
 	com_count = 2;
-	com_size = com_count;
+	
 	puts(">> Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1...");
 	// printf(ANSI_COLOR_MAGENTA">> Partito Thread");
 	for (int i = 0; i < configuration.workers; i++){
@@ -114,25 +114,17 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 		if(can_accept){	
 			puts(ANSI_COLOR_GREEN"Polling..."ANSI_COLOR_RESET);
 			poll_val = poll(com_fd, com_count, -1);
-			func(ready_queue[0]);
+			// printf("current size: %ld\ncurrent count: %ld\n", com_size, com_count);
+			// printf("\n\n%d\n\n", poll_val);
+			// for (size_t i = 0; i < com_size; i++)
+			// 	printf("%d\t", com_fd[i].fd);
+
+			puts("");
+			
+			// func(ready_queue[0]);
 			// printf("\t\t\t\t\t\t\t\t%d\n\n\n", poll_val);
 			CHECKSCEXIT(poll_val, true, "Error while polling");
-			// if(poll_val == 0){ // inutile
-			// 	// Check if a thread is not busy and assign work
-			// 	for (size_t i = 0; i < configuration.workers; i++){
-			// 		 if(free_threads[i]){
-			// 			pthread_mutex_lock(&ready_queue_mtx);
-			// 			if(ready_queue[0] != NULL){
-			// 				pthread_mutex_unlock(&ready_queue);	
-			// 				pthread_cond_signal(&client_is_ready);
-			// 				continue;
-			// 	 		}
-			// 			pthread_mutex_unlock(&ready_queue);	
-			// 		}
-			// 	}
-			// 	continue;
-			// }
-				
+			
 			}
 			if(com_fd[0].revents & POLLIN){
 				// printf("\t\t\t\t\t\t\t\tSOCKET\n\n\n");
@@ -143,8 +135,8 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 					 if(free_threads[i]){
 						pthread_mutex_lock(&ready_queue_mtx);
 						insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
-						pthread_mutex_unlock(&ready_queue_mtx);	
 						pthread_cond_signal(&client_is_ready);
+						pthread_mutex_unlock(&ready_queue_mtx);	
 						break;
 				 		}
 						insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
@@ -162,13 +154,25 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 				CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
 				tmp = atoi(buff);
 				// printf("Dalla pipe leggo: %d\n", tmp);
-				if(tmp < 0){
+				if(tmp <= 0){
 					fprintf(stderr, "Errore atoi! Buffer -> %s\n", buff);
 					fflush(stderr);
 					continue;
 				}
 				// pthread_mutex_lock(&pollfd_access);
+				if (com_size - com_count < 3){
+					com_size = realloc_com_fd(&com_fd, com_size);
+					// puts("sopravvivo alla realloc");
+					// printf("New size: %ld, New count: %ld\n", com_size, com_count);
+					for (size_t i = com_count; i < com_size; i++){
+						com_fd[i].fd = 0;
+						com_fd[i].events = 0;
+					}
+					// puts("Sopravvivo all'init");
+				}
+		
 				insert_com_fd(tmp, &com_size, &com_count, com_fd);
+				// puts("Sopravvivo all'insert");
 				// for(int i = 0; i < com_count; i++){
 				// 	printf("%d ", com_fd[i].fd);
 				// }
@@ -180,17 +184,17 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			
 			for(int i = 2; i < com_size; i++){
 				if(com_fd[i].revents & POLLIN && com_fd[i].fd != -1){
+					// printf(ANSI_COLOR_YELLOW"\n\t%d\n\n"ANSI_COLOR_RESET, com_fd[i].fd);
 					pthread_mutex_lock(&ready_queue_mtx);
 					insert_client_ready_list(com_fd[i].fd, &ready_queue[0], &ready_queue[1]);
-					pthread_mutex_unlock(&ready_queue_mtx);
-					com_fd[i].fd = -1;
+					com_fd[i].fd = 0;
 					com_fd[i].events = 0;
 					com_count--;
+					pthread_mutex_unlock(&ready_queue_mtx);
 				}
 					
 			}
-			puts("");
-			func(ready_queue[0]);
+			// func(ready_queue[0]);
 
 			for (size_t i = 0; i < configuration.workers; i++){
 				if(free_threads[i]){
@@ -211,6 +215,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	close(socket_fd);
 	clean_list(&ready_queue[0]);
 	free(workers);
+	free(com_fd);
 	return 0;
 
 }
@@ -270,23 +275,26 @@ void init(char *sockname){
 
 void insert_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){
 	int free_slot = 0;
-	while(free_slot < *size && com_fd[free_slot].fd != -1){	free_slot++;}
-	if(free_slot == *size)
-		*size = realloc_com_fd(com_fd, free_slot);
+	while(free_slot < *size && com_fd[free_slot].fd != 0) free_slot++;
+	
+	// printf("com %d\n", com);
+	
+	
 	com_fd[free_slot].fd = com;
 	com_fd[free_slot].events = POLLIN;
 	*count += 1;
+	// printf("Da insert: ");
+	// for (size_t i = 0; i < *size; i++)
+	// 	printf("%d ", com_fd[i].fd);
+
+	// puts("");	
 }
 
-nfds_t realloc_com_fd(struct pollfd *com_fd, nfds_t free_slot){
-
-	size_t new_size = free_slot*2;
-	com_fd = realloc(com_fd, new_size*sizeof(struct pollfd));
+nfds_t realloc_com_fd(struct pollfd **com_fd, nfds_t free_slot){
+	size_t new_size = free_slot + DEFAULTFDS;
+	*com_fd = (struct pollfd* )realloc(*com_fd, new_size*sizeof(struct pollfd));
 	CHECKALLOC(com_fd, "Errore di riallocazione com_fd");
-	for (size_t i = free_slot; i < new_size; i++){
-		com_fd[i].fd = -1;
-		com_fd[i].events = 0;
-	}
+	
 	
 	return new_size;
 
