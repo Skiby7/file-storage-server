@@ -4,6 +4,9 @@
 #endif
 #include <getopt.h>
 bool verbose = false; // tipo di op, file su cui si opera, exito e byte letti/scritti
+#define QUIT "quit"
+
+int socket_fd;
 
 void print_help(){
 	printf("-h\t\tMostra questo messaggio\n\n"
@@ -24,13 +27,39 @@ void print_help(){
 
 }
 
+void signal_handler(int signum){
+	
+	if(signum == SIGHUP)
+		puts(ANSI_COLOR_RED"Received SIGHUP"ANSI_COLOR_RESET);
+
+	if(signum == SIGQUIT)
+		puts(ANSI_COLOR_RED"Received SIGQUIT"ANSI_COLOR_RESET);
+	if(signum == SIGINT)
+		puts(ANSI_COLOR_RED"Received SIGINT"ANSI_COLOR_RESET);
+	
+	write(socket_fd, QUIT, strlen(QUIT));
+	close(socket_fd);
+	exit(EXIT_SUCCESS);
+		
+}
+
+
+
 int main(int argc, char* argv[]){
 	printf(ANSI_CLEAR_SCREEN);
-	int opt, socket_fd;
+	int opt;
 	bool f = false, p = false;
 	char buffer[100];
 	struct sockaddr_un sockaddress;
 	memset(buffer, 0, 100);
+
+	struct sigaction sig; 
+	memset(&sig, 0, sizeof(sig));
+	sig.sa_handler = signal_handler;
+	sigaction(SIGINT,&sig,NULL);
+	sigaction(SIGHUP,&sig,NULL);
+	sigaction(SIGQUIT,&sig,NULL);
+
 	
 	while ((opt = getopt(argc,argv, "hpf:")) != -1) {
 		switch(opt) {
@@ -80,7 +109,11 @@ int main(int argc, char* argv[]){
 		while(true){
 			fgets(buffer, 98, stdin);
 			buffer[strcspn(buffer, "\n")] = 0;
-			if(strncmp(buffer, "quit", strlen(buffer)) == 0){
+			while(strlen(buffer) == 0){
+				fgets(buffer, 98, stdin);
+				buffer[strcspn(buffer, "\n")] = 0;
+			}
+			if(strcmp(buffer, "quit") == 0){
 				write(socket_fd, buffer, strlen(buffer));
 				break;
 			}
@@ -93,7 +126,7 @@ int main(int argc, char* argv[]){
 	// 	}
 	// }
 	// else
-	// 	puts(ANSI_COLOR_RED"Connection refused\n"ANSI_COLOR_RESET);
-	close(socket_fd);
+		// puts(ANSI_COLOR_RED"Connection refused\n"ANSI_COLOR_RESET);
+	
 	return 0;
 }

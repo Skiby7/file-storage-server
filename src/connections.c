@@ -14,8 +14,12 @@ extern pthread_mutex_t ready_queue_mtx;
 extern pthread_cond_t client_is_ready;
 
 
+extern pthread_mutex_t pipe_access_mtx;
+extern pthread_cond_t pipe_read;
 extern int m_w_pipe[2];
 
+
+extern void func(ready_clients *head);
 // static connection *active_coms = NULL;
 
 // void* connection_handler(void *args){
@@ -101,17 +105,18 @@ void* refuse_connection(void* args){
 void* worker(void* args){
 	int com = 0;
 	int whoami = *(int*) args;
-	char buffer[MAX_BUFFER_LEN];
+	char buffer[PIPE_BUF];
 	char accepted[] = "accepted";
 	char ready[] = "Ready to work";
-	memset(buffer, 0, MAX_BUFFER_LEN);
+	memset(buffer, 0, PIPE_BUF);
 
 	fflush(stdout);
 	while(true){
 		// Thread waits for work to be assigned
 		// printf(ANSI_COLOR_RED"Thread %d -> queue mutex lock\n"ANSI_COLOR_RESET, whoami);
+		// puts("qui");
 		pthread_mutex_lock(&ready_queue_mtx);
-
+		// puts("ma non qui");
 		while(ready_queue[1] == NULL){
 			// printf(ANSI_COLOR_RED"Thread %d -> wait signal\n"ANSI_COLOR_RESET, whoami);
 			pthread_cond_wait(&client_is_ready, &ready_queue_mtx); // NULL -> placeholder
@@ -120,10 +125,11 @@ void* worker(void* args){
 		pthread_mutex_lock(&free_threads_mtx);
 		free_threads[whoami] = false;
 		pthread_mutex_unlock(&free_threads_mtx);
-		com = pop_client(&ready_queue[0], &ready_queue[1]); // Pop dalla lista dei socked ready che va fatta durante il lock
+		com = pop_client(&ready_queue[0], &ready_queue[1]); // Pop dalla lista dei socket ready che va fatta durante il lock
+		
 		pthread_mutex_unlock(&ready_queue_mtx);
 		// printf(ANSI_COLOR_RED"Thread %d -> queue mutex unlock\n"ANSI_COLOR_RESET, whoami);
-		printf(ANSI_COLOR_MAGENTA"Thread %d accepted request from client %d\n"ANSI_COLOR_RESET, whoami, com);
+		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
 		// puts("provo a fare la write");
 		// CHECKERRNO((write(com, accepted, strlen(accepted) ) < 0), "Writing to client");
 		// puts("e crasho");
@@ -134,15 +140,15 @@ void* worker(void* args){
 			pthread_mutex_lock(&free_threads_mtx);
 			free_threads[whoami] = true;
 			pthread_mutex_unlock(&free_threads_mtx);
+			printf(ANSI_COLOR_MAGENTA"[Thread %d] client %d quitted, com closed\n"ANSI_COLOR_RESET, whoami, com);
 			continue;
 		}	
 		CHECKERRNO((write(com, accepted, strlen(accepted) ) < 0), "Writing to client");
 		
-		// CHECKERRNO((write(com, ready, strlen(ready) ) < 0), "Writing to client");
 		printf(ANSI_COLOR_MAGENTA"[Thread %d - client %d]:"ANSI_COLOR_CYAN" %s\n"ANSI_COLOR_RESET, whoami, com, buffer);
 		memset(buffer, 0, sizeof(buffer));
 		sprintf(buffer, "%d", com);
-		CHECKERRNO((write(m_w_pipe[1], buffer, strlen(buffer) ) < 0), "Return com");
+		CHECKERRNO((write(m_w_pipe[1], buffer, sizeof(buffer)) < 0), "Return com");
 		memset(buffer, 0, sizeof(buffer));	
 		pthread_mutex_lock(&free_threads_mtx);
 		free_threads[whoami] = true;

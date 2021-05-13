@@ -11,8 +11,9 @@ config configuration; // Server config
 volatile sig_atomic_t can_accept = true;
 volatile sig_atomic_t abort_connections = false;
 pthread_mutex_t ready_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t pollfd_access = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t pipe_access_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t client_is_ready = PTHREAD_COND_INITIALIZER;
+pthread_cond_t pipe_read = PTHREAD_COND_INITIALIZER;
 bool *free_threads;
 ready_clients *ready_queue[2];
 int m_w_pipe[2]; // 1 lettura, 0 scrittura
@@ -45,7 +46,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	
 	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0; // i = 0, ready_com = 0
 	
-	char buff[20]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
+	char buffer[PIPE_BUF]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
 	char SOCKETADDR[UNIX_MAX_PATH]; // Indirizzo del socket
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));
 	nfds_t com_count = 0;
@@ -64,7 +65,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	// Signal handler
 	// struct sigaction sig; 
 	// memset(&sig, 0, sizeof(sig));
-	// sig.sa_handler=signal_handler;
+	// sig.sa_handler = signal_handler;
 	// sigaction(SIGINT,&sig,NULL);
 	// sigaction(SIGHUP,&sig,NULL);
 	// sigaction(SIGQUIT,&sig,NULL);
@@ -83,7 +84,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	CHECKALLOC(free_threads, "workers array");
 
 	memset(com_fd, -1, sizeof(struct pollfd));
-	memset(buff, 0, 10);
+	memset(buffer, 0, PIPE_BUF);
 	CHECKEXIT((pipe(m_w_pipe) == -1), true, "Impossibile inizializzare la pipe");
 	puts(">> Pipe inzializzata...");
 
@@ -112,105 +113,89 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	while(true){
 
 		if(can_accept){	
+			
+			
 			puts(ANSI_COLOR_GREEN"Polling..."ANSI_COLOR_RESET);
 			poll_val = poll(com_fd, com_count, -1);
-			// printf("current size: %ld\ncurrent count: %ld\n", com_size, com_count);
-			// printf("\n\n%d\n\n", poll_val);
-			// for (size_t i = 0; i < com_size; i++)
-			// 	printf("%d\t", com_fd[i].fd);
-
-			puts("");
-			
-			// func(ready_queue[0]);
-			// printf("\t\t\t\t\t\t\t\t%d\n\n\n", poll_val);
 			CHECKSCEXIT(poll_val, true, "Error while polling");
 			
-			}
+			
 			if(com_fd[0].revents & POLLIN){
-				// printf("\t\t\t\t\t\t\t\tSOCKET\n\n\n");
-
 				com = accept(socket_fd, NULL, 0);
 				CHECKERRNO((com < 0), "Errore durante la accept");
 				for (size_t i = 0; i < configuration.workers; i++){
+					pthread_mutex_lock(&free_threads_mtx);
 					 if(free_threads[i]){
+						pthread_mutex_unlock(&free_threads_mtx);
+
 						pthread_mutex_lock(&ready_queue_mtx);
 						insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
 						pthread_cond_signal(&client_is_ready);
 						pthread_mutex_unlock(&ready_queue_mtx);	
 						break;
 				 		}
+						pthread_mutex_unlock(&free_threads_mtx);
+						pthread_mutex_lock(&ready_queue_mtx);
 						insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
 						pthread_mutex_unlock(&ready_queue_mtx);	
 					}
 				}	
-				// pthread_mutex_lock(&pollfd_access);
-				// insert_com_fd(com, &com_size, &com_count, com_fd);
-				// pthread_mutex_unlock(&pollfd_access);
 			
 			if(com_fd[1].revents & POLLIN){
-				// printf("\t\t\t\t\t\t\t\tPIPE\n\n\n");
-
-				read_bytes = read(m_w_pipe[0], buff, sizeof(buff));
+				read_bytes = read(m_w_pipe[0], buffer, sizeof(buffer));
 				CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
-				tmp = atoi(buff);
-				// printf("Dalla pipe leggo: %d\n", tmp);
+				// tmp = atoi(buff);
+				tmp = strtol(buffer, NULL, 10);
 				if(tmp <= 0){
-					fprintf(stderr, "Errore atoi! Buffer -> %s\n", buff);
+					fprintf(stderr, "Errore atoi! Buffer -> %s\n", buffer);
 					fflush(stderr);
 					continue;
 				}
-				// pthread_mutex_lock(&pollfd_access);
 				if (com_size - com_count < 3){
 					com_size = realloc_com_fd(&com_fd, com_size);
-					// puts("sopravvivo alla realloc");
-					// printf("New size: %ld, New count: %ld\n", com_size, com_count);
 					for (size_t i = com_count; i < com_size; i++){
 						com_fd[i].fd = 0;
 						com_fd[i].events = 0;
 					}
-					// puts("Sopravvivo all'init");
 				}
-		
 				insert_com_fd(tmp, &com_size, &com_count, com_fd);
-				// puts("Sopravvivo all'insert");
-				// for(int i = 0; i < com_count; i++){
-				// 	printf("%d ", com_fd[i].fd);
-				// }
-				// puts("");
-				continue;
-				// pthread_mutex_unlock(&pollfd_access);
 			}
 				
 			
 			for(int i = 2; i < com_size; i++){
-				if(com_fd[i].revents & POLLIN && com_fd[i].fd != -1){
-					// printf(ANSI_COLOR_YELLOW"\n\t%d\n\n"ANSI_COLOR_RESET, com_fd[i].fd);
+				if((com_fd[i].revents & POLLIN) && com_fd[i].fd != 0){
 					pthread_mutex_lock(&ready_queue_mtx);
 					insert_client_ready_list(com_fd[i].fd, &ready_queue[0], &ready_queue[1]);
+					pthread_mutex_unlock(&ready_queue_mtx);
 					com_fd[i].fd = 0;
 					com_fd[i].events = 0;
 					com_count--;
-					pthread_mutex_unlock(&ready_queue_mtx);
 				}
 					
 			}
-			// func(ready_queue[0]);
-
 			for (size_t i = 0; i < configuration.workers; i++){
+				pthread_mutex_lock(&free_threads_mtx);
 				if(free_threads[i]){
+					pthread_mutex_unlock(&free_threads_mtx);
 					pthread_mutex_lock(&ready_queue_mtx);
 					if(ready_queue[0] != NULL){
 						pthread_cond_signal(&client_is_ready);
 						pthread_mutex_unlock(&ready_queue_mtx);	
 						
-						continue;
+						break;
 					}
-					pthread_mutex_unlock(&ready_queue_mtx);	
+					else {
+						pthread_mutex_unlock(&ready_queue_mtx);	
+						break;
+					}
 				}
-			}	
+				pthread_mutex_unlock(&free_threads_mtx);	
+	
+
+			}
 		}
 		
-	
+	}
 	
 	close(socket_fd);
 	clean_list(&ready_queue[0]);
@@ -224,18 +209,19 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 
 
 
+
 void signal_handler(int signum){
 	
 	if(signum == SIGHUP){
-		puts(ANSI_COLOR_RED"Recived SIGHUP"ANSI_COLOR_RESET);
+		puts(ANSI_COLOR_RED"Received SIGHUP"ANSI_COLOR_RESET);
 		can_accept = false;
 	}
 
 	else{
 		if(signum == SIGQUIT)
-			puts(ANSI_COLOR_RED"Recived SIGQUIT"ANSI_COLOR_RESET);
+			puts(ANSI_COLOR_RED"Received SIGQUIT"ANSI_COLOR_RESET);
 		if(signum == SIGINT)
-			puts(ANSI_COLOR_RED"Recived SIGINT"ANSI_COLOR_RESET);
+			puts(ANSI_COLOR_RED"Received SIGINT"ANSI_COLOR_RESET);
 		abort_connections = true;
 		can_accept = false;
 	}
@@ -278,16 +264,14 @@ void insert_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){
 	while(free_slot < *size && com_fd[free_slot].fd != 0) free_slot++;
 	
 	// printf("com %d\n", com);
-	
-	
 	com_fd[free_slot].fd = com;
 	com_fd[free_slot].events = POLLIN;
 	*count += 1;
-	// printf("Da insert: ");
-	// for (size_t i = 0; i < *size; i++)
-	// 	printf("%d ", com_fd[i].fd);
+// 	printf("Da insert: ");
+// 	for (size_t i = 0; i < *size; i++)
+// 		printf("%d ", com_fd[i].fd);
 
-	// puts("");	
+// 	puts("");	
 }
 
 nfds_t realloc_com_fd(struct pollfd **com_fd, nfds_t free_slot){

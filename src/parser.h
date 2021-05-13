@@ -6,7 +6,7 @@
 
 
 #define DELIM ": "
-#define MAX_BUFFER_LEN 151
+
 
 
 typedef struct _config{
