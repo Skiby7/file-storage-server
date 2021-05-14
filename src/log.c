@@ -11,20 +11,14 @@ int open_log(char *pathname){
 		return 0;
 	}
 	log_available = true;
-
-
 	return 1;
 
 }
 
-
 int write_to_log(char *msg){
-
 	char timestamp[80];
 	time_t time_;
-
 	struct tm *lcltime = NULL;
-
 	if(log_available){
 		memset(timestamp, 0, 80);
 		time(&time_);
@@ -42,5 +36,4 @@ int close_log(){
 		return 0;	
 	}
 	return 1;
-
 }

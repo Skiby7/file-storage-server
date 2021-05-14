@@ -68,4 +68,8 @@ int parseConfig(FILE *conf, config *configuration) {
 	
 }
 
+void freeConfig(config *configuration){
+	free(configuration->sockname);
+	free(configuration->log);
+}
 

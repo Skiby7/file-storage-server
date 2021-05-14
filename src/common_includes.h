@@ -23,6 +23,7 @@
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 #define ANSI_CLEAR_SCREEN "\033[2J\033[H"
+
 #define CONF_LINE "├────────────────────────────────────┤\n"
 #define CONF_LINE_TOP "┌────────────────────────────────────┐\n"
 #define CONF_LINE_BOTTOM "└────────────────────────────────────┘\n"
@@ -46,14 +47,6 @@
 "                                                  \n"\
 
 #define PRINT_WELCOME printf(ANSI_CLEAR_SCREEN ANSI_COLOR_CYAN"%s"ANSI_COLOR_RESET, WELCOME_MESSAGE); 
-
-
-
-
-
-
-
-
 
 #define CHECKEXIT(condizione, printErrno, msg)			\
 	if(condizione)						\

@@ -2,6 +2,7 @@
 #define COMMON_INCLUDES_H
 #include "common_includes.h"
 #endif
+
 typedef struct connections_{
 	int com;
 	struct connections_ *next;

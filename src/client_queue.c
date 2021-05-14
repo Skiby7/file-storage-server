@@ -18,7 +18,7 @@ int pop_client(ready_clients **head, ready_clients **tail){
 	ready_clients *befree = NULL;
 	if((*tail) == NULL)
 		return -1;
-	
+
 	retval = (*tail)->com;
 	befree = (*tail);
 	if((*tail)->prev != NULL)
@@ -39,6 +39,5 @@ void clean_list(ready_clients **head){
 		befree = (*head);
 		(*head) = (*head)->next;
 		free(befree);
-
 	}
 }

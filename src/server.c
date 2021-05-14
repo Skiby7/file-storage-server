@@ -49,7 +49,6 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	char SOCKETADDR[UNIX_MAX_PATH]; // Indirizzo del socket
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));
 	nfds_t com_count = 0;
-	int i = 0;
 	nfds_t com_size = DEFAULTFDS;
 	ready_queue[0] = NULL;
 	ready_queue[1] = NULL;
@@ -57,7 +56,6 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	
 	pthread_t *workers;
 	struct sockaddr_un sockaddress; // Socket init
-	// unsigned int seed = time(NULL);
 	
 	init(SOCKETADDR); // Configuration struct is now initialized
 	open_log(configuration.log);
@@ -106,10 +104,9 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	com_fd[1].events = POLLIN;
 	com_count = 2;
 	write_to_log("Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1.");
-	// printf(ANSI_COLOR_MAGENTA">> Partito Thread");
 	for (int i = 0; i < configuration.workers; i++){
 		pthread_create(&workers[i], NULL, &worker, &i);
-		// pthread_detach(workers[i]);
+		pthread_detach(workers[i]);
 	}
 	puts(ANSI_COLOR_RESET);
 	while(true){
@@ -262,18 +259,17 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			break;
 		}
 	}
-	for(size_t i = 0; i < configuration.workers; i++)
-		pthread_join(workers[i], NULL);
 	close_log();
 	
 	close(socket_fd);
 	puts("socket closed");
-
+	freeConfig(&configuration);
 	clean_list(&ready_queue[0]);
 	puts("listclosed");
 	free(workers);
 	puts("workers closed");
 	free(com_fd);
+	free(free_threads);
 	puts("comfd closed");
 	return 0;
 
@@ -338,16 +334,10 @@ void init(char *sockname){
 void insert_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){
 	int free_slot = 0;
 	while(free_slot < *size && com_fd[free_slot].fd != 0) free_slot++;
-	
-	// printf("com %d\n", com);
 	com_fd[free_slot].fd = com;
 	com_fd[free_slot].events = POLLIN;
 	*count += 1;
-// 	printf("Da insert: ");
-// 	for (size_t i = 0; i < *size; i++)
-// 		printf("%d ", com_fd[i].fd);
 
-// 	puts("");	
 }
 
 nfds_t realloc_com_fd(struct pollfd **com_fd, nfds_t free_slot){
@@ -359,18 +349,4 @@ nfds_t realloc_com_fd(struct pollfd **com_fd, nfds_t free_slot){
 	return new_size;
 
 }
-
-// static void remove_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){
-// 	int i = 0;
-// 	while(i < *size && com_fd[i].fd != com) i++;
-// 	if(i == *size){
-// 		fprintf(stderr, "Client non trovato, impossibile rimuovere!\n");
-// 		fflush(stderr);
-// 		return;
-// 	}
-// 	com_fd[i].fd = -1;
-// 	com_fd[i].events = 0;
-// 	*count--;
-// }
-
 

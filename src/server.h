@@ -4,12 +4,6 @@
 #endif
 #include <poll.h>
 
-typedef struct pargs_{
-	int pipe_write;
-	unsigned int whoami;
-}pargs;
-
-
 
 void printconf();
 void init(char* sockname);

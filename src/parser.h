@@ -3,11 +3,7 @@
 #include "common_includes.h"
 #endif
 
-
-
 #define DELIM ": "
-
-
 
 typedef struct _config{
 	int workers;
@@ -20,3 +16,4 @@ typedef struct _config{
 
 char *strtok_r(char *str, const char *delim, char **saveptr);
 int parseConfig(FILE *conf, config *configuration);
+void freeConfig(config *configuration);
