@@ -35,6 +35,7 @@ int pop_client(ready_clients **head, ready_clients **tail){
 void clean_list(ready_clients **head){
 	ready_clients *befree = NULL;
 	while((*head)!=NULL){
+		close((*head)->com);
 		befree = (*head);
 		(*head) = (*head)->next;
 		free(befree);

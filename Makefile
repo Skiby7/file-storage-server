@@ -14,19 +14,20 @@ server:  libutils
 client: libutils
 		$(CC) $(CFLAGS) src/client.c -o bin/client -L ./build -lutils 
 
-libutils: parser.o fssApi.o client_queue.o connections.o
-		ar rvs build/libutils.a build/parser.o build/fssApi.o build/client_queue.o build/connections.o
+libutils: parser.o fssApi.o client_queue.o connections.o log.o
+		ar rvs build/libutils.a build/parser.o build/fssApi.o build/client_queue.o build/connections.o build/log.o
 		rm build/parser.o
 		rm build/fssApi.o
 		rm build/client_queue.o
 		rm build/connections.o
+		rm build/log.o
+
+
 
 parser.o: 
-		# $(CC) $(CFLAGS) -c -fPIC src/parser.c -o build/parser.o 
 		$(CC) $(CFLAGS) -c src/parser.c -o build/parser.o 
 
 fssApi.o:
-		# $(CC) $(CFLAGS) -c -fPIC src/fssApi.c -o build/fssApi.o 
 		$(CC) $(CFLAGS) -c src/fssApi.c -o build/fssApi.o 
 
 client_queue.o:	
@@ -34,5 +35,9 @@ client_queue.o:
 
 connections.o:
 		$(CC) $(CFLAGS) -c src/connections.c -o build/connections.o 
+
+log.o:
+		$(CC) $(CFLAGS) -c src/log.c -o build/log.o 
+
 clean: 
-	$(RM) build/* src/*.h.gch bin/client bin/server
+		$(RM) build/* src/*.h.gch bin/client bin/server
