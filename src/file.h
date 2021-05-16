@@ -3,6 +3,11 @@
 #include "common_includes.h"
 #endif
 
+#define BITS_IN_int     ( sizeof(int) * CHAR_BIT )
+#define THREE_QUARTERS  ((int) ((BITS_IN_int * 3) / 4))
+#define ONE_EIGHTH      ((int) (BITS_IN_int / 8))
+#define HIGH_BITS       ( ~((unsigned int)(~0) >> ONE_EIGHTH ))
+
 typedef struct fssFile_{
 	char *name;
 	unsigned char *data;

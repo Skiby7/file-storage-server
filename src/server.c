@@ -3,7 +3,6 @@
 #include "file.h"
 #include "client_queue.h"
 #include "log.h"
-#define _GNU_SOURCE 
 #define DEFAULTFDS 10
 
 
@@ -15,7 +14,7 @@ pthread_mutex_t ready_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t log_access_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t client_is_ready = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t abort_connections_mtx = PTHREAD_MUTEX_INITIALIZER;
-bool *free_threads;
+int *free_threads;
 ready_clients *ready_queue[2];
 int m_w_pipe[2]; // 1 lettura, 0 scrittura
 extern void* worker(void* args);
@@ -53,7 +52,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	ready_queue[0] = NULL;
 	ready_queue[1] = NULL;
 	CHECKALLOC(com_fd, "pollfd");
-	
+	bool thread_finished = false;
 	pthread_t *workers;
 	struct sockaddr_un sockaddress; // Socket init
 	
@@ -79,8 +78,8 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	memset(workers, 0, configuration.workers*sizeof(pthread_t));
 	write_to_log("Workers array inizializzato.");
 
-	free_threads = (bool *) malloc(configuration.workers*sizeof(bool));
-	memset(free_threads, true, configuration.workers*sizeof(bool));
+	free_threads = (int *) malloc(configuration.workers*sizeof(int));
+	memset(free_threads, 1, configuration.workers*sizeof(int));
 	CHECKALLOC(free_threads, "workers array");
 
 	memset(com_fd, -1, sizeof(struct pollfd));
@@ -110,41 +109,56 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	}
 	puts(ANSI_COLOR_RESET);
 	while(true){
-		puts(ANSI_COLOR_GREEN"Polling..."ANSI_COLOR_RESET);
-		poll_val = poll(com_fd, com_count, -1);
-		if(can_accept){	
-			CHECKSCEXIT(poll_val, true, "Error while polling");
+			puts(ANSI_COLOR_GREEN"Polling..."ANSI_COLOR_RESET);
+			poll_val = poll(com_fd, com_count, -1);
+			pthread_mutex_lock(&abort_connections_mtx);
+			if(abort_connections){
+				pthread_mutex_unlock(&abort_connections_mtx);
+				break;
+			}
+			pthread_mutex_unlock(&abort_connections_mtx);
+			// if(poll_val < 0){
+			// 	if (errno == EINTR && abort_connections)
+			// 		break;
+				
+			// 	else
+			// 		continue;
+					
+				
+			// }
 			
 			
 			if(com_fd[0].revents & POLLIN){
 				com = accept(socket_fd, NULL, 0);
 				client_accepted++;
+				if(!can_accept){
+					close(com);
+				}
+				else{
+					CHECKERRNO((com < 0), "Errore durante la accept");
+					client_accepted++;
+					for (size_t i = 0; i < configuration.workers; i++){
+						pthread_mutex_lock(&free_threads_mtx);
+						if(free_threads[i]){
+							pthread_mutex_unlock(&free_threads_mtx);
 
-				CHECKERRNO((com < 0), "Errore durante la accept");
-				for (size_t i = 0; i < configuration.workers; i++){
-					pthread_mutex_lock(&free_threads_mtx);
-					 if(free_threads[i]){
-						pthread_mutex_unlock(&free_threads_mtx);
-
-						pthread_mutex_lock(&ready_queue_mtx);
-						insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
-						pthread_cond_signal(&client_is_ready);
-						pthread_mutex_unlock(&ready_queue_mtx);	
-						break;
-				 		}
-						pthread_mutex_unlock(&free_threads_mtx);
-						pthread_mutex_lock(&ready_queue_mtx);
-						insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
-						pthread_mutex_unlock(&ready_queue_mtx);	
-					}
+							pthread_mutex_lock(&ready_queue_mtx);
+							insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
+							pthread_cond_signal(&client_is_ready);
+							pthread_mutex_unlock(&ready_queue_mtx);	
+							break;
+							}
+							pthread_mutex_unlock(&free_threads_mtx);
+							pthread_mutex_lock(&ready_queue_mtx);
+							insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
+							pthread_mutex_unlock(&ready_queue_mtx);	
+						}
+				}
 				}	
 			
 			if(com_fd[1].revents & POLLIN){
 				
 				read_bytes = read(m_w_pipe[0], buffer, sizeof(buffer));
-				
-				
-				
 				CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
 				tmp = strtol(buffer, NULL, 10);
 				if(tmp <= 0){
@@ -163,7 +177,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			}
 				
 			
-			for(int i = 2; i < com_size; i++){
+			for(size_t i = 2; i < com_size; i++){
 				if((com_fd[i].revents & POLLIN) && com_fd[i].fd != 0){
 					pthread_mutex_lock(&ready_queue_mtx);
 					insert_client_ready_list(com_fd[i].fd, &ready_queue[0], &ready_queue[1]);
@@ -194,74 +208,39 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	
 
 			}
-		}
-		
-		else{
-			if(abort_connections){
-				for(size_t i = 0; i < com_size; i++){
-					if (com_fd[i].fd != 0)
-						close(com_fd[i].fd);
+			if(!can_accept && ready_queue[0] == NULL && com_count == 0)
+				break;
+	}
+	pthread_mutex_lock(&log_access_mtx);
+	write_to_log("Server stopped");
+	pthread_mutex_unlock(&log_access_mtx);
+	close_log();
+	puts("\n\n\ngot here\n\n");
+	pthread_mutex_lock(&abort_connections_mtx);
+	if(abort_connections){
+	pthread_mutex_unlock(&abort_connections_mtx);
+		while(!thread_finished){
+			for (int i = 0; i < configuration.workers; i++){
+				printf("%d\n", i);
+				pthread_mutex_lock(&free_threads_mtx);
+				if(free_threads[i] != -1){
+					pthread_mutex_unlock(&free_threads_mtx);
+					pthread_mutex_lock(&ready_queue_mtx);
+					pthread_cond_signal(&client_is_ready);
+					pthread_mutex_unlock(&ready_queue_mtx);
 				}
+				else
+					pthread_mutex_unlock(&free_threads_mtx);
+				if(i == configuration.workers)
+					thread_finished = true;
 			}
-			else{
-				while(com_count != 0 && ready_queue[0] != NULL){
-					poll_val = poll(com_fd, com_count, -1);
-					if(com_fd[1].revents & POLLIN){
-					read_bytes = read(m_w_pipe[0], buffer, sizeof(buffer));
-					CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
-					tmp = strtol(buffer, NULL, 10);
-					if(tmp <= 0){
-						fprintf(stderr, "Errore strtol! Buffer -> %s\n", buffer);
-						fflush(stderr);
-						continue;
-					}
-					if (com_size - com_count < 3){
-						com_size = realloc_com_fd(&com_fd, com_size);
-						for (size_t i = com_count; i < com_size; i++){
-							com_fd[i].fd = 0;
-							com_fd[i].events = 0;
-						}
-					}
-					insert_com_fd(tmp, &com_size, &com_count, com_fd);
-					}
-					for(int i = 2; i < com_size; i++){
-						if((com_fd[i].revents & POLLIN) && com_fd[i].fd != 0){
-							pthread_mutex_lock(&ready_queue_mtx);
-							insert_client_ready_list(com_fd[i].fd, &ready_queue[0], &ready_queue[1]);
-							pthread_mutex_unlock(&ready_queue_mtx);
-							com_fd[i].fd = 0;
-							com_fd[i].events = 0;
-							com_count--;
-						}
-						
-					}
-					for (size_t i = 0; i < configuration.workers; i++){
-						pthread_mutex_lock(&free_threads_mtx);
-						if(free_threads[i]){
-							pthread_mutex_unlock(&free_threads_mtx);
-							pthread_mutex_lock(&ready_queue_mtx);
-							if(ready_queue[0] != NULL){
-								pthread_cond_signal(&client_is_ready);
-								pthread_mutex_unlock(&ready_queue_mtx);	
-								
-								break;
-							}
-							else {
-								pthread_mutex_unlock(&ready_queue_mtx);	
-								break;
-							}
-						}
-					pthread_mutex_unlock(&free_threads_mtx);	
-					}
-				}
-				
-			}
-			break;
+			
 		}
 	}
-	close_log();
-	
+	pthread_mutex_unlock(&abort_connections_mtx);
 	close(socket_fd);
+	close(m_w_pipe[0]);
+	close(m_w_pipe[1]);
 	puts("socket closed");
 	freeConfig(&configuration);
 	clean_list(&ready_queue[0]);
@@ -270,6 +249,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	puts("workers closed");
 	free(com_fd);
 	free(free_threads);
+	
 	puts("comfd closed");
 	return 0;
 
@@ -283,19 +263,22 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 void signal_handler(int signum){
 	
 	if(signum == SIGHUP){
-		puts(ANSI_COLOR_RED"Received SIGHUP"ANSI_COLOR_RESET);
 		can_accept = false;
+		puts(ANSI_COLOR_RED"Received SIGHUP"ANSI_COLOR_RESET);
+		
 	}
 
+
 	else{
+		abort_connections = true;
+		can_accept = false;
 		if(signum == SIGQUIT)
 			puts(ANSI_COLOR_RED"Received SIGQUIT"ANSI_COLOR_RESET);
 		if(signum == SIGINT)
 			puts(ANSI_COLOR_RED"Received SIGINT"ANSI_COLOR_RESET);
 			
 			
-		abort_connections = true;
-		can_accept = false;
+		
 	}
 
 }

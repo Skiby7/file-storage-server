@@ -2,6 +2,7 @@
 #define COMMON_INCLUDES_H
 #include "common_includes.h"
 #endif
+#include "fssApi.h"
 #include <getopt.h>
 bool verbose = false; // tipo di op, file su cui si opera, exito e byte letti/scritti
 #define QUIT "quit"
@@ -50,8 +51,13 @@ int main(int argc, char* argv[]){
 	int opt;
 	bool f = false, p = false;
 	char buffer[100];
-	struct sockaddr_un sockaddress;
+	char sockname[UNIX_MAX_PATH];
+	struct timespec abstime = {
+		.tv_nsec = 0,
+		.tv_sec = 3
+	};
 	memset(buffer, 0, 100);
+	memset(sockname, 0, UNIX_MAX_PATH);
 
 	struct sigaction sig; 
 	memset(&sig, 0, sizeof(sig));
@@ -76,11 +82,10 @@ int main(int argc, char* argv[]){
 			case 'f': 
 				if(!f){	
 					f = true;
-					strncpy(sockaddress.sun_path, optarg, UNIX_MAX_PATH); 
-					sockaddress.sun_family = AF_UNIX;
+					strncpy(sockname, optarg, UNIX_MAX_PATH); 
 				}
 				else
-					puts(ANSI_COLOR_RED"File già specificato!"ANSI_COLOR_RESET);
+					puts(ANSI_COLOR_RED"Socket File già specificato!"ANSI_COLOR_RESET);
 				break;
 
 			case ':': {
@@ -93,12 +98,12 @@ int main(int argc, char* argv[]){
 		}
 	}
 	
-	socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
-	while(connect(socket_fd,(struct sockaddr*) &sockaddress,sizeof(sockaddress)) == -1);
+	CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
+
+	puts(ANSI_COLOR_CYAN"Connected\n"ANSI_COLOR_RESET);
 
 	memset(buffer, 0, sizeof(buffer));
-	puts(ANSI_COLOR_CYAN"Connected\n"ANSI_COLOR_RESET);
 	while(true){
 		fgets(buffer, 98, stdin);
 		buffer[strcspn(buffer, "\n")] = 0;
@@ -116,6 +121,7 @@ int main(int argc, char* argv[]){
 		read(socket_fd, buffer, sizeof(buffer));
 		memset(buffer, 0, 100);
 	}
+	CHECKSCEXIT(closeConnection(sockname), true, "Errore di disconnesione");
 	// 	}
 	// }
 	// else
