@@ -2,11 +2,8 @@
 #define COMMON_INCLUDES_H
 #include "common_includes.h"
 #endif
+#include <sys/stat.h>
 
-#define BITS_IN_int     ( sizeof(int) * CHAR_BIT )
-#define THREE_QUARTERS  ((int) ((BITS_IN_int * 3) / 4))
-#define ONE_EIGHTH      ((int) (BITS_IN_int / 8))
-#define HIGH_BITS       ( ~((unsigned int)(~0) >> ONE_EIGHTH ))
 
 typedef struct fssFile_{
 	char *name;
@@ -14,6 +11,7 @@ typedef struct fssFile_{
 	bool locked;
 	int client_locking;
 	unsigned long size;
+	mode_t permissions;
 	time_t create_time;
 	time_t last_modified;
 } fssFile;

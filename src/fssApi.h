@@ -3,6 +3,8 @@
 #include "common_includes.h"
 #endif
 
+#define O_CREATE 0100
+#define O_LOCK 0200
 
 
 

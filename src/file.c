@@ -1,4 +1,5 @@
 #include "file.h"
+#include "hash.h"
 
 
 // TO REMEMBER:
@@ -49,27 +50,11 @@ int clean_storage(){
 	free(server_storage.storage_table);
 }
 
-unsigned int hash_pjw(void* key){
-    char *datum = (char *)key;
-    unsigned int hash_value, i;
-
-    if(!datum) return 0;
-
-    for (hash_value = 0; *datum; ++datum) {
-        hash_value = (hash_value << ONE_EIGHTH) + *datum;
-        if ((i = hash_value & HIGH_BITS) != 0)
-            hash_value = (hash_value ^ (i >> THREE_QUARTERS)) & ~HIGH_BITS;
-    }
-    return (hash_value);
-}
-
-static inline unsigned int hash_scan(void* key, unsigned int i, unsigned int max_len){
-	return ((hash_pjw(key) + (i/2) + ((i*i)/2))%max_len);
-
-}
-
-unsigned int search_file(char* pathname){
-	int i = 0, max_len = server_storage.file_limit;
-	while(strcmp(server_storage.storage_table[hash_scan(pathname, i, max_len)].name, pathname) != 0) i++;
-	
+unsigned int search_file(const char* pathname){
+	int i = 0, max_len = server_storage.file_limit, index = 0;
+	index = hash_val(pathname, i, max_len);
+	while(strcmp(server_storage.storage_table[index].name, pathname) != 0){
+		index =  hash_val(pathname, i++, max_len);
+	} 
+	return index;
 }
