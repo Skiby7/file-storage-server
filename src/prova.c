@@ -27,56 +27,51 @@ void func1(ready_clients *tail){
 
 
 int main(){
-	// struct stat a_aout;
-	// struct stat M_Makefile;
+	struct stat a_aout;
+	struct stat M_Makefile;
 	
-	// int aout;
-	// if((aout = open("./a.out", O_RDONLY)) == -1){
-	// 	perror("Filein");
-	// 	exit(EXIT_FAILURE);
-	// }
-	// fstat(aout, &a_aout);
-	// int Makefile;
-	// if((Makefile = open("./Makefile", O_RDONLY)) == -1){
-	// 	perror("Makefile");
-	// 	exit(EXIT_FAILURE);
-	// }
-	// fstat(Makefile, &M_Makefile);
-	// printf("size: %hho\n", a_aout.st_mode);
-	// printf("size: %o\n", M_Makefile.st_mode);
+	int photo;
+	if((photo = open("./a.out", O_RDONLY)) == -1){
+		perror("Filein");
+		exit(EXIT_FAILURE);
+	}
+	fstat(photo, &a_aout);
+	
 
-	// unsigned char *buffer = (unsigned char *)calloc(a_aout.st_size, sizeof(unsigned char));
-	// read(aout, buffer, a_aout.st_size);
-	// int i = 0;
-	// // while(i < a_aout.st_size){
-	// // 	printf("%x ", buffer[i++]);
-	// // }
-	// int aoutnew;
-	// if((aoutnew = open("./anew.out", O_CREAT | O_RDWR, a_aout.st_mode)) == -1){
-	// 	perror("Filein");
-	// 	exit(EXIT_FAILURE);
-	// }
-	// 	write(aoutnew, buffer, a_aout.st_size);
+	unsigned char *buffer = (unsigned char *)calloc(a_aout.st_size+10, sizeof(unsigned char));
+	read(photo, buffer, a_aout.st_size);
+	int i = 0;
 	
-	// buffer = realloc(buffer, M_Makefile.st_size);
-	// read(Makefile, buffer, M_Makefile.st_size);
-	// i = 0;
-	// // while(i < M_Makefile.st_size){
-	// // 	printf("%c", buffer[i++]);
-	// // }
-	// puts("");
-	// int flags = O_CREATE ;
-	// printf("%o\n", flags);
-	// int mode = 0;
-	// if(flags & O_CREATE)
-	// 	mode |= O_CREAT;
-	// printf("%o %o\n",O_CREAT, mode);
-	// close(aout);
-	// close(Makefile);
-	// free(buffer);
-	CHECKERRNO(openFile("./ciao", 0), "First");
-	CHECKERRNO(openFile("ciao", O_CREATE), "Second");
-	CHECKERRNO(openFile("anew.out", O_CREATE), "Third");
+	int aoutnew1;
+	if((aoutnew1 = open("./anew.out", O_CREAT | O_RDWR, a_aout.st_mode)) == -1){
+		perror("Filein");
+		exit(EXIT_FAILURE);
+	}
+	write(aoutnew1, buffer, a_aout.st_size);
+	while(i < a_aout.st_size+5){
+		printf("%c ", buffer[i++]);
+	}
+	puts("");
+	buffer[a_aout.st_size+1] = 'i';
+	buffer[a_aout.st_size+2] = 'a';
+	buffer[a_aout.st_size+3] = 'o';
+	buffer[a_aout.st_size+4] = 'c';
+	
+	int aoutnew2;
+	if((aoutnew2 = open("./anew1.out", O_CREAT | O_RDWR, a_aout.st_mode)) == -1){
+		perror("Filein");
+		exit(EXIT_FAILURE);
+	}
+	write(aoutnew2, buffer, a_aout.st_size+4);
+	while(i < a_aout.st_size+5){
+		printf("%c ", buffer[i++]);
+	}
+	puts("");
+	close(photo);
+	close(aoutnew1);
+	close(aoutnew2);
+	free(buffer);
+
 
 
 	return 0;

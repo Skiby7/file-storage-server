@@ -28,7 +28,7 @@ pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
 *	- Testare riallocazione di com_fd
 *	- Segnale di arrivo client
 *	- Wait su cond di empty client queue da parte dei thread spawnati
-*
+*	- Scrivere sulla pipe direttamente il descrittore e non una stringa
 */
 
 void func(ready_clients *head){
@@ -244,7 +244,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	puts("socket closed");
 	freeConfig(&configuration);
 	clean_list(&ready_queue[0]);
-	puts("listclosed");
+	puts("list closed");
 	free(workers);
 	puts("workers closed");
 	free(com_fd);

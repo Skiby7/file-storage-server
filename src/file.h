@@ -9,6 +9,7 @@ typedef struct fssFile_{
 	char *name;
 	unsigned char *data;
 	bool locked;
+	bool deleted;
 	int client_locking;
 	unsigned long size;
 	mode_t permissions;

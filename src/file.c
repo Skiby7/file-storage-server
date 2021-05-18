@@ -30,6 +30,7 @@ int write_to_file(unsigned char *data, int length, char *pathname, bool is_locke
 		.locked = is_locked,
 		.client_locking = who_locks,
 		.size = length,
+		.deleted = false
 	};
 	CHECKALLOC(buffer.name, "Errore durante la scrittura del file");
 	CHECKALLOC(buffer.data, "Errore durante la scrittura del file");
@@ -50,11 +51,24 @@ int clean_storage(){
 	free(server_storage.storage_table);
 }
 
+/**
+ * Search for an entry in the hash table
+ * 
+ * @param pathname the file to be searched
+ * 
+ * @returns the index or -1 in case of file not found 
+ *
+ */
 unsigned int search_file(const char* pathname){
 	int i = 0, max_len = server_storage.file_limit, index = 0;
-	index = hash_val(pathname, i, max_len);
-	while(strcmp(server_storage.storage_table[index].name, pathname) != 0){
-		index =  hash_val(pathname, i++, max_len);
+	unsigned int path_len = strlen(pathname);
+	index = hash_val(pathname, i, max_len, path_len); // Zero first index
+	while(server_storage.storage_table[index].deleted != false){
+		if(strcmp(server_storage.storage_table[index].name, pathname) != 0){
+			index =  hash_val(pathname, i++, max_len, path_len);
+		}
+		else
+			return index;
 	} 
-	return index;
+	return -1; // File not found
 }

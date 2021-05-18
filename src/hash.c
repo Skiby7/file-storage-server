@@ -23,6 +23,6 @@ static inline unsigned int fnv_hash_function( void *key, int len ) {
     return h;
 }
 
-unsigned int hash_val(void* key, unsigned int i, unsigned int max_len){
-	return ((hash_pjw(key) + i*fnv_hash_function(key, sizeof(unsigned long)))%max_len);
+unsigned int hash_val(void* key, unsigned int i, unsigned int max_len, unsigned int key_len){
+	return ((hash_pjw(key) + i*fnv_hash_function(key, sizeof(key_len)))%max_len);
 }
