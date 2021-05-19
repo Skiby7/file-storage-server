@@ -9,7 +9,7 @@ extern volatile sig_atomic_t can_accept;
 extern volatile sig_atomic_t abort_connections;
 extern pthread_mutex_t abort_connections_mtx;
 extern ready_clients *ready_queue[2];
-extern int *free_threads;
+extern bool *free_threads;
 extern pthread_mutex_t free_threads_mtx;
 
 extern pthread_mutex_t ready_queue_mtx;
@@ -47,17 +47,15 @@ void* worker(void* args){
 				return (void *) 0;
 			}
 			pthread_mutex_unlock(&abort_connections_mtx);
-
 			pthread_cond_wait(&client_is_ready, &ready_queue_mtx); 
-
-
 		}
 		pthread_mutex_lock(&free_threads_mtx);
-		free_threads[whoami] = 0;
+		free_threads[whoami] = false;
 		pthread_mutex_unlock(&free_threads_mtx);
-		com = pop_client(&ready_queue[0], &ready_queue[1]); // Pop dalla lista dei socket ready che va fatta durante il lock
-		
+		com = pop_client(&ready_queue[0], &ready_queue[1]); // Pop dalla lista dei socket ready che va fatta durante il lock		
 		pthread_mutex_unlock(&ready_queue_mtx);
+		if(com == -1) // Falso allarme
+			continue;
 		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
 		sprintf(log_buffer,"[Thread %d] received request from client %d", whoami, com);
 		pthread_mutex_lock(&log_access_mtx);
@@ -92,7 +90,7 @@ void* worker(void* args){
 		CHECKERRNO((write(m_w_pipe[1], buffer, sizeof(buffer)) < 0), "Return com");
 		memset(buffer, 0, sizeof(buffer));	
 		pthread_mutex_lock(&free_threads_mtx);
-		free_threads[whoami] = 1;
+		free_threads[whoami] = true;
 		pthread_mutex_unlock(&free_threads_mtx);
 		pthread_mutex_lock(&abort_connections_mtx);
 		if(abort_connections){
@@ -102,7 +100,6 @@ void* worker(void* args){
 		pthread_mutex_unlock(&abort_connections_mtx);
 	}
 	puts(ANSI_COLOR_RED"EXIT"ANSI_COLOR_RESET);
-
 	return (void *) 0;
 }
 
