@@ -81,3 +81,19 @@
 
 #define CHECKALLOC(pointer, msg) if(pointer == NULL) {fprintf(stderr, "Memoria esaurita (file %s, linea %d): "msg"\n", __FILE__, __LINE__);fflush(stderr);exit(EXIT_FAILURE);}
 // #define CHECKPOLL(poll_val)	if(poll_val == -1) {if(errno == EINTR) continue; else {perror("Errore poll -> "); fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__); fflush(stderr);}}
+
+
+#define SAFELOCK(mutex_var)				\
+	if(pthread_mutex_lock(&mutex_var) != 0)		\
+	{						\
+		fprintf(stderr, "Errore (file %s, linea %d): lock del semaforo #mutex_var non riuscita\n", __FILE__, __LINE__);		\
+		exit(EXIT_FAILURE);			\
+	}
+
+#define SAFEUNLOCK(mutex_var)				\
+	if(pthread_mutex_unlock(&mutex_var) != 0)	\
+	{						\
+		fprintf(stderr, "Errore (file %s, linea %d): unlock del semaforo #mutex_var non riuscita\n", __FILE__, __LINE__);		\
+		exit(EXIT_FAILURE);			\
+	}
+	
