@@ -23,6 +23,7 @@ pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 /** TODO:
  * - Riguardare pthread join per far terminare i thread
+ * - Implementare il protocollo richiesta risposta in modo che un thread non si blocchi sulla read indefinitamente, altrimenti a seguito di una cancellazione non termina
  * 
  * 
  * 
@@ -68,7 +69,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	CHECKSCEXIT(sigdelset(&signal_mask, SIGPIPE), true, "Errore durante il settaggio di signal_mask");
 	CHECKEXIT(pthread_sigmask(SIG_SETMASK, &signal_mask, NULL) != 0, false, "Errore durante il mascheramento dei segnali");
 	// END signal handler
-	write_to_log("Signal_handler installato.");
+	write_to_log("Segnali mascherati.");
 
 	
 	write_to_log("Inizializzo i workers.");
@@ -113,6 +114,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 		puts(ANSI_COLOR_GREEN"Polling..."ANSI_COLOR_RESET);
 		poll_val = poll(com_fd, com_count, -1);
 		CHECKERRNO(poll_val < 0, "Errore durante il polling");
+		printf("poll val %d\n", poll_val);
 		SAFELOCK(abort_connections_mtx);
 		if(abort_connections){
 			SAFEUNLOCK(abort_connections_mtx);
@@ -123,7 +125,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 
 		SAFELOCK(can_accept_mtx);
 		SAFELOCK(ready_queue_mtx);
-		if(!can_accept && com_count == 2 && ready_queue[0] == NULL){
+		if(!can_accept){
 			printf(ANSI_COLOR_RED"CAN ACCEPT: %d\nCOM_COUNT: %ld\n"ANSI_COLOR_RESET, can_accept, com_count);
 			if(ready_queue[0] == NULL)
 				printf(ANSI_COLOR_RED"QUEUE EMPTY\n"ANSI_COLOR_RESET);
@@ -139,13 +141,12 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 				if(i == configuration.workers - 1 && free_threads[i])
 					thread_finished = true;
 				SAFEUNLOCK(free_threads_mtx);
-				
-					
 			}
 			puts("");
 			printf(ANSI_COLOR_RED"THREAD FINISHED %d\n"ANSI_COLOR_RESET, thread_finished);
-			if(thread_finished)
+			if(thread_finished && com_count == 2 && ready_queue[0] == NULL)
 				break;
+			thread_finished = false;
 			continue;
 		}
 		else{
@@ -225,11 +226,11 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 					pthread_cond_signal(&client_is_ready);
 					SAFEUNLOCK(ready_queue_mtx);	
 					
-					break; //CHANGED -> I WANT TO ASSIGN AS MUCH WORK AS I CAN <- WRONG, a worker starts woring and continues util the queue is empty. This is just to wake someone if 
+					continue; 
 				}
 				else{
 					SAFEUNLOCK(ready_queue_mtx);
-					break;	// HERE I WANT TO STOP AS THE QUEUE IS EMPTY
+					break;
 				}
 			}
 			SAFEUNLOCK(free_threads_mtx);
@@ -252,14 +253,26 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	SAFELOCK(ready_queue_mtx);
 	pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
 	SAFEUNLOCK(ready_queue_mtx);
+	
 	for (int i = 0; i < configuration.workers; i++){
-		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workes");
+		SAFELOCK(free_threads_mtx);
+		if(!free_threads[i]){
+			SAFEUNLOCK(free_threads_mtx);
+			printf("Dentro cancel\n");
+			CHECKEXIT(pthread_cancel(workers[i]) != 0, false, "Errore durante la cancellazione dei workers attivi");
+			puts("Cancelling");
+		}
+		SAFEUNLOCK(free_threads_mtx);
 	}
-	CHECKEXIT(pthread_join(signal_handler_thread, NULL) != 0, false, "Errore durante il join dei workes");
+	
+	for (int i = 0; i < configuration.workers; i++){
+		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
+	}
+	CHECKEXIT(pthread_join(signal_handler_thread, NULL) != 0, false, "Errore durante il join dei workers");
 	for (size_t i = 0; i < com_size; i++){
 			if(com_fd[i].fd != 0)
 				close(com_fd[i].fd);
-		}
+	}
 	close(socket_fd);
 	close(m_w_pipe[0]);
 	close(m_w_pipe[1]);
@@ -324,14 +337,14 @@ void* sig_wait_thread(void *args){
 	sigset_t sig_set;
 	char buffer[PIPE_BUF];
 	memset(buffer, 0, PIPE_BUF);
+	SAFELOCK(log_access_mtx);
+	write_to_log("Avviato signal handler thread");
+	SAFEUNLOCK(log_access_mtx);
 	CHECKSCEXIT(sigemptyset(&sig_set), true, "Errore di inizializzazione sig_set");
 	CHECKSCEXIT(sigaddset(&sig_set, SIGINT), true, "Errore di inizializzazione sig_set");
 	CHECKSCEXIT(sigaddset(&sig_set, SIGHUP), true, "Errore di inizializzazione sig_set");
 	CHECKSCEXIT(sigaddset(&sig_set, SIGQUIT), true, "Errore di inizializzazione sig_set");
 	while(true){
-		SAFELOCK(log_access_mtx);
-		write_to_log("Avviato signal handler thread");
-		SAFEUNLOCK(log_access_mtx);
 		CHECKEXIT(sigwait(&sig_set, &signum) != 0, false, "Errore sigwait");
 		if(signum == SIGINT || signum == SIGQUIT){
 			SAFELOCK(abort_connections_mtx);
