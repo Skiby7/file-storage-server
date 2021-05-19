@@ -1,9 +1,0 @@
-[20-05-2021 00:10:05 CEST] Signal_handler installato.
-[20-05-2021 00:10:05 CEST] Inizializzo i workers.
-[20-05-2021 00:10:05 CEST] Workers array inizializzato.
-[20-05-2021 00:10:05 CEST] Pipe inzializzata.
-[20-05-2021 00:10:05 CEST] Ho inizializzato il socket ed ho eseguito la bind e la listen.
-[20-05-2021 00:10:05 CEST] Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1.
-[20-05-2021 00:10:05 CEST] Avviato signal handler thread
-[20-05-2021 00:10:10 CEST] [Thread 2] received request from client 7
-[20-05-2021 00:10:11 CEST] Server stopped
