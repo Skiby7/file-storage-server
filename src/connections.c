@@ -43,9 +43,6 @@ void* worker(void* args){
 			if(abort_connections){
 				pthread_mutex_unlock(&abort_connections_mtx);
 				pthread_mutex_unlock(&ready_queue_mtx);
-				pthread_mutex_lock(&free_threads_mtx);
-				free_threads[whoami] = -1;
-				pthread_mutex_unlock(&free_threads_mtx);
 				puts(ANSI_COLOR_RED"EXIT 0"ANSI_COLOR_RESET);
 				return (void *) 0;
 			}
@@ -98,14 +95,13 @@ void* worker(void* args){
 		free_threads[whoami] = 1;
 		pthread_mutex_unlock(&free_threads_mtx);
 		pthread_mutex_lock(&abort_connections_mtx);
-		if(abort_connections)
+		if(abort_connections){
+			pthread_mutex_unlock(&abort_connections_mtx);
 			break;
+		}
 		pthread_mutex_unlock(&abort_connections_mtx);
 	}
 	puts(ANSI_COLOR_RED"EXIT"ANSI_COLOR_RESET);
-	pthread_mutex_lock(&free_threads_mtx);
-	free_threads[whoami] = -1;
-	pthread_mutex_unlock(&free_threads_mtx);
 
 	return (void *) 0;
 }

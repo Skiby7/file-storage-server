@@ -22,13 +22,6 @@ extern void* worker(void* args);
 pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 /** TODO:
-*	- Coda socket ready su cui fare la select e da cui prendere lavori
-*	- Coda socket finished da reinserire in ascolto
-*	- Rimozione da ready -> invio al worker -> reinserimento su finished/listen
-*	- Comunicazione master-slave con pipe
-*	- Testare riallocazione di com_fd
-*	- Segnale di arrivo client
-*	- Wait su cond di empty client queue da parte dei thread spawnati
 *	- Scrivere sulla pipe direttamente il descrittore e non una stringa
 *	- Testare il signal handler   
 *
@@ -66,8 +59,6 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	PRINT_WELCOME;
 	printconf(SOCKETADDR);
 	// Signal handler
-	struct sigaction sig; 
-	memset(&sig, 0, sizeof(sig));
 	CHECKSCEXIT(sigfillset(&signal_mask), true, "Errore durante il settaggio di signal_mask");
 	CHECKSCEXIT(sigdelset(&signal_mask, SIGSEGV), true, "Errore durante il settaggio di signal_mask");
 	CHECKSCEXIT(sigdelset(&signal_mask, SIGPIPE), true, "Errore durante il settaggio di signal_mask");
@@ -155,24 +146,27 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			}	
 			
 			if(com_fd[1].revents & POLLIN){
-				
 				read_bytes = read(m_w_pipe[0], buffer, sizeof(buffer));
+				puts(buffer);
 				CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
-				tmp = strtol(buffer, NULL, 10);
-				if(tmp <= 0){
-					fprintf(stderr, "Errore strtol! Buffer -> %s\n", buffer);
-					fflush(stderr);
-					continue;
-				}
-				if (com_size - com_count < 3){
-					com_size = realloc_com_fd(&com_fd, com_size);
-					for (size_t i = com_count; i < com_size; i++){
-						com_fd[i].fd = 0;
-						com_fd[i].events = 0;
+				if(strncmp(buffer, "termina", PIPE_BUF) != 0){
+					tmp = strtol(buffer, NULL, 10);
+					if(tmp <= 0){
+						fprintf(stderr, "Errore strtol! Buffer -> %s\n", buffer);
+						fflush(stderr);
+						continue;
 					}
+					if (com_size - com_count < 3){
+						com_size = realloc_com_fd(&com_fd, com_size);
+						for (size_t i = com_count; i < com_size; i++){
+							com_fd[i].fd = 0;
+							com_fd[i].events = 0;
+						}
+					}
+					insert_com_fd(tmp, &com_size, &com_count, com_fd);
 				}
-				insert_com_fd(tmp, &com_size, &com_count, com_fd);
 			}
+			puts(buffer);
 				
 			
 			for(size_t i = 2; i < com_size; i++){
@@ -208,7 +202,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			}
 			pthread_mutex_lock(&can_accept_mtx);
 			pthread_mutex_lock(&ready_queue_mtx);
-			if(!can_accept && com_count == 0 && ready_queue[0] == NULL){
+			if(!can_accept && com_count == 2 && ready_queue[0] == NULL){
 				pthread_mutex_unlock(&ready_queue_mtx);
 				pthread_mutex_unlock(&can_accept_mtx);
 				break;
@@ -216,6 +210,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			pthread_mutex_unlock(&ready_queue_mtx);
 			pthread_mutex_unlock(&can_accept_mtx);
 	}
+	puts(buffer);
 	pthread_mutex_lock(&log_access_mtx);
 	write_to_log("Server stopped");
 	pthread_mutex_unlock(&log_access_mtx);
@@ -232,14 +227,18 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 		clean_list(&ready_queue[0]);
 		pthread_mutex_unlock(&ready_queue_mtx);
 	}
-
+	else
+		abort_connections = true;
 	pthread_mutex_unlock(&abort_connections_mtx);
 	pthread_mutex_lock(&ready_queue_mtx);
 	pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
 	pthread_mutex_unlock(&ready_queue_mtx);
-	for (int i = 0; i < configuration.workers; i++)
-		CHECKEXIT(pthread_join(workers[i], NULL), false, "Errore ddurante il join dei workes");
-	CHECKEXIT(pthread_join(sig_wait_thread, NULL), false, "Errore ddurante il join dei workes");
+	for (int i = 0; i < configuration.workers; i++){
+		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workes");
+	}
+	CHECKEXIT(pthread_join(signal_handler_thread, NULL) != 0, false, "Errore durante il join dei workes");
+	puts("buffer");
+
 	close(socket_fd);
 	close(m_w_pipe[0]);
 	close(m_w_pipe[1]);
@@ -301,6 +300,8 @@ nfds_t realloc_com_fd(struct pollfd **com_fd, nfds_t free_slot){
 void* sig_wait_thread(void *args){
 	int signum = 0;
 	sigset_t sig_set;
+	char buffer[PIPE_BUF];
+	memset(buffer, 0, PIPE_BUF);
 	CHECKSCEXIT(sigemptyset(&sig_set), true, "Errore di inizializzazione sig_set");
 	CHECKSCEXIT(sigaddset(&sig_set, SIGINT), true, "Errore di inizializzazione sig_set");
 	CHECKSCEXIT(sigaddset(&sig_set, SIGHUP), true, "Errore di inizializzazione sig_set");
@@ -310,19 +311,23 @@ void* sig_wait_thread(void *args){
 		write_to_log("Avviato signal handler thread");
 		pthread_mutex_unlock(&log_access_mtx);
 		CHECKEXIT(sigwait(&sig_set, &signum) != 0, false, "Errore sigwait");
-		if(signum == SIGTERM || signum == SIGQUIT){
+		if(signum == SIGINT || signum == SIGQUIT){
 			pthread_mutex_lock(&abort_connections_mtx);
 			abort_connections = true;
 			pthread_mutex_unlock(&abort_connections_mtx);
 			pthread_mutex_lock(&can_accept_mtx);
 			can_accept = false;
 			pthread_mutex_unlock(&can_accept_mtx);
+			sprintf(buffer, "termina");
+			CHECKERRNO((write(m_w_pipe[1], buffer, sizeof(buffer)) < 0), "Errore invio terminazione sulla pipe");
 			break;
 		}
 		if(signum == SIGHUP){
 			pthread_mutex_lock(&can_accept_mtx);
 			can_accept = false;
 			pthread_mutex_unlock(&can_accept_mtx);
+			sprintf(buffer, "termina");
+			CHECKERRNO((write(m_w_pipe[1], buffer, sizeof(buffer)) < 0), "Errore invio terminazione sulla pipe");
 			break;
 		}
 	}

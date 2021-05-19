@@ -1,31 +1,8 @@
-[16-05-2021 19:29:34 CEST] Signal_handler installato.
-[16-05-2021 19:29:34 CEST] Inizializzo i workers.
-[16-05-2021 19:29:34 CEST] Workers array inizializzato.
-[16-05-2021 19:29:34 CEST] Pipe inzializzata.
-[16-05-2021 19:29:34 CEST] Ho inizializzato il socket ed ho eseguito la bind e la listen.
-[16-05-2021 19:29:34 CEST] Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1.
-[16-05-2021 19:29:39 CEST] [Thread 1] received request from client 7
-[16-05-2021 19:29:41 CEST] [Thread 4] received request from client 8
-[16-05-2021 19:29:43 CEST] [Thread 4 - client 8]: ciao
-[16-05-2021 19:29:44 CEST] [Thread 6] received request from client 8
-[16-05-2021 19:29:44 CEST] [Thread 6 - client 8]: acsde
-[16-05-2021 19:29:44 CEST] [Thread 6] received request from client 8
-[16-05-2021 19:29:44 CEST] [Thread 6 - client 8]: f
-[16-05-2021 19:29:44 CEST] [Thread 8] received request from client 8
-[16-05-2021 19:29:44 CEST] [Thread 8 - client 8]: ef
-[16-05-2021 19:29:44 CEST] [Thread 10] received request from client 8
-[16-05-2021 19:29:46 CEST] [Thread 1 - client 7]: fefe
-[16-05-2021 19:29:46 CEST] [Thread 11] received request from client 7
-[16-05-2021 19:29:47 CEST] [Thread 11 - client 7]: ef
-[16-05-2021 19:29:47 CEST] [Thread 12] received request from client 7
-[16-05-2021 19:29:47 CEST] [Thread 12 - client 7]: e
-[16-05-2021 19:29:47 CEST] [Thread 12] received request from client 7
-[16-05-2021 19:29:47 CEST] [Thread 12 - client 7]: ffe
-[16-05-2021 19:29:47 CEST] [Thread 13] received request from client 7
-[16-05-2021 19:29:47 CEST] [Thread 13 - client 7]: ef
-[16-05-2021 19:29:47 CEST] [Thread 15] received request from client 7
-[16-05-2021 19:29:49 CEST] [Thread 15 - client 7]: ef
-[16-05-2021 19:29:49 CEST] [Thread 16] received request from client 7
-[16-05-2021 19:29:50 CEST] [Thread 16] client 7 quitted, com closed
-[16-05-2021 19:29:53 CEST] [Thread 10] client 8 quitted, com closed
-[16-05-2021 19:29:55 CEST] Server stopped
+[19-05-2021 12:00:49 CEST] Signal_handler installato.
+[19-05-2021 12:00:49 CEST] Inizializzo i workers.
+[19-05-2021 12:00:49 CEST] Workers array inizializzato.
+[19-05-2021 12:00:49 CEST] Pipe inzializzata.
+[19-05-2021 12:00:49 CEST] Ho inizializzato il socket ed ho eseguito la bind e la listen.
+[19-05-2021 12:00:49 CEST] Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1.
+[19-05-2021 12:00:50 CEST] Avviato signal handler thread
+[19-05-2021 12:00:54 CEST] Server stopped
