@@ -44,7 +44,7 @@ void func(ready_clients *head){
 
 int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	
-	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0; // i = 0, ready_com = 0
+	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0; // i = 0, ready_com = 0
 	char buffer[PIPE_BUF]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
 	char SOCKETADDR[UNIX_MAX_PATH]; // Indirizzo del socket
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));
@@ -114,7 +114,6 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 		puts(ANSI_COLOR_GREEN"Polling..."ANSI_COLOR_RESET);
 		poll_val = poll(com_fd, com_count, -1);
 		CHECKERRNO(poll_val < 0, "Errore durante il polling");
-		printf("poll val %d\n", poll_val);
 		SAFELOCK(abort_connections_mtx);
 		if(abort_connections){
 			SAFEUNLOCK(abort_connections_mtx);
@@ -123,36 +122,6 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 		SAFEUNLOCK(abort_connections_mtx);
 
 
-		SAFELOCK(can_accept_mtx);
-		SAFELOCK(ready_queue_mtx);
-		if(!can_accept){
-			printf(ANSI_COLOR_RED"CAN ACCEPT: %d\nCOM_COUNT: %ld\n"ANSI_COLOR_RESET, can_accept, com_count);
-			if(ready_queue[0] == NULL)
-				printf(ANSI_COLOR_RED"QUEUE EMPTY\n"ANSI_COLOR_RESET);
-			SAFEUNLOCK(ready_queue_mtx);
-			SAFEUNLOCK(can_accept_mtx);
-			for (size_t i = 0; i < configuration.workers; i++){
-				printf(ANSI_COLOR_RED"%d "ANSI_COLOR_RESET, free_threads[i]);
-				SAFELOCK(free_threads_mtx);
-				if(!free_threads[i]){
-					SAFEUNLOCK(free_threads_mtx);
-					break;
-				}
-				if(i == configuration.workers - 1 && free_threads[i])
-					thread_finished = true;
-				SAFEUNLOCK(free_threads_mtx);
-			}
-			puts("");
-			printf(ANSI_COLOR_RED"THREAD FINISHED %d\n"ANSI_COLOR_RESET, thread_finished);
-			if(thread_finished && com_count == 2 && ready_queue[0] == NULL)
-				break;
-			thread_finished = false;
-			continue;
-		}
-		else{
-			SAFEUNLOCK(ready_queue_mtx);
-			SAFEUNLOCK(can_accept_mtx);
-		}
 		
 
 
@@ -215,6 +184,13 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 				com_fd[i].events = 0;
 				com_count--;
 			}
+			else if((com_fd[i].revents & POLLHUP) && com_fd[i].fd != 0){
+				client_closed++;
+				close(com_fd[i].fd);
+				com_fd[i].fd = 0;
+				com_fd[i].events = 0;
+				com_count--;
+			}
 		}
 
 		for (size_t i = 0; i < configuration.workers; i++){
@@ -235,8 +211,10 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			}
 			SAFEUNLOCK(free_threads_mtx);
 		}
-	
-
+		SAFELOCK(can_accept_mtx);
+		if(!can_accept && client_accepted == client_closed)
+			break;
+		SAFEUNLOCK(can_accept_mtx);
 	}
 	SAFELOCK(log_access_mtx);
 	write_to_log("Server stopped");

@@ -65,11 +65,15 @@ void* worker(void* args){
 	
 		CHECKERRNO((read(com, buffer, sizeof(buffer)) < 0), "Reading from client");
 		if(strcmp(buffer, "quit") == 0) {
-			close(com);
+			// close(com); Now I try to send back the com that the client will close to keep track of connecitons/disconnections
 			memset(buffer, 0, sizeof(buffer));
 			SAFELOCK(free_threads_mtx);
 			free_threads[whoami] = true;
 			SAFEUNLOCK(free_threads_mtx);
+			memset(buffer, 0, sizeof(buffer));
+			sprintf(buffer, "%d", com);
+			CHECKERRNO((write(m_w_pipe[1], buffer, sizeof(buffer)) < 0), "Return com");
+			memset(buffer, 0, sizeof(buffer));	
 			printf(ANSI_COLOR_MAGENTA"[Thread %d] client %d quitted, com closed\n"ANSI_COLOR_RESET, whoami, com);
 			sprintf(log_buffer,"[Thread %d] client %d quitted, com closed", whoami, com);
 			SAFELOCK(log_access_mtx);
