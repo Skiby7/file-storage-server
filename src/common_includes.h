@@ -48,6 +48,21 @@
 
 #define PRINT_WELCOME printf(ANSI_CLEAR_SCREEN ANSI_COLOR_CYAN"%s"ANSI_COLOR_RESET, WELCOME_MESSAGE); 
 
+#define PRINT_POLLING(increment) \
+	switch(increment){ \
+		case 0: \
+		increment += 1; \
+		printf(ANSI_COLOR_YELLOW"* "ANSI_COLOR_RESET);  \
+		break; \
+		case 1: \
+		increment = 0; \
+		printf(ANSI_COLOR_YELLOW" *"ANSI_COLOR_RESET);  \
+		break; \
+	}\
+	printf("\033[2D");
+	
+
+
 #define CHECKEXIT(condizione, printErrno, msg)			\
 	if(condizione)						\
 	{							\

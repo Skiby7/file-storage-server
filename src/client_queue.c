@@ -1,7 +1,7 @@
 #include "client_queue.h"
 
-void insert_client_ready_list(int com, ready_clients **head, ready_clients **tail){
-	ready_clients* new = (ready_clients*) malloc(sizeof(ready_clients));
+void insert_client_list(int com, clients_list **head, clients_list **tail){
+	clients_list* new = (clients_list*) malloc(sizeof(clients_list));
 	CHECKALLOC(new, "Errore inserimento nella lista pronti");
 	new->com = com;
 	new->next = (*head);
@@ -13,9 +13,9 @@ void insert_client_ready_list(int com, ready_clients **head, ready_clients **tai
 	(*head) = new;	
 } 
 
-int pop_client(ready_clients **head, ready_clients **tail){
+int pop_client(clients_list **head, clients_list **tail){
 	int retval = 0;
-	ready_clients *befree = NULL;
+	clients_list *befree = NULL;
 	if((*tail) == NULL)
 		return -1;
 
@@ -32,12 +32,23 @@ int pop_client(ready_clients **head, ready_clients **tail){
 	
 } 
 
-void clean_list(ready_clients **head){
-	ready_clients *befree = NULL;
+void clean_ready_list(clients_list **head){
+	clients_list *befree = NULL;
 	while((*head)!=NULL){
 		close((*head)->com);
 		befree = (*head);
 		(*head) = (*head)->next;
 		free(befree);
+	}
+}
+
+void clean_done_list(clients_list **head, int *client_closed){
+	clients_list *befree = NULL;
+	while((*head)!=NULL){
+		close((*head)->com);
+		befree = (*head);
+		(*head) = (*head)->next;
+		free(befree);
+		*client_closed+=1;
 	}
 }

@@ -11,20 +11,23 @@ config configuration; // Server config
 bool can_accept = true;
 bool abort_connections = false;
 pthread_mutex_t ready_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t done_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t log_access_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t client_is_ready = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t abort_connections_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t can_accept_mtx = PTHREAD_MUTEX_INITIALIZER;
 bool *free_threads;
-ready_clients *ready_queue[2];
+clients_list *ready_queue[2];
+clients_list *done_queue[2];
 int m_w_pipe[2]; // 1 lettura, 0 scrittura
 extern void* worker(void* args);
 pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
+static int poll_time = -1;
 
 /** TODO:
  * - Riguardare pthread join per far terminare i thread
  * - Implementare il protocollo richiesta risposta in modo che un thread non si blocchi sulla read indefinitamente, altrimenti a seguito di una cancellazione non termina
- * 
+ * - Done client list
  * 
  * 
  * 
@@ -32,7 +35,7 @@ pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
  *
 */
 
-void func(ready_clients *head){
+void func(clients_list *head){
 	while (head != NULL){
 		printf("%d -> ", head->com);
 		head = head->next;
@@ -44,7 +47,7 @@ void func(ready_clients *head){
 
 int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	
-	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0; // i = 0, ready_com = 0
+	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0, poll_print = 0; // i = 0, ready_com = 0
 	char buffer[PIPE_BUF]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
 	char SOCKETADDR[UNIX_MAX_PATH]; // Indirizzo del socket
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));
@@ -52,6 +55,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	nfds_t com_size = DEFAULTFDS;
 	ready_queue[0] = NULL;
 	ready_queue[1] = NULL;
+	
 	CHECKALLOC(com_fd, "pollfd");
 	bool thread_finished = false;
 	pthread_t *workers;
@@ -111,85 +115,75 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	}
 	puts(ANSI_COLOR_RESET);
 	while(true){
-		puts(ANSI_COLOR_GREEN"Polling..."ANSI_COLOR_RESET);
-		poll_val = poll(com_fd, com_count, -1);
+		poll_val = poll(com_fd, com_count, 10);
 		CHECKERRNO(poll_val < 0, "Errore durante il polling");
+		PRINT_POLLING(poll_print);
 		SAFELOCK(abort_connections_mtx);
 		if(abort_connections){
 			SAFEUNLOCK(abort_connections_mtx);
 			break;
 		}
 		SAFEUNLOCK(abort_connections_mtx);
-
-
-		
-
-
-		if(com_fd[0].revents & POLLIN){
-			com = accept(socket_fd, NULL, 0);
-			SAFELOCK(can_accept_mtx);
-			if(!can_accept){
-				SAFEUNLOCK(can_accept_mtx);
-				close(com);
-			}
-			else{
-				SAFEUNLOCK(can_accept_mtx);
-				CHECKERRNO((com < 0), "Errore durante la accept");
-				client_accepted++;
-				for (size_t i = 0; i < configuration.workers; i++){
-					SAFELOCK(free_threads_mtx);
-					if(free_threads[i]){ // Se ho un thread libero gli assegno subito il lavoro e continuo il ciclo
+		if(poll_val != 0){
+			if(com_fd[0].revents & POLLIN){
+				com = accept(socket_fd, NULL, 0);
+				SAFELOCK(can_accept_mtx);
+				if(!can_accept){
+					SAFEUNLOCK(can_accept_mtx);
+					close(com);
+				}
+				else{
+					SAFEUNLOCK(can_accept_mtx);
+					CHECKERRNO((com < 0), "Errore durante la accept");
+					client_accepted++;
+					for (size_t i = 0; i < configuration.workers; i++){
+						SAFELOCK(free_threads_mtx);
+						if(free_threads[i]){ // Se ho un thread libero gli assegno subito il lavoro e continuo il ciclo
+							SAFEUNLOCK(free_threads_mtx);
+							SAFELOCK(ready_queue_mtx);
+							insert_client_list(com, &ready_queue[0], &ready_queue[1]);
+							pthread_cond_signal(&client_is_ready);
+							SAFEUNLOCK(ready_queue_mtx);	
+							break;
+						}
 						SAFEUNLOCK(free_threads_mtx);
 						SAFELOCK(ready_queue_mtx);
-						insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
-						pthread_cond_signal(&client_is_ready);
+						insert_client_list(com, &ready_queue[0], &ready_queue[1]);
 						SAFEUNLOCK(ready_queue_mtx);	
-						break;
-					}
-					SAFEUNLOCK(free_threads_mtx);
-					SAFELOCK(ready_queue_mtx);
-					insert_client_ready_list(com, &ready_queue[0], &ready_queue[1]);
-					SAFEUNLOCK(ready_queue_mtx);	
-				}
-			}
-		}	
-		
-		if(com_fd[1].revents & POLLIN){
-			read_bytes = read(m_w_pipe[0], buffer, sizeof(buffer));
-			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
-			if(strncmp(buffer, "termina", PIPE_BUF) != 0){
-				tmp = strtol(buffer, NULL, 10);
-				if(tmp <= 0){
-					fprintf(stderr, "Errore strtol! Buffer -> %s\n", buffer);
-					fflush(stderr);
-					continue;
-				}
-				if (com_size - com_count < 3){
-					com_size = realloc_com_fd(&com_fd, com_size);
-					for (size_t i = com_count; i < com_size; i++){
-						com_fd[i].fd = 0;
-						com_fd[i].events = 0;
 					}
 				}
-				insert_com_fd(tmp, &com_size, &com_count, com_fd);
-			}
-		}
+			}	
 			
-		for(size_t i = 2; i < com_size; i++){
-			if((com_fd[i].revents & POLLIN) && com_fd[i].fd != 0){
-				SAFELOCK(ready_queue_mtx);
-				insert_client_ready_list(com_fd[i].fd, &ready_queue[0], &ready_queue[1]);
-				SAFEUNLOCK(ready_queue_mtx);
-				com_fd[i].fd = 0;
-				com_fd[i].events = 0;
-				com_count--;
+			if(com_fd[1].revents & POLLIN){
+				read_bytes = read(m_w_pipe[0], buffer, sizeof(buffer));
+				CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
+				if(strncmp(buffer, "termina", PIPE_BUF) != 0){
+					tmp = strtol(buffer, NULL, 10);
+					if(tmp <= 0){
+						fprintf(stderr, "Errore strtol! Buffer -> %s\n", buffer);
+						fflush(stderr);
+						continue;
+					}
+					if (com_size - com_count < 3){
+						com_size = realloc_com_fd(&com_fd, com_size);
+						for (size_t i = com_count; i < com_size; i++){
+							com_fd[i].fd = 0;
+							com_fd[i].events = 0;
+						}
+					}
+					insert_com_fd(tmp, &com_size, &com_count, com_fd);
+				}
 			}
-			else if((com_fd[i].revents & POLLHUP) && com_fd[i].fd != 0){
-				client_closed++;
-				close(com_fd[i].fd);
-				com_fd[i].fd = 0;
-				com_fd[i].events = 0;
-				com_count--;
+				
+			for(size_t i = 2; i < com_size; i++){
+				if((com_fd[i].revents & POLLIN) && com_fd[i].fd != 0){
+					SAFELOCK(ready_queue_mtx);
+					insert_client_list(com_fd[i].fd, &ready_queue[0], &ready_queue[1]);
+					SAFEUNLOCK(ready_queue_mtx);
+					com_fd[i].fd = 0;
+					com_fd[i].events = 0;
+					com_count--;
+				}
 			}
 		}
 
@@ -201,7 +195,6 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 				if(ready_queue[0] != NULL){
 					pthread_cond_signal(&client_is_ready);
 					SAFEUNLOCK(ready_queue_mtx);	
-					
 					continue; 
 				}
 				else{
@@ -211,9 +204,31 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			}
 			SAFEUNLOCK(free_threads_mtx);
 		}
+		
+		SAFELOCK(done_queue_mtx);
+		clean_done_list(&done_queue[0], &client_closed);
+		SAFEUNLOCK(done_queue_mtx);
+		
 		SAFELOCK(can_accept_mtx);
-		if(!can_accept && client_accepted == client_closed)
+		if(!can_accept && client_accepted == client_closed){
+			puts("waiting");
+			SAFEUNLOCK(can_accept_mtx);
+			while (!thread_finished){
+				for (size_t i = 0; i < configuration.workers; i++){
+					SAFELOCK(free_threads_mtx);
+					if (!free_threads[i]){
+						SAFEUNLOCK(free_threads_mtx);
+						break;
+					}
+					if (free_threads[i] && i == configuration.workers - 1)
+						thread_finished = true;
+					SAFEUNLOCK(free_threads_mtx);
+					
+				}
+				sleep(1);
+			}
 			break;
+		}
 		SAFEUNLOCK(can_accept_mtx);
 	}
 	SAFELOCK(log_access_mtx);
@@ -251,19 +266,20 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			if(com_fd[i].fd != 0)
 				close(com_fd[i].fd);
 	}
+	
 	close(socket_fd);
 	close(m_w_pipe[0]);
 	close(m_w_pipe[1]);
 	puts("socket closed");
 	freeConfig(&configuration);
-	clean_list(&ready_queue[0]);
+	clean_ready_list(&ready_queue[0]);
+	clean_done_list(&done_queue[0], &client_closed);
 	puts("list closed");
 	free(workers);
 	puts("workers closed");
 	free(com_fd);
 	free(free_threads);
 	puts("comfd closed");
-	clean_list(&ready_queue[0]);
 
 	return 0;
 }

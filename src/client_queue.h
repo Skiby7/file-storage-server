@@ -7,8 +7,9 @@ typedef struct connections_{
 	int com;
 	struct connections_ *next;
 	struct connections_ *prev;
-} ready_clients;
+} clients_list;
 
-void insert_client_ready_list(int com, ready_clients **head, ready_clients **tail);
-int pop_client(ready_clients **head, ready_clients **tail);
-void clean_list(ready_clients **head);
+void insert_client_list(int com, clients_list **head, clients_list **tail);
+int pop_client(clients_list **head, clients_list **tail);
+void clean_ready_list(clients_list **head);
+void clean_done_list(clients_list **head, int *client_closed);
