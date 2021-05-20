@@ -1,7 +1,46 @@
+#include <file.h>
 #include "fssApi.h"
+
+
 
 extern int socket_fd;
 char open_connection_name[UNIX_MAX_PATH] = "None";
+extern pthread_mutex_t storage_access_mtx;
+extern storage server_storage;
+
+ssize_t readn(int fd, void *ptr, size_t n) {  
+   size_t   nleft;
+   ssize_t  nread;
+ 
+   nleft = n;
+   while (nleft > 0) {
+     if((nread = read(fd, ptr, nleft)) < 0) {
+        if (nleft == n) return -1; /* error, return -1 */
+        else break; /* error, return amount read so far */
+     } else if (nread == 0) break; /* EOF */
+     nleft -= nread;
+     ptr   += nread;
+   }
+   return(n - nleft); /* return >= 0 */
+}
+
+
+ssize_t writen(int fd, void *ptr, size_t n) {  
+   size_t   nleft;
+   ssize_t  nwritten;
+ 
+   nleft = n;
+   while (nleft > 0) {
+     if((nwritten = write(fd, ptr, nleft)) < 0) {
+        if (nleft == n) return -1; /* error, return -1 */
+        else break; /* error, return amount written so far */
+     } else if (nwritten == 0) break; 
+     nleft -= nwritten;
+     ptr   += nwritten;
+   }
+   return(n - nleft); /* return >= 0 */
+}
+ 
 
 int openConnection(const char* sockname, int msec, const struct timespec abstime){
 	int i = 1, connection_status = -1;
@@ -75,6 +114,25 @@ int openFile(const char* pathname, int flags){
 		exit(EXIT_FAILURE);
 	}
 	return 0;
+}
+
+int readFile(const char* pathname, void** buf, size_t* size){
+	int file_index = 0;
+	unsigned char* data = NULL;
+	SAFELOCK(storage_access_mtx);
+	file_index = search_file(pathname);
+	SAFEUNLOCK(storage_access_mtx);
+	if(file_index != -1){
+		SAFELOCK(storage_access_mtx);
+		*size = server_storage.storage_table[file_index].size;
+		data = (unsigned char *) malloc(*size*sizeof(unsigned char));
+		memcpy(data, server_storage.storage_table[file_index].data, *size); // check if returns NULL
+		SAFEUNLOCK(storage_access_mtx);
+		*buf = data;
+		return 0;
+	}
+	errno = ENOENT;
+	return -1;
 }
 
 

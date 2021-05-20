@@ -2,11 +2,14 @@
 #include "hash.h"
 
 
-// TO REMEMBER:
-// - Check #mallocs == #frees
+/** TODO:
+ * - Controllare il numero di malloc e free
+ * - Dare a ogni file una mutex in modo che possa fare la copia in e out senza bloccare nessuno
+ *
+*/
 
 storage server_storage;
-static pthread_mutex_t storage_access = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t storage_access_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 int init_storage(int max_file_num, int max_size){
 	server_storage.storage_table = (fssFile *) malloc(2*max_file_num*sizeof(fssFile));
@@ -38,7 +41,7 @@ int write_to_file(unsigned char *data, int length, char *pathname, bool is_locke
 }
 
 int append_to_file(char *filename, unsigned char* newdata, int newdata_len){
-	pthread_mutex_lock(&storage_access);
+	pthread_mutex_lock(&storage_access_mtx);
 }
 
 int clean_storage(){

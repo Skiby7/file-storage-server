@@ -6,7 +6,7 @@
 #include "fssApi.h"
 #include <limits.h>
 
-void func(ready_clients *head){
+void func(clients_list *head){
 	while (head != NULL){
 		printf("%d -> ", head->com);
 		head = head->next;
@@ -16,7 +16,7 @@ void func(ready_clients *head){
 	
 }
 
-void func1(ready_clients *tail){
+void func1(clients_list *tail){
 	while (tail != NULL){
 		printf("%d -> ", tail->com);
 		tail = tail->prev;

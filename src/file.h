@@ -28,3 +28,6 @@ typedef struct storage_{
 } storage;
 
 int init_storage(int max_file_num, int max_size);
+unsigned int search_file(const char* pathname);
+int clean_storage();
+int append_to_file(char *filename, unsigned char* newdata, int newdata_len);
