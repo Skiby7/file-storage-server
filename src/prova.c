@@ -25,52 +25,41 @@ void func1(clients_list *tail){
 	
 }
 
+struct prova
+{
+	char *ciao;
+	int i;
+};
+
 
 int main(){
-	struct stat a_aout;
-	struct stat M_Makefile;
-	
-	int photo;
-	if((photo = open("./a.out", O_RDONLY)) == -1){
-		perror("Filein");
-		exit(EXIT_FAILURE);
-	}
-	fstat(photo, &a_aout);
-	
+	int pipe_fd[2];
+	pipe(pipe_fd);
+	struct prova prova_invio;
+	prova_invio.ciao = (char *) calloc(10, 1);
+	prova_invio.i = 5;
+	strcpy(prova_invio.ciao, "Testo");
+	struct prova prova_ricezione;
+	memset(&prova_ricezione, 0, sizeof(struct prova));
+	pid_t pid;
+	pid = fork();
+	if(pid == 0){
+		close(pipe_fd[0]);
+		write(pipe_fd[1], &prova_invio, sizeof(prova_invio));
+		puts("Inviato!");
+		return 0;
 
-	unsigned char *buffer = (unsigned char *)calloc(a_aout.st_size+10, sizeof(unsigned char));
-	read(photo, buffer, a_aout.st_size);
-	int i = 0;
+	}
+	else{
+		close(pipe_fd[1]);
+		read(pipe_fd[0], &prova_ricezione, sizeof(prova_ricezione));
+		printf("Ricevuto:\vStringa: %s\n\tIntero: %d\n", prova_ricezione.ciao, prova_ricezione.i);
+		return 0;
+
+	}
+
 	
-	int aoutnew1;
-	if((aoutnew1 = open("./anew.out", O_CREAT | O_RDWR, a_aout.st_mode)) == -1){
-		perror("Filein");
-		exit(EXIT_FAILURE);
-	}
-	write(aoutnew1, buffer, a_aout.st_size);
-	while(i < a_aout.st_size+5){
-		printf("%c ", buffer[i++]);
-	}
-	puts("");
-	buffer[a_aout.st_size+1] = 'i';
-	buffer[a_aout.st_size+2] = 'a';
-	buffer[a_aout.st_size+3] = 'o';
-	buffer[a_aout.st_size+4] = 'c';
 	
-	int aoutnew2;
-	if((aoutnew2 = open("./anew1.out", O_CREAT | O_RDWR, a_aout.st_mode)) == -1){
-		perror("Filein");
-		exit(EXIT_FAILURE);
-	}
-	write(aoutnew2, buffer, a_aout.st_size+4);
-	while(i < a_aout.st_size+5){
-		printf("%c ", buffer[i++]);
-	}
-	puts("");
-	close(photo);
-	close(aoutnew1);
-	close(aoutnew2);
-	free(buffer);
 
 
 
@@ -78,27 +67,3 @@ int main(){
 
 }
 
-int openFile(const char* pathname, int flags){
-	int file;
-	int mode = 0;
-	int exists = 0;
-	int create = O_CREATE && flags;
-	if(access(pathname, F_OK) == 0)
-		exists = 1;
-	
-	if(create && exists){
-		errno = EEXIST;
-		return -1;
-	}
-	if(!create && !exists){
-		errno = EINVAL;
-		return -1;
-	}
-		
-	
-	if((file = open(pathname, flags)) == -1){
-		perror("Open File");
-		exit(EXIT_FAILURE);
-	}
-	return 0;
-}

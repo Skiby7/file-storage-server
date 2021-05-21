@@ -10,15 +10,17 @@ typedef struct fssFile_{
 	unsigned char *data;
 	bool locked;
 	bool deleted;
+	unsigned short use_stat;
 	int client_locking;
 	unsigned long size;
 	mode_t permissions;
 	time_t create_time;
 	time_t last_modified;
+	pthread_mutex_t file_mutex;
 } fssFile;
 
 typedef struct storage_{
-	fssFile *storage_table;
+	fssFile **storage_table;
 	unsigned long size;
 	unsigned long size_limit;
 	unsigned long max_size_reached;
@@ -29,5 +31,6 @@ typedef struct storage_{
 
 int init_storage(int max_file_num, int max_size);
 unsigned int search_file(const char* pathname);
+unsigned int get_free_index(const char* pathname);
 int clean_storage();
 int append_to_file(char *filename, unsigned char* newdata, int newdata_len);
