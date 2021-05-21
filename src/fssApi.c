@@ -159,7 +159,7 @@ int readFile(const char *pathname, void **buf, size_t *size){
 		*size = server_storage.storage_table[file_index]->size;
 		data = (unsigned char *)malloc(*size * sizeof(unsigned char));
 		memcpy(data, server_storage.storage_table[file_index]->data, *size); // check if returns NULL
-		SAFEUNLOCK(server_storage.storage_table[file_index->file_mutex);
+		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
 		*buf = data;
 		return 0;
 	}
