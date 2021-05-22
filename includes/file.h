@@ -10,8 +10,9 @@ typedef struct fssFile_{
 	unsigned char *data;
 	bool locked;
 	bool deleted;
+	bool open;
 	unsigned short use_stat;
-	int client_locking;
+	unsigned int client_request;
 	unsigned long size;
 	mode_t permissions;
 	time_t create_time;

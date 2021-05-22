@@ -3,11 +3,6 @@
 #include "common_includes.h"
 #endif
 
-#define O_CREATE 0100
-#define O_LOCK 0200
-
-
-
 
 int openConnection(const char* sockname, int msec, const struct timespec abstime);
 int closeConnection(const char* sockname);

@@ -4,6 +4,7 @@
 #include "hash.h"
 #include "file.h"
 #include "fssApi.h"
+#include "connections.h"
 #include <limits.h>
 
 void func(clients_list *head){
@@ -33,30 +34,17 @@ struct prova
 
 
 int main(){
-	int pipe_fd[2];
-	pipe(pipe_fd);
-	struct prova prova_invio;
-	prova_invio.ciao = (char *) calloc(10, 1);
-	prova_invio.i = 5;
-	strcpy(prova_invio.ciao, "Testo");
-	struct prova prova_ricezione;
-	memset(&prova_ricezione, 0, sizeof(struct prova));
-	pid_t pid;
-	pid = fork();
-	if(pid == 0){
-		close(pipe_fd[0]);
-		write(pipe_fd[1], &prova_invio, sizeof(prova_invio));
-		puts("Inviato!");
-		return 0;
+	unsigned char op1 = O_LOCK | READ | O_CREATE | APPEND;
+	unsigned char op2 = op1 & O_CREATE;
+	unsigned char op3 = op1 & ~WRITE;
 
-	}
-	else{
-		close(pipe_fd[1]);
-		read(pipe_fd[0], &prova_ricezione, sizeof(prova_ricezione));
-		printf("Ricevuto:\vStringa: %s\n\tIntero: %d\n", prova_ricezione.ciao, prova_ricezione.i);
-		return 0;
+	
+	printf("Condizione: %d %.8x\n", op1, op1);
+	printf("Condizione: %d %.8x\n", op2, op2);
+	printf("Condizione: %d %.8x\n", op3, op3);
 
-	}
+	if(op1 & WRITE & APPEND)
+		puts("ciao\n");
 
 	
 	
