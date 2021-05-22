@@ -17,6 +17,7 @@
 #define FILE_WRITE_SUCCESS 0x10
 #define FILE_READ_SUCCESS 0x20
 #define FILE_UNLOCK_SUCCESS 0x40
+#define FILE_EXISTS 0x80
 
 #define FILE_OPEN_FAILED 0x01
 #define FILE_CLOSE_FAILED 0x02
@@ -24,8 +25,8 @@
 #define FILE_LOCK_FAILED 0x08
 #define FILE_WRITE_FAILED 0x10
 #define FILE_READ_FAILED 0x20
-#define FILE_UNLOCK_SUCCESS 0x40
-#define FILE_EXISTS 0x80
+#define FILE_UNLOCK_FAILED 0x40
+#define FILE_NOT_EXISTS 0x80
 
 
 typedef struct client_request_{
@@ -41,7 +42,7 @@ typedef struct server_response_{
 	char *filename;
 	unsigned char *data;
 	unsigned int size;
-	unsigned char code[2];
+	unsigned char code[3]; // 0 -> success e file exists error 1 -> failed e file not exists 2 -> errno
 	bool deleted_file;
 } server_response;
 

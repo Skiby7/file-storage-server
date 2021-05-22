@@ -11,7 +11,6 @@
 #include <sys/un.h>
 #include <signal.h>
 #include <limits.h>
-
 #define UNIX_MAX_PATH 108
 #define EALLOC "Error while allocating memory!"
 

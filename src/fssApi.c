@@ -138,6 +138,12 @@ int openFile(const char *pathname, int flags){
 	open_request.client_id = getpid();
 	CHECKSCEXIT(writen(socket_fd, &open_request, sizeof(open_request)), true, "Errore invio richiesta openFile");
 	CHECKSCEXIT(readn(socket_fd, &open_response, sizeof(open_response)),true, "Errore lettura risposta server");
+	if(open_response.code[0] & FILE_EXISTS){
+		errno = FILE_EXISTS;
+		clean_request(&open_request);
+		clean_response(&open_response);
+		return -1; 
+	}
 	if(open_response.code[1] == 0){
 		if(flags & O_CREATE){
 			if(open_response.code[0] & FILE_CREATE_SUCCESS & FILE_OPEN_SUCCESS){

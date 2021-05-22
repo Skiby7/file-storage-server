@@ -10,11 +10,9 @@ typedef struct fssFile_{
 	unsigned char *data;
 	bool locked;
 	bool deleted;
-	bool open;
 	unsigned short use_stat;
-	unsigned int client_request;
+	unsigned int client_open_id;
 	unsigned long size;
-	mode_t permissions;
 	time_t create_time;
 	time_t last_modified;
 	pthread_mutex_t file_mutex;
