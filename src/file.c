@@ -13,8 +13,16 @@
 storage server_storage;
 pthread_mutex_t storage_access_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-
-static int check_memory(int new_size, int old_size){
+/**
+ * Check whether there's enough space in memory or not
+ * 
+ * @param new_size size of the file to be inserted
+ * @param old_size size of the file to be replaced. 0 if the new file does not overwrite anything
+ * 
+ * @returns 0 if the operation is successful, -1 if the file is too big or there are no locked files to remove
+ *
+ */
+static int check_memory(unsigned int new_size, unsigned int old_size){
 	int max_capacity = 0, actual_capacity = 0, table_size = 0, clean_level = 0;
 	SAFELOCK(storage_access_mtx);
 	max_capacity = server_storage.size_limit;
@@ -100,7 +108,7 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 
 
 
-int write_to_file(unsigned char *data, int length, char *filename, bool is_locked, int client_id, server_response *response){
+int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response){
 	int file_index = search_file(filename);
 	int old_size = 0;
 	if(file_index == -1){
@@ -116,6 +124,10 @@ int write_to_file(unsigned char *data, int length, char *filename, bool is_locke
 			response->code[1] = FILE_WRITE_FAILED;
 			return -1;
 		}
+		SAFELOCK(storage_access_mtx);
+		server_storage.size += length;
+		SAFEUNLOCK(storage_access_mtx);
+
 
 		SAFELOCK(server_storage.storage_table[file_index]->file_mutex);
 		server_storage.storage_table[file_index] = (unsigned char *) realloc(server_storage.storage_table[file_index], length);
@@ -124,6 +136,7 @@ int write_to_file(unsigned char *data, int length, char *filename, bool is_locke
 		server_storage.storage_table[file_index]->size = length;
 		server_storage.storage_table[file_index]->last_modified = time(NULL);
 		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
+		
 		response->code[0] = FILE_WRITE_SUCCESS;
 		return 0;
 	}
@@ -132,10 +145,38 @@ int write_to_file(unsigned char *data, int length, char *filename, bool is_locke
 	return -1;
 }
 
-int append_to_file(char *filename, unsigned char* newdata, int newdata_len){
-	pthread_mutex_lock(&storage_access_mtx);
-}
+int append_to_file(unsigned char* new_data, int new_data_size, char *filename, int client_id, server_response *response){
+	int file_index = search_file(filename);
+	int old_size = 0;
+	if(file_index == -1){
+		response->code[1] = FILE_WRITE_FAILED | FILE_NOT_EXISTS;
+		return -1;
+	}
+	SAFELOCK(server_storage.storage_table[file_index]->file_mutex);
+	if(!server_storage.storage_table[file_index]->locked){
+		old_size = server_storage.storage_table[file_index]->size;
+		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
+		if(check_memory(new_data_size + old_size, 0) < 0){
+			response->code[2] = EFBIG;
+			response->code[1] = FILE_WRITE_FAILED;
+			return -1;
+		}
+		SAFELOCK(storage_access_mtx);
+		server_storage.size += new_data_size;
+		SAFEUNLOCK(storage_access_mtx);
+		SAFELOCK(server_storage.storage_table[file_index]->file_mutex);
+		server_storage.storage_table[file_index] = (unsigned char *) realloc(server_storage.storage_table[file_index], new_data_size + old_size);
+		CHECKALLOC(server_storage.storage_table[file_index], "Errore allocazione append_to_file");
+		for (size_t i = old_size, j = 0; j < new_data_size; i++, j++)
+			server_storage.storage_table[file_index]->data[i] = new_data[j];
 
+		server_storage.storage_table[file_index]->size = new_data_size + old_size;
+		server_storage.storage_table[file_index]->last_modified = time(NULL);
+		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
+		response->code[0] = FILE_WRITE_SUCCESS;
+		return 0;
+	}
+}
 int clean_storage(){
 	for(int i = 0; i < server_storage.file_limit; i++){
 		if(server_storage.storage_table[i] != NULL){
@@ -181,9 +222,9 @@ unsigned int search_file(const char* pathname){
 }
 
 /**
- * Search for an entry in the hash table
+ * Search for an unused index in the hash table
  * 
- * @param pathname the file to be searched
+ * @param pathname the file to be inserted
  * 
  * @returns the first free index
  *
