@@ -9,6 +9,7 @@
 #define APPEND 0x08
 #define O_CREATE 0x10
 #define O_LOCK 0x20
+#define QUIT 0x40
 
 #define FILE_OPEN_SUCCESS 0x01 
 #define FILE_CLOSE_SUCCESS 0x02

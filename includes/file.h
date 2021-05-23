@@ -32,4 +32,7 @@ int init_storage(int max_file_num, int max_size);
 unsigned int search_file(const char* pathname);
 unsigned int get_free_index(const char* pathname);
 int clean_storage();
-int append_to_file(char *filename, unsigned char* newdata, int newdata_len);
+int open_file(char *filename, int flags, int client_id, server_response *response);
+int read_file(char *filename, server_response *response);
+int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response);
+int append_to_file(unsigned char* new_data, int new_data_size, char *filename, int client_id, server_response *response);

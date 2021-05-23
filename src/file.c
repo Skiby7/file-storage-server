@@ -105,6 +105,25 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 	return 0;
 }
 
+int read_file(char *filename, server_response *response){
+	int file_index = search_file(filename);
+	if(file_index == -1){
+		response->code[1] = FILE_NOT_EXISTS | FILE_READ_FAILED;
+		response->code[2] = ENOENT;
+		return -1;
+	}
+	SAFELOCK(server_storage.storage_table[file_index]->file_mutex);
+	response->data = (unsigned char *) calloc(server_storage.storage_table[file_index]->size, sizeof(unsigned char));
+	CHECKALLOC(response->data, "Errore allocazione memoria read_file");
+	response->size = server_storage.storage_table[file_index]->size;
+	memcpy(response->data, server_storage.storage_table[file_index]->data, response->size);
+	if(server_storage.storage_table[file_index]->use_stat < 2)
+		server_storage.storage_table[file_index]->use_stat += 1;
+	SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
+	response->code[0] = FILE_READ_SUCCESS;
+	return 0;
+
+}
 
 
 
@@ -194,7 +213,7 @@ int clean_storage(){
  * @returns the index or -1 in case of file not found 
  *
  */
-unsigned int search_file(const char* pathname){
+static unsigned int search_file(const char* pathname){
 	int i = 0, max_len = server_storage.file_limit, index = 0;
 	unsigned int path_len = strlen(pathname);
 	
@@ -230,7 +249,7 @@ unsigned int search_file(const char* pathname){
  *
  */
 
-unsigned int get_free_index(const char* pathname){
+static unsigned int get_free_index(const char* pathname){
 	int i = 0, max_len = server_storage.file_limit, index = 0;
 	unsigned int path_len = strlen(pathname);
 	
@@ -253,7 +272,7 @@ unsigned int get_free_index(const char* pathname){
 	}
 }
 
-void init_file(int id, char *filename, bool locked){
+static void init_file(int id, char *filename, bool locked){
 	int index = get_free_index(filename);
 	SAFELOCK(storage_access_mtx);
 	server_storage.file_count += 1;
