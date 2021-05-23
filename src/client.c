@@ -101,7 +101,9 @@ int main(int argc, char* argv[]){
 			case 'W':
 					CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
 					openFile(optarg, O_CREATE);
+					puts("aperto");
 					writeFile(optarg, NULL);
+					puts("scritto");
 				break;
 				
 			case ':': {
@@ -115,9 +117,13 @@ int main(int argc, char* argv[]){
 	}
 	
 
-	CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
 
-	puts(ANSI_COLOR_CYAN"Connected\n"ANSI_COLOR_RESET);
+	CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
+	puts("Prima della open");
+	openFile("README.md", O_CREATE | O_LOCK);
+	puts("aperto");
+	writeFile("README.md", NULL);
+	puts("scritto");
 
 	memset(buffer, 0, sizeof(buffer));
 	while(true){

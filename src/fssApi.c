@@ -30,7 +30,7 @@ ssize_t readn(int fd, void *ptr, size_t n){
 		nleft -= nread;
 		ptr += nread;
 	}
-	return -(n - nleft); /* return <= 0 */
+	return (n - nleft); /* return <= 0 */
 }
 
 ssize_t writen(int fd, void *ptr, size_t n){
@@ -52,7 +52,7 @@ ssize_t writen(int fd, void *ptr, size_t n){
 		nleft -= nwritten;
 		ptr += nwritten;
 	}
-	return -(n - nleft); /* return >= 0 */
+	return (n - nleft); /* return >= 0 */
 }
 
 static int check_error(unsigned char *code){
@@ -67,19 +67,6 @@ static int check_error(unsigned char *code){
 	return 0;
 }
 
-void clean_request(client_request *request){
-	if(request->data != NULL)
-		free(request->data);
-	if(request->pathname != NULL)
-		free(request->pathname);
-}
-
-void clean_response(server_response *response){
-	if(response->data != NULL)
-		free(response->data);
-	if(response->filename != NULL)
-		free(response->filename);
-}
 
 int openConnection(const char *sockname, int msec, const struct timespec abstime){
 	int i = 1, connection_status = -1;
@@ -136,49 +123,42 @@ int openFile(const char *pathname, int flags){
 	memset(&open_request, 0, sizeof(client_request));
 	memset(&open_response, 0, sizeof(server_response));
 	open_request.command = flags | OPEN;
-	open_request.pathname = (char *) calloc(strlen(pathname)+1, sizeof(char));
-	CHECKALLOC(open_request.pathname, "Errore di allocazione openFile");
-	strncpy(open_request.pathname, pathname, strlen(pathname));
+	memset(open_request.pathname, 0, UNIX_MAX_PATH);
+	strncpy(open_request.pathname, pathname, UNIX_MAX_PATH);
 	open_request.client_id = getpid();
-	CHECKSCEXIT(writen(socket_fd, &open_request, sizeof(open_request)), true, "Errore invio richiesta openFile");
-	CHECKSCEXIT(readn(socket_fd, &open_response, sizeof(open_response)),true, "Errore lettura risposta server");
+	CHECKEXIT(write(socket_fd, &open_request, sizeof(open_request)) < 0, true, "Errore invio richiesta openFile");
+	puts("bloccato");
+	CHECKEXIT(read(socket_fd, &open_response, sizeof(open_response)) < 0,true, "Errore lettura risposta server");
+	puts("qui");
 	if(open_response.code[0] & FILE_EXISTS){
 		errno = FILE_EXISTS;
-		clean_request(&open_request);
-		clean_response(&open_response);
 		return -1; 
 	}
 	if(open_response.code[0] & FILE_OPERATION_SUCCESS){
 		if(flags & O_CREATE){
 			puts(ANSI_COLOR_GREEN"File creato e aperto con successo!"ANSI_COLOR_RESET);
-			clean_request(&open_request);
-			clean_response(&open_response);
+			
 			return 0;
 		}
 		if(flags & O_CREATE & O_LOCK){
 			puts(ANSI_COLOR_GREEN"File creato e bloccato con successo!"ANSI_COLOR_RESET);
-			clean_request(&open_request);
-			clean_response(&open_response);
+			
 			return 0;
 		}
 		if(flags & O_LOCK){
 			puts(ANSI_COLOR_GREEN"File aperto e bloccato con successo!"ANSI_COLOR_RESET);
-			clean_request(&open_request);
-			clean_response(&open_response);
+			
 			return 0;
 			
 		}
 		if(flags == 0){
 				puts(ANSI_COLOR_GREEN"File aperto con successo!"ANSI_COLOR_RESET);
-				clean_request(&open_request);
-				clean_response(&open_response);
 				return 0;
 		}
 	}
 	else{
 		errno = check_error(open_response.code); // Check errno with FILE_*_FAILED
-		clean_request(&open_request);
-		clean_response(&open_response);
+
 		return -1; 
 	}
 	return 0;
@@ -190,19 +170,19 @@ int closeFile(const char *pathname){
 	memset(&close_request, 0, sizeof(client_request));
 	memset(&close_response, 0, sizeof(server_response));
 	close_request.command = CLOSE;
-	close_request.pathname = (char *) calloc(strlen(pathname)+1, sizeof(char));
-	CHECKALLOC(close_request.pathname, "Errore di allocazione openFile");
+	// close_request.pathname = (char *) calloc(strlen(pathname)+1, sizeof(char));
+	// CHECKALLOC(close_request.pathname, "Errore di allocazione openFile");
+	memset(close_request.pathname, 0, UNIX_MAX_PATH);
+	strncpy(close_request.pathname, pathname, UNIX_MAX_PATH);
 	close_request.client_id = getpid();
-	CHECKSCEXIT(writen(socket_fd, &close_request, sizeof(close_request)), true, "Errore invio richiesta readFile");
-	CHECKSCEXIT(readn(socket_fd, &close_response, sizeof(close_response)),true, "Errore lettura risposta server");
+	CHECKEXIT(writen(socket_fd, &close_request, sizeof(close_request)) != 0, true, "Errore invio richiesta readFile");
+	CHECKEXIT(readn(socket_fd, &close_response, sizeof(close_response)) != 0,true, "Errore lettura risposta server");
 	if(close_response.code[0] &FILE_OPERATION_SUCCESS){
 		puts("File chiuso con successo!");
 		return 0;
 	}
 	else{
 		errno = check_error(close_response.code); // Check errno with FILE_*_FAILED
-		clean_request(&close_request);
-		clean_response(&close_response);
 		return -1; 
 	}
 }
@@ -210,29 +190,27 @@ int closeFile(const char *pathname){
 int readFile(const char *pathname, void **buf, size_t *size){
 	client_request read_request;
 	server_response read_response;
-	unsigned char *data = NULL;
 	memset(&read_request, 0, sizeof(client_request));
 	memset(&read_response, 0, sizeof(server_response));
 	read_request.command = READ;
-	read_request.pathname = (char *) calloc(strlen(pathname)+1, sizeof(char));
-	CHECKALLOC(read_request.pathname, "Errore di allocazione readFile");
+	memset(read_request.pathname, 0, UNIX_MAX_PATH);
+	strncpy(read_request.pathname, pathname, UNIX_MAX_PATH);
 	strncpy(read_request.pathname, pathname, strlen(pathname));
 	read_request.client_id = getpid();
-	CHECKSCEXIT(writen(socket_fd, &read_request, sizeof(read_request)), true, "Errore invio richiesta readFile");
-	CHECKSCEXIT(readn(socket_fd, &read_response, sizeof(read_response)),true, "Errore lettura risposta server");
+	CHECKEXIT(writen(socket_fd, &read_request, sizeof(read_request)) != 0, true, "Errore invio richiesta readFile");
+	CHECKEXIT(readn(socket_fd, &read_response, sizeof(read_response)) != 0,true, "Errore lettura risposta server");
 	if(read_response.code[0] & FILE_OPERATION_SUCCESS){
 		*size = read_response.size;
- 		data = (unsigned char *) malloc(*size * sizeof(unsigned char));
-		memcpy(data, read_response.data, *size);
-		* buf = data;
-		clean_request(&read_request);
-		clean_response(&read_response);
+		*buf = realloc(*buf, *size);
+		CHECKALLOC(*buf, "Errore di allocazione buffer lettura");
+		memset(&read_request, 0, sizeof(client_request));
+		read_request.command = FILE_OPERATION_SUCCESS;
+		CHECKEXIT(writen(socket_fd, &read_request, sizeof(read_request)) != 0, true, "Errore invio richiesta readFile");
+		CHECKEXIT(readn(socket_fd, *buf, *size) != 0,true, "Errore lettura risposta server");
 		return 0;
 	}
 	else{
 		errno = check_error(read_response.code);
-		clean_request(&read_request);
-		clean_response(&read_response);
 		return -1;
 	}
 	return 0;
@@ -242,76 +220,40 @@ int readFile(const char *pathname, void **buf, size_t *size){
 
 int appendToFile(const char *pathname, void *buf, size_t size, const char *dirname){
 	client_request append_request;
-	client_request file_deleted_request;
 	server_response append_response;
-	server_response file_deleted_response;
 	memset(&append_request, 0, sizeof(client_request));
-	memset(&file_deleted_request, 0, sizeof(client_request));
 	memset(&append_response, 0, sizeof(server_response));
-	memset(&file_deleted_response, 0, sizeof(server_response));
 	append_request.command = APPEND;
-	append_request.pathname = (char *) calloc(strlen(pathname)+1, sizeof(char));
-	append_request.data = (unsigned char *) calloc(size, sizeof(unsigned char));
-	memcpy(append_request.data, buf, size);
-	file_deleted_request.command = READ;
+	// append_request.pathname = (char *) calloc(strlen(pathname)+1, sizeof(char));
+	// append_request.data = (unsigned char *) calloc(size, sizeof(unsigned char));
+	// memcpy(append_request.data, buf, size);
+	memset(append_request.pathname, 0, UNIX_MAX_PATH);
+	strncpy(append_request.pathname, pathname, UNIX_MAX_PATH);
 	CHECKALLOC(append_request.pathname, "Errore di allocazione appendFile");
 	strncpy(append_request.pathname, pathname, strlen(pathname));
 	append_request.client_id = getpid();
-	file_deleted_request.client_id = getpid();
-	CHECKSCEXIT(writen(socket_fd, &append_request, sizeof(append_request)), true, "Errore invio richiesta appendFile");
-	CHECKSCEXIT(readn(socket_fd, &append_response, sizeof(append_response)), true, "Errore lettura risposta server");
+	CHECKEXIT(writen(socket_fd, &append_request, sizeof(append_request)) != 0, true, "Errore invio richiesta appendFile");
+	CHECKEXIT(readn(socket_fd, &append_response, sizeof(append_response)) != 0, true, "Errore lettura risposta server");
 	if(append_response.code[0] & FILE_OPERATION_SUCCESS){
-		clean_request(&append_request);
-		clean_response(&append_response);
-		clean_request(&file_deleted_request);
-		clean_response(&file_deleted_response);
 		return 0;
 	}
 	else{
 		errno = check_error(append_response.code);
-		clean_request(&append_request);
-		clean_response(&append_response);
-		clean_request(&file_deleted_request);
-		clean_response(&file_deleted_response);
 		return -1;
 	}
 	return 0;
 
 }
-// int appendToFile(const char *pathname, void *buf, size_t size, const char *dirname){
-// 	int file_index = 0;
-// 	unsigned char *buffer = NULL;
-// 	file_index = search_file(pathname);
-	
-// 	if (file_index != -1 && file_index != -EBUSY){
-// 		SAFELOCK(server_storage.storage_table[file_index]->file_mutex);
-// 		server_storage.storage_table[file_index]->data = (unsigned char *)realloc(server_storage.storage_table[file_index]->data, server_storage.storage_table[file_index]->size + size);
-// 		CHECKALLOC(server_storage.storage_table[file_index]->data, "Errore di riallocazione appendToFIle");
-// 		buffer = (unsigned char *)buf;
-// 		for (int i = server_storage.storage_table[file_index]->size, j = 0; j < size; i++, j++){
-// 			server_storage.storage_table[file_index]->data[i] = buffer[j];
-// 		}
-// 		server_storage.storage_table[file_index]->last_modified = time(NULL);
-// 		server_storage.storage_table[file_index]->size += size;
-// 		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
-// 		return 0;
-// 	}
-// 	errno = ENOENT;
-// 	return -1;
-// }
 
 int writeFile(const char* pathname, const char* dirname){
 	struct stat file_info;
 	int file, size = 0;
+	unsigned char *buffer = NULL;
 	client_request write_request;
-	client_request file_deleted_request;
 	server_response write_response;
-	server_response file_deleted_response;
 	memset(&write_request, 0, sizeof(client_request));
-	memset(&file_deleted_request, 0, sizeof(client_request));
 	memset(&write_response, 0, sizeof(server_response));
-	memset(&file_deleted_response, 0, sizeof(server_response));
-	if((file = open("./a.out", O_RDONLY)) == -1){
+	if((file = open(pathname, O_RDONLY)) == -1){
 		perror("Errore durante l'apertura del file");
 		return -1;
 	}
@@ -320,31 +262,40 @@ int writeFile(const char* pathname, const char* dirname){
 		return -1;
 	}
 	size = file_info.st_size;
-	write_request.data = (unsigned char *) calloc(size, sizeof(unsigned char));
-	CHECKSCEXIT(readn(file, write_request.data, size), true, "Errore copia del file nella richiesta writeFile");
-	
+	buffer = (unsigned char *) calloc(size, sizeof(unsigned char));
+	CHECKALLOC(buffer, "Errore di allocazione writeFile");
+	CHECKEXIT(read(file, buffer, size) < 0, true, "Errore copia del file nella richiesta writeFile");
+
 	write_request.command = WRITE;
-	write_request.pathname = (char *) calloc(strlen(pathname)+1, sizeof(char));
-	file_deleted_request.command = READ;
-	CHECKALLOC(write_request.pathname, "Errore di allocazione writeFile");
-	strncpy(write_request.pathname, pathname, strlen(pathname));
+	memset(write_request.pathname, 0, UNIX_MAX_PATH);
+	strncpy(write_request.pathname, pathname, UNIX_MAX_PATH);
 	write_request.client_id = getpid();
-	file_deleted_request.client_id = getpid();
-	CHECKSCEXIT(writen(socket_fd, &write_request, sizeof(write_request)), true, "Errore invio richiesta writeFile");
-	CHECKSCEXIT(readn(socket_fd, &write_response, sizeof(write_response)), true, "Errore lettura risposta server");
+	write_request.size = size;
+	CHECKEXIT(write(socket_fd, &write_request, sizeof(write_request)) < 0, true, "Errore invio richiesta writeFile");
+	puts("prima write");
+	CHECKEXIT(read(socket_fd, &write_response, sizeof(write_response)) < 0, true, "Errore lettura risposta server");
+	puts("prima read");
 	if(write_response.code[0] & FILE_OPERATION_SUCCESS){
-		clean_request(&write_request);
-		clean_response(&write_response);
-		clean_request(&file_deleted_request);
-		clean_response(&file_deleted_response);
-		return 0;
+		CHECKEXIT(write(socket_fd, buffer, size) < 0, true, "Errore invio richiesta writeFile");
+		puts("seconda write");
+		
+		memset(&write_response, 0, sizeof(server_response));
+		// if(write_response.code[0] & FILE_OPERATION_SUCCESS){
+			CHECKEXIT(read(socket_fd, &write_response, sizeof(write_response)) < 0, true, "Errore lettura risposta server");
+		puts("seconda read");
+			
+			free(buffer);
+			return 0;
+		// }
+		// else{
+		// 	errno = check_error(write_response.code);
+		// 	free(buffer);
+		// 	return -1;
+		// }
 	}
 	else{
 		errno = check_error(write_response.code);
-		clean_request(&write_request);
-		clean_response(&write_response);
-		clean_request(&file_deleted_request);
-		clean_response(&file_deleted_response);
+		free(buffer);
 		return -1;
 	}
 
@@ -358,20 +309,17 @@ int removeFile(const char* pathname){
 	memset(&remove_request, 0, sizeof(client_request));
 	memset(&remove_response, 0, sizeof(server_response));
 	remove_request.command = REMOVE;
-	remove_request.pathname = (char *) calloc(strlen(pathname)+1, sizeof(char));
-	CHECKALLOC(remove_request.pathname, "Errore di allocazione readFile");
-	strncpy(remove_request.pathname, pathname, strlen(pathname));
+	memset(remove_request.pathname, 0, UNIX_MAX_PATH);
+	strncpy(remove_request.pathname, pathname, UNIX_MAX_PATH);
 	remove_request.client_id = getpid();
-	CHECKSCEXIT(writen(socket_fd, &remove_request, sizeof(remove_request)), true, "Errore invio richiesta readFile");
-	CHECKSCEXIT(readn(socket_fd, &remove_response, sizeof(remove_response)),true, "Errore lettura risposta server");
+	CHECKEXIT(writen(socket_fd, &remove_request, sizeof(remove_request)) != 0, true, "Errore invio richiesta readFile");
+	CHECKEXIT(readn(socket_fd, &remove_response, sizeof(remove_response)) != 0,true, "Errore lettura risposta server");
 	if(remove_response.code[0] & FILE_OPERATION_SUCCESS){
 		puts("File rimosso con successo!");
 		return 0;
 	}
 	else{
 		errno = check_error(remove_response.code);
-		clean_request(&remove_request);
-		clean_response(&remove_response);
 		return -1;
 	}
 	return 0;

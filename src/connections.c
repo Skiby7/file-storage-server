@@ -3,7 +3,7 @@
 #include "file.h"
 #include "client_queue.h"
 #include "log.h"
-
+#define LOG_BUFF 200
 
  
 
@@ -28,58 +28,85 @@ extern void func(clients_list *head);
 
 
 
-void clean_request(client_request *request){
-	if(request->data != NULL)
-		free(request->data);
-	if(request->pathname != NULL)
-		free(request->pathname);
-}
-
-void clean_response(server_response *response){
-	if(response->data != NULL)
-		free(response->data);
-	if(response->filename != NULL)
-		free(response->filename);
-}
 
 
-static int handle_request(client_request *request, server_response *response){
+
+static int handle_request(int com, client_request *request){
 	int exit_status = -1;
 	char *log_buffer = NULL;
-	log_buffer = (char *) calloc(200, sizeof(char));
+	char *data_buffer = NULL;
+	server_response response;
+	memset(&response, 0, sizeof(response));
+	log_buffer = (char *) calloc(LOG_BUFF, sizeof(char));
 	if(request->command & OPEN){
-		puts(request->pathname);
-		puts("halo");
-		exit_status = open_file(request->pathname, request->command, request->client_id, response);
-		puts("opened");
-		
+		exit_status = open_file(request->pathname, request->command, request->client_id, &response);
+		CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
 	}
+		
+
+			
+	
 	else if(request->command & READ){
-		exit_status = read_file(request->pathname, response);
+		exit_status = read_file(request->pathname, &data_buffer, &response);
 		if(exit_status == 0){
-			sprintf(log_buffer,"Client %d read %d bytes", request->client_id, response->size);
-			SAFELOCK(log_access_mtx);
-			write_to_log(log_buffer);
-			SAFEUNLOCK(log_access_mtx);
+			CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
+			CHECKERRNO((read(com, request, sizeof(client_request)) < 0), "Writing to client");
+			if(request->command & FILE_OPERATION_SUCCESS){
+				CHECKERRNO((write(com, data_buffer, response.size) < 0), "Writing to client");
+				sprintf(log_buffer,"Client %d read %d bytes", request->client_id, response.size);
+				SAFELOCK(log_access_mtx);
+				write_to_log(log_buffer);
+				SAFEUNLOCK(log_access_mtx);
+				free(data_buffer);
+			}
+			else{
+				free(data_buffer);
+				return -1;
+			} 
 		}
 	}
 	else if(request->command & WRITE){
-		exit_status = write_to_file(request->data, request->size, request->pathname, request->client_id, response);
+		
+		response.code[0] = FILE_OPERATION_SUCCESS;
+		data_buffer = (unsigned char *)calloc(request->size, sizeof(unsigned char));
+		CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
+		CHECKERRNO((read(com, data_buffer, request->size) < 0), "Reading from client");
+		printf("size %d\n", request->size);
+		// for (size_t i = 0; i < request->size; i++)
+		// 	printf("%c", data_buffer[i]);
+		exit_status = write_to_file(data_buffer, request->size, request->pathname, request->client_id, &response);
+		
 		if(exit_status == 0){
+			CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
 			sprintf(log_buffer,"Client %d wrote %d bytes", request->client_id, request->size);
 			SAFELOCK(log_access_mtx);
 			write_to_log(log_buffer);
-			SAFEUNLOCK(log_access_mtx);
+			SAFEUNLOCK(log_access_mtx);			
+			free(data_buffer);
 		}
+		else{
+			free(data_buffer);
+			return -1;
+		} 
+
 	}
 	else if(request->command & APPEND){
-		exit_status = append_to_file(request->data, request->size, request->pathname, request->client_id, response);
+		response.code[0] = FILE_OPERATION_SUCCESS;
+		CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
+		CHECKERRNO((read(com, data_buffer, request->size) < 0), "Writing to client");
+		exit_status = append_to_file(data_buffer, request->size, request->pathname, request->client_id, &response);
 		if(exit_status == 0){
+			CHECKERRNO((write(com, data_buffer, response.size) < 0), "Writing to client");
 			sprintf(log_buffer,"Client %d wrote %d bytes", request->client_id, request->size);
 			SAFELOCK(log_access_mtx);
 			write_to_log(log_buffer);
 			SAFEUNLOCK(log_access_mtx);
+			free(data_buffer);
 		}
+		else{
+			free(data_buffer);
+			return -1;
+		} 
 	}
 	free(log_buffer);
 	return exit_status;
@@ -132,40 +159,35 @@ void* worker(void* args){
 		
 	
 		CHECKERRNO((read(com, &request, sizeof(request)) < 0), "Reading from client");
-		printf("%s\n", request.pathname);
-		// if(request.command & QUIT) {
-		// 	// close(com); Now I try to send back the com that the client will close to keep track of connecitons/disconnections
-		// 	memset(buffer, 0, sizeof(buffer));
-		// 	SAFELOCK(free_threads_mtx);
-		// 	free_threads[whoami] = true;
-		// 	SAFEUNLOCK(free_threads_mtx);
-		// 	SAFELOCK(done_queue_mtx);
-		// 	insert_client_list(com, &done_queue[0], &done_queue[1]);
-		// 	SAFEUNLOCK(done_queue_mtx);
-		// 	clean_request(&request);
-		// 	clean_response(&respond_to_client);
-		// 	// memset(buffer, 0, sizeof(buffer));	
-		// 	// printf(ANSI_COLOR_MAGENTA"[Thread %d] client %d quitted, com closed\n"ANSI_COLOR_RESET, whoami, com);
-		// 	// sprintf(log_buffer,"[Thread %d] client %d quitted, com closed", whoami, com);
-		// 	// SAFELOCK(log_access_mtx);
-		// 	// write_to_log(log_buffer);
-		// 	// SAFEUNLOCK(log_access_mtx);
-		// 	continue;
-		// }
-		// request_status = handle_request(&request, &respond_to_client); // Response is set and log is updated
+		if(request.command & QUIT) {
+			// close(com); Now I try to send back the com that the client will close to keep track of connecitons/disconnections
+			memset(buffer, 0, sizeof(buffer));
+			SAFELOCK(free_threads_mtx);
+			free_threads[whoami] = true;
+			SAFEUNLOCK(free_threads_mtx);
+			SAFELOCK(done_queue_mtx);
+			insert_client_list(com, &done_queue[0], &done_queue[1]);
+			SAFEUNLOCK(done_queue_mtx);
+			// memset(buffer, 0, sizeof(buffer));	
+			// printf(ANSI_COLOR_MAGENTA"[Thread %d] client %d quitted, com closed\n"ANSI_COLOR_RESET, whoami, com);
+			// sprintf(log_buffer,"[Thread %d] client %d quitted, com closed", whoami, com);
+			// SAFELOCK(log_access_mtx);
+			// write_to_log(log_buffer);
+			// SAFEUNLOCK(log_access_mtx);
+			continue;
+		}
+		request_status = handle_request(com, &request); // Response is set and log is updated
 
-		// if(request_status < 0){
-		// 	sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
-		// 	SAFELOCK(log_access_mtx);
-		// 	write_to_log(log_buffer);
-		// 	SAFEUNLOCK(log_access_mtx);
-		// 	clean_request(&request);
-		// 	clean_response(&respond_to_client);
-		// 	continue;
-		// }
-		CHECKERRNO((write(com, &respond_to_client, sizeof(respond_to_client)) < 0), "Writing to client");
-		clean_request(&request);
-		clean_response(&respond_to_client);
+		if(request_status < 0){
+			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
+			SAFELOCK(log_access_mtx);
+			write_to_log(log_buffer);
+			SAFEUNLOCK(log_access_mtx);
+			
+			continue;
+		}
+		puts("Incarico completato");
+		
 		// printf(ANSI_COLOR_MAGENTA"[Thread %d - client %d]:"ANSI_COLOR_CYAN" %s\n"ANSI_COLOR_RESET, whoami, com, buffer);
 		// sprintf(log_buffer,"[Thread %d - client %d]: ", whoami, com);
 		// strncat(log_buffer, buffer, 150); // buffer has a size of PIPE_BUF (4096 bytes) 

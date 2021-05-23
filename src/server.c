@@ -74,7 +74,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	// END signal handler
 	write_to_log("Segnali mascherati.");
 
-	
+	init_storage(configuration.files, configuration.mem);
 	write_to_log("Inizializzo i workers.");
 
 	workers = (pthread_t *) malloc(configuration.workers*sizeof(pthread_t)); // Pool di workers

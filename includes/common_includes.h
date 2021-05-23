@@ -131,14 +131,14 @@
 #define SAFELOCK(mutex_var)				\
 	if(pthread_mutex_lock(&mutex_var) != 0)		\
 	{						\
-		fprintf(stderr, "Errore (file %s, linea %d): lock del semaforo #mutex_var non riuscita\n", __FILE__, __LINE__);		\
+		fprintf(stderr, "Errore (file %s, linea %d): lock di "#mutex_var" non riuscita\n", __FILE__, __LINE__);		\
 		exit(EXIT_FAILURE);			\
 	}
 
 #define SAFEUNLOCK(mutex_var)				\
 	if(pthread_mutex_unlock(&mutex_var) != 0)	\
 	{						\
-		fprintf(stderr, "Errore (file %s, linea %d): unlock del semaforo #mutex_var non riuscita\n", __FILE__, __LINE__);		\
+		fprintf(stderr, "Errore (file %s, linea %d): unlock di "#mutex_var" non riuscita\n", __FILE__, __LINE__);		\
 		exit(EXIT_FAILURE);			\
 	}
 	
