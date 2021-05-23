@@ -5,7 +5,7 @@
 #include "fssApi.h"
 #include <getopt.h>
 bool verbose = false; // tipo di op, file su cui si opera, exito e byte letti/scritti
-#define QUIT "quit"
+
 
 int socket_fd;
 
@@ -28,21 +28,21 @@ void print_help(){
 
 }
 
-void signal_handler(int signum){
+// void signal_handler(int signum){
 	
-	if(signum == SIGHUP)
-		puts(ANSI_COLOR_RED"Received SIGHUP"ANSI_COLOR_RESET);
+// 	if(signum == SIGHUP)
+// 		puts(ANSI_COLOR_RED"Received SIGHUP"ANSI_COLOR_RESET);
 
-	if(signum == SIGQUIT)
-		puts(ANSI_COLOR_RED"Received SIGQUIT"ANSI_COLOR_RESET);
-	if(signum == SIGINT)
-		puts(ANSI_COLOR_RED"Received SIGINT"ANSI_COLOR_RESET);
+// 	if(signum == SIGQUIT)
+// 		puts(ANSI_COLOR_RED"Received SIGQUIT"ANSI_COLOR_RESET);
+// 	if(signum == SIGINT)
+// 		puts(ANSI_COLOR_RED"Received SIGINT"ANSI_COLOR_RESET);
 	
-	write(socket_fd, QUIT, strlen(QUIT));
-	close(socket_fd);
-	exit(EXIT_SUCCESS);
+// 	write(socket_fd, QUIT, strlen(QUIT));
+// 	close(socket_fd);
+// 	exit(EXIT_SUCCESS);
 		
-}
+// }
 
 
 
@@ -52,6 +52,8 @@ int main(int argc, char* argv[]){
 	bool f = false, p = false;
 	char buffer[100];
 	char sockname[UNIX_MAX_PATH];
+	unsigned char *databuffer = NULL;
+	size_t data_size = 0;
 	struct timespec abstime = {
 		.tv_nsec = 0,
 		.tv_sec = 3
@@ -59,15 +61,15 @@ int main(int argc, char* argv[]){
 	memset(buffer, 0, 100);
 	memset(sockname, 0, UNIX_MAX_PATH);
 
-	struct sigaction sig; 
-	memset(&sig, 0, sizeof(sig));
-	sig.sa_handler = signal_handler;
-	sigaction(SIGINT,&sig,NULL);
-	sigaction(SIGHUP,&sig,NULL);
-	sigaction(SIGQUIT,&sig,NULL);
+	// struct sigaction sig; 
+	// memset(&sig, 0, sizeof(sig));
+	// sig.sa_handler = signal_handler;
+	// sigaction(SIGINT,&sig,NULL);
+	// sigaction(SIGHUP,&sig,NULL);
+	// sigaction(SIGQUIT,&sig,NULL);
 
 	
-	while ((opt = getopt(argc,argv, "hpf:")) != -1) {
+	while ((opt = getopt(argc,argv, "hpf:r:W:")) != -1) {
 		switch(opt) {
 			case 'h': print_help(); break;
 			case 'p': 
@@ -87,7 +89,21 @@ int main(int argc, char* argv[]){
 				else
 					puts(ANSI_COLOR_RED"Socket File già specificato!"ANSI_COLOR_RESET);
 				break;
+			case 'r':
+					CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
+					readFile(optarg, &databuffer, &data_size);
+					for (size_t i = 0; i < data_size; i++){
+						printf("%c", databuffer[i]);
+					}
+					
+				break;
 
+			case 'W':
+					CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
+					openFile(optarg, O_CREATE);
+					writeFile(optarg, NULL);
+				break;
+				
 			case ':': {
 			printf("l'opzione '-%c' richiede un argomento\n", optopt);
 			} break;

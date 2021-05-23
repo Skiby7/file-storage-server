@@ -2,7 +2,7 @@
 #define COMMON_INCLUDES_H
 #include "common_includes.h"
 #endif
-
+#include <sys/stat.h>
 
 int openConnection(const char* sockname, int msec, const struct timespec abstime);
 int closeConnection(const char* sockname);

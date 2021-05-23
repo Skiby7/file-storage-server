@@ -3,6 +3,17 @@
 #include "common_includes.h"
 #endif
 #include <sys/stat.h>
+#include "connections.h"
+
+#define BITS_IN_int     ( sizeof(int) * CHAR_BIT )
+#define THREE_QUARTERS  ((int) ((BITS_IN_int * 3) / 4))
+#define ONE_EIGHTH      ((int) (BITS_IN_int / 8))
+#define HIGH_BITS       ( ~((unsigned int)(~0) >> ONE_EIGHTH ))
+
+typedef struct clients_{
+	int id;
+	struct clients_ *next;
+} clients_open;
 
 
 typedef struct fssFile_{
@@ -11,7 +22,8 @@ typedef struct fssFile_{
 	bool locked;
 	bool deleted;
 	unsigned short use_stat;
-	unsigned int client_open_id;
+	clients_open *clients;
+	unsigned int whos_locking;
 	unsigned long size;
 	time_t create_time;
 	time_t last_modified;
@@ -28,10 +40,9 @@ typedef struct storage_{
 	unsigned int max_file_num_reached;
 } storage;
 
+
 int init_storage(int max_file_num, int max_size);
-unsigned int search_file(const char* pathname);
-unsigned int get_free_index(const char* pathname);
-int clean_storage();
+void clean_storage();
 int open_file(char *filename, int flags, int client_id, server_response *response);
 int read_file(char *filename, server_response *response);
 int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response);

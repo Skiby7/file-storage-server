@@ -22,7 +22,6 @@ clients_list *done_queue[2];
 int m_w_pipe[2]; // 1 lettura, 0 scrittura
 extern void* worker(void* args);
 pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
-static int poll_time = -1;
 
 /** TODO:
  * - Riguardare pthread join per far terminare i thread
@@ -117,7 +116,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	while(true){
 		poll_val = poll(com_fd, com_count, 10);
 		CHECKERRNO(poll_val < 0, "Errore durante il polling");
-		PRINT_POLLING(poll_print);
+		// PRINT_POLLING(poll_print);
 		SAFELOCK(abort_connections_mtx);
 		if(abort_connections){
 			SAFEUNLOCK(abort_connections_mtx);

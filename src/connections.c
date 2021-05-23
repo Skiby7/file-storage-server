@@ -3,7 +3,7 @@
 #include "file.h"
 #include "client_queue.h"
 #include "log.h"
-#include "connections.h"
+
 
  
 
@@ -31,8 +31,6 @@ extern void func(clients_list *head);
 void clean_request(client_request *request){
 	if(request->data != NULL)
 		free(request->data);
-	if(request->dirname != NULL)
-		free(request->dirname);
 	if(request->pathname != NULL)
 		free(request->pathname);
 }
@@ -50,7 +48,10 @@ static int handle_request(client_request *request, server_response *response){
 	char *log_buffer = NULL;
 	log_buffer = (char *) calloc(200, sizeof(char));
 	if(request->command & OPEN){
+		puts(request->pathname);
+		puts("halo");
 		exit_status = open_file(request->pathname, request->command, request->client_id, response);
+		puts("opened");
 		
 	}
 	else if(request->command & READ){
@@ -82,7 +83,6 @@ static int handle_request(client_request *request, server_response *response){
 	}
 	free(log_buffer);
 	return exit_status;
-	
 }
 
 
@@ -92,7 +92,6 @@ void* worker(void* args){
 	int com = 0;
 	int whoami = *(int*) args;
 	char buffer[PIPE_BUF];
-	char accepted[] = "accepted";
 	char log_buffer[200];
 	int request_status = 0;
 	client_request request;
@@ -125,7 +124,7 @@ void* worker(void* args){
 		SAFEUNLOCK(ready_queue_mtx);
 		if(com == -1) // Falso allarme
 			continue;
-		// printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
+		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
 		// sprintf(log_buffer,"[Thread %d] received request from client %d", whoami, com);
 		// SAFELOCK(log_access_mtx);
 		// write_to_log(log_buffer);
@@ -133,34 +132,40 @@ void* worker(void* args){
 		
 	
 		CHECKERRNO((read(com, &request, sizeof(request)) < 0), "Reading from client");
-		if(request.command & QUIT) {
-			// close(com); Now I try to send back the com that the client will close to keep track of connecitons/disconnections
-			memset(buffer, 0, sizeof(buffer));
-			SAFELOCK(free_threads_mtx);
-			free_threads[whoami] = true;
-			SAFEUNLOCK(free_threads_mtx);
-			SAFELOCK(done_queue_mtx);
-			insert_client_list(com, &done_queue[0], &done_queue[1]);
-			SAFEUNLOCK(done_queue_mtx);
-			// memset(buffer, 0, sizeof(buffer));	
-			// printf(ANSI_COLOR_MAGENTA"[Thread %d] client %d quitted, com closed\n"ANSI_COLOR_RESET, whoami, com);
-			// sprintf(log_buffer,"[Thread %d] client %d quitted, com closed", whoami, com);
-			// SAFELOCK(log_access_mtx);
-			// write_to_log(log_buffer);
-			// SAFEUNLOCK(log_access_mtx);
-			continue;
-		}
-		request_status = handle_request(&request, &respond_to_client); // Response is set and log is updated
-		if(request_status < 0){
-			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
-			SAFELOCK(log_access_mtx);
-			write_to_log(log_buffer);
-			SAFEUNLOCK(log_access_mtx);
-			clean_request(&request);
-			clean_response(&respond_to_client);
-			continue;
-		}
+		printf("%s\n", request.pathname);
+		// if(request.command & QUIT) {
+		// 	// close(com); Now I try to send back the com that the client will close to keep track of connecitons/disconnections
+		// 	memset(buffer, 0, sizeof(buffer));
+		// 	SAFELOCK(free_threads_mtx);
+		// 	free_threads[whoami] = true;
+		// 	SAFEUNLOCK(free_threads_mtx);
+		// 	SAFELOCK(done_queue_mtx);
+		// 	insert_client_list(com, &done_queue[0], &done_queue[1]);
+		// 	SAFEUNLOCK(done_queue_mtx);
+		// 	clean_request(&request);
+		// 	clean_response(&respond_to_client);
+		// 	// memset(buffer, 0, sizeof(buffer));	
+		// 	// printf(ANSI_COLOR_MAGENTA"[Thread %d] client %d quitted, com closed\n"ANSI_COLOR_RESET, whoami, com);
+		// 	// sprintf(log_buffer,"[Thread %d] client %d quitted, com closed", whoami, com);
+		// 	// SAFELOCK(log_access_mtx);
+		// 	// write_to_log(log_buffer);
+		// 	// SAFEUNLOCK(log_access_mtx);
+		// 	continue;
+		// }
+		// request_status = handle_request(&request, &respond_to_client); // Response is set and log is updated
+
+		// if(request_status < 0){
+		// 	sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
+		// 	SAFELOCK(log_access_mtx);
+		// 	write_to_log(log_buffer);
+		// 	SAFEUNLOCK(log_access_mtx);
+		// 	clean_request(&request);
+		// 	clean_response(&respond_to_client);
+		// 	continue;
+		// }
 		CHECKERRNO((write(com, &respond_to_client, sizeof(respond_to_client)) < 0), "Writing to client");
+		clean_request(&request);
+		clean_response(&respond_to_client);
 		// printf(ANSI_COLOR_MAGENTA"[Thread %d - client %d]:"ANSI_COLOR_CYAN" %s\n"ANSI_COLOR_RESET, whoami, com, buffer);
 		// sprintf(log_buffer,"[Thread %d - client %d]: ", whoami, com);
 		// strncat(log_buffer, buffer, 150); // buffer has a size of PIPE_BUF (4096 bytes) 

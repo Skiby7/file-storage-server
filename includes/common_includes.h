@@ -11,6 +11,34 @@
 #include <sys/un.h>
 #include <signal.h>
 #include <limits.h>
+
+// COMMANDS
+#define OPEN 0x01
+#define CLOSE 0x02
+#define READ 0x04
+#define WRITE 0x08
+#define APPEND 0x10
+#define REMOVE 0x20
+#define QUIT 0x40
+
+// FLAGS
+#define O_CREATE 0x01
+#define O_LOCK 0x02
+
+// RESPONSE CODES
+#define FILE_OPERATION_SUCCESS 0x01 
+#define FILE_OPERATION_FAILED 0x02
+#define FILE_ALREADY_OPEN 0x04
+#define FILE_ALREADY_LOCKED 0x08
+#define FILE_LOCKED_BY_OTHERS 0x10
+#define FILE_NOT_LOCKED 0X20
+#define FILE_EXISTS 0x40
+#define FILE_NOT_EXISTS 0x80
+
+
+
+
+
 #define UNIX_MAX_PATH 108
 #define EALLOC "Error while allocating memory!"
 
@@ -26,6 +54,9 @@
 #define CONF_LINE "├────────────────────────────────────┤\n"
 #define CONF_LINE_TOP "┌────────────────────────────────────┐\n"
 #define CONF_LINE_BOTTOM "└────────────────────────────────────┘\n"
+
+
+
 
 					
 #define WELCOME_MESSAGE "            __ _ _             _                             \n"\
