@@ -123,31 +123,18 @@ int main(int argc, char* argv[]){
 	openFile("README.md", O_CREATE | O_LOCK);
 	puts("aperto");
 	writeFile("README.md", NULL);
+	writeFile("README.md", NULL);
 	puts("scritto");
-
-	memset(buffer, 0, sizeof(buffer));
-	while(true){
-		fgets(buffer, 98, stdin);
-		buffer[strcspn(buffer, "\n")] = 0;
-		while(strlen(buffer) == 0){
-			fgets(buffer, 98, stdin);
-			buffer[strcspn(buffer, "\n")] = 0;
-		}
-		if(strcmp(buffer, "quit") == 0){
-			write(socket_fd, buffer, strlen(buffer));
-			break;
-		}
-		write(socket_fd, buffer, strlen(buffer));
-		memset(buffer, 0, 100);
+	readFile("README.md", &databuffer, &data_size);
+	if(databuffer != NULL){
+		for (size_t i = 0; i < data_size; i++)
+			printf("%c", databuffer[i]);
 		
-		read(socket_fd, buffer, sizeof(buffer));
-		memset(buffer, 0, 100);
 	}
+
+	
 	CHECKSCEXIT(closeConnection(sockname), true, "Errore di disconnesione");
-	// 	}
-	// }
-	// else
-		// puts(ANSI_COLOR_RED"Connection refused\n"ANSI_COLOR_RESET);
+	
 	
 	return 0;
 }

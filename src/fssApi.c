@@ -197,16 +197,16 @@ int readFile(const char *pathname, void **buf, size_t *size){
 	strncpy(read_request.pathname, pathname, UNIX_MAX_PATH);
 	strncpy(read_request.pathname, pathname, strlen(pathname));
 	read_request.client_id = getpid();
-	CHECKEXIT(writen(socket_fd, &read_request, sizeof(read_request)) != 0, true, "Errore invio richiesta readFile");
-	CHECKEXIT(readn(socket_fd, &read_response, sizeof(read_response)) != 0,true, "Errore lettura risposta server");
+	CHECKEXIT(write(socket_fd, &read_request, sizeof(read_request)) < 0, true, "Errore invio richiesta readFile");
+	CHECKEXIT(read(socket_fd, &read_response, sizeof(read_response)) < 0,true, "Errore lettura risposta server");
 	if(read_response.code[0] & FILE_OPERATION_SUCCESS){
 		*size = read_response.size;
 		*buf = realloc(*buf, *size);
 		CHECKALLOC(*buf, "Errore di allocazione buffer lettura");
 		memset(&read_request, 0, sizeof(client_request));
 		read_request.command = FILE_OPERATION_SUCCESS;
-		CHECKEXIT(writen(socket_fd, &read_request, sizeof(read_request)) != 0, true, "Errore invio richiesta readFile");
-		CHECKEXIT(readn(socket_fd, *buf, *size) != 0,true, "Errore lettura risposta server");
+		CHECKEXIT(write(socket_fd, &read_request, sizeof(read_request)) < 0, true, "Errore invio richiesta readFile");
+		CHECKEXIT(read(socket_fd, *buf, *size) < 0,true, "Errore lettura risposta server");
 		return 0;
 	}
 	else{

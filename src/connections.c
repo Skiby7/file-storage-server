@@ -42,12 +42,9 @@ static int handle_request(int com, client_request *request){
 		exit_status = open_file(request->pathname, request->command, request->client_id, &response);
 		CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
 	}
-		
 
-			
-	
 	else if(request->command & READ){
-		exit_status = read_file(request->pathname, &data_buffer, &response);
+		exit_status = read_file(request->pathname, &data_buffer, request->client_id, &response);
 		if(exit_status == 0){
 			CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
 			CHECKERRNO((read(com, request, sizeof(client_request)) < 0), "Writing to client");
@@ -71,9 +68,7 @@ static int handle_request(int com, client_request *request){
 		data_buffer = (unsigned char *)calloc(request->size, sizeof(unsigned char));
 		CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
 		CHECKERRNO((read(com, data_buffer, request->size) < 0), "Reading from client");
-		printf("size %d\n", request->size);
-		// for (size_t i = 0; i < request->size; i++)
-		// 	printf("%c", data_buffer[i]);
+
 		exit_status = write_to_file(data_buffer, request->size, request->pathname, request->client_id, &response);
 		
 		if(exit_status == 0){
@@ -186,7 +181,6 @@ void* worker(void* args){
 			
 			continue;
 		}
-		puts("Incarico completato");
 		
 		// printf(ANSI_COLOR_MAGENTA"[Thread %d - client %d]:"ANSI_COLOR_CYAN" %s\n"ANSI_COLOR_RESET, whoami, com, buffer);
 		// sprintf(log_buffer,"[Thread %d - client %d]: ", whoami, com);
