@@ -119,12 +119,8 @@ int main(int argc, char* argv[]){
 
 
 	CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
-	puts("Prima della open");
 	openFile("README.md", O_CREATE | O_LOCK);
-	puts("aperto");
 	writeFile("README.md", NULL);
-	writeFile("README.md", NULL);
-	puts("scritto");
 	readFile("README.md", &databuffer, &data_size);
 	if(databuffer != NULL){
 		for (size_t i = 0; i < data_size; i++)

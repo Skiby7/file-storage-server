@@ -26,6 +26,10 @@ extern int m_w_pipe[2];
 
 extern void func(clients_list *head);
 
+/** TODO:
+ * - Implementare una lista globale di lock waiters con associato com e client id
+ *
+*/
 
 
 

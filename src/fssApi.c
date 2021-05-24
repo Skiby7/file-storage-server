@@ -272,26 +272,12 @@ int writeFile(const char* pathname, const char* dirname){
 	write_request.client_id = getpid();
 	write_request.size = size;
 	CHECKEXIT(write(socket_fd, &write_request, sizeof(write_request)) < 0, true, "Errore invio richiesta writeFile");
-	puts("prima write");
 	CHECKEXIT(read(socket_fd, &write_response, sizeof(write_response)) < 0, true, "Errore lettura risposta server");
-	puts("prima read");
 	if(write_response.code[0] & FILE_OPERATION_SUCCESS){
 		CHECKEXIT(write(socket_fd, buffer, size) < 0, true, "Errore invio richiesta writeFile");
-		puts("seconda write");
-		
 		memset(&write_response, 0, sizeof(server_response));
-		// if(write_response.code[0] & FILE_OPERATION_SUCCESS){
-			CHECKEXIT(read(socket_fd, &write_response, sizeof(write_response)) < 0, true, "Errore lettura risposta server");
-		puts("seconda read");
-			
-			free(buffer);
-			return 0;
-		// }
-		// else{
-		// 	errno = check_error(write_response.code);
-		// 	free(buffer);
-		// 	return -1;
-		// }
+		CHECKEXIT(read(socket_fd, &write_response, sizeof(write_response)) < 0, true, "Errore lettura risposta server");
+		free(buffer);
 	}
 	else{
 		errno = check_error(write_response.code);
@@ -312,7 +298,7 @@ int removeFile(const char* pathname){
 	memset(remove_request.pathname, 0, UNIX_MAX_PATH);
 	strncpy(remove_request.pathname, pathname, UNIX_MAX_PATH);
 	remove_request.client_id = getpid();
-	CHECKEXIT(writen(socket_fd, &remove_request, sizeof(remove_request)) != 0, true, "Errore invio richiesta readFile");
+	CHECKEXIT(writen(socket_fd, &remove_request, sizeof(remove_request)) != 0, true, "Errore invio richiesta removeFile");
 	CHECKEXIT(readn(socket_fd, &remove_response, sizeof(remove_response)) != 0,true, "Errore lettura risposta server");
 	if(remove_response.code[0] & FILE_OPERATION_SUCCESS){
 		puts("File rimosso con successo!");
@@ -323,6 +309,52 @@ int removeFile(const char* pathname){
 		return -1;
 	}
 	return 0;
-
 }
 
+
+int lockFile(const char* pathname){
+	client_request lock_request;
+	server_response lock_response;
+	memset(&lock_request, 0, sizeof(client_request));
+	memset(&lock_response, 0, sizeof(server_response));
+	lock_request.command = SET_LOCK;
+	lock_request.flags = O_LOCK; // Se il flag e' O_LOCK fa il lock, altrimenti unlock
+	memset(lock_request.pathname, 0, UNIX_MAX_PATH);
+	strncpy(lock_request.pathname, pathname, UNIX_MAX_PATH);
+	lock_request.client_id = getpid();
+	CHECKEXIT(write(socket_fd, &lock_request, sizeof(lock_request)) < 0, true, "Errore invio richiesta lockFile");
+	CHECKEXIT(read(socket_fd, &lock_response, sizeof(lock_response)) < 0,true, "Errore lettura risposta server"); // Si blocca qui finche' non gli viene notificato che l'operazione e' riuscita
+	if(lock_response.code[0] & FILE_OPERATION_SUCCESS){
+		puts("File bloccato con successo!");
+		return 0;
+	}
+	else{
+		errno = check_error(lock_response.code);
+		return -1;
+	}
+	return 0;
+}
+
+
+int unlockFile(const char* pathname){
+	client_request unlock_request;
+	server_response unlock_response;
+	memset(&unlock_request, 0, sizeof(client_request));
+	memset(&unlock_response, 0, sizeof(server_response));
+	unlock_request.command = SET_LOCK;
+	unlock_request.flags = 0; // Se il flag e' O_LOCK fa il lock, altrimenti unlock
+	memset(unlock_request.pathname, 0, UNIX_MAX_PATH);
+	strncpy(unlock_request.pathname, pathname, UNIX_MAX_PATH);
+	unlock_request.client_id = getpid();
+	CHECKEXIT(write(socket_fd, &unlock_request, sizeof(unlock_request)) < 0, true, "Errore invio richiesta unlockFile");
+	CHECKEXIT(read(socket_fd, &unlock_response, sizeof(unlock_response)) < 0,true, "Errore lettura risposta server");
+	if(unlock_response.code[0] & FILE_OPERATION_SUCCESS){
+		puts("File bloccato con successo!");
+		return 0;
+	}
+	else{
+		errno = check_error(unlock_response.code);
+		return -1;
+	}
+	return 0;
+}

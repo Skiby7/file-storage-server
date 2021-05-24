@@ -20,6 +20,7 @@
 #define APPEND 0x10
 #define REMOVE 0x20
 #define QUIT 0x40
+#define SET_LOCK 0x80
 
 // FLAGS
 #define O_CREATE 0x01
