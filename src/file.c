@@ -386,9 +386,10 @@ int unlock_file(char *filename, int client_id, server_response *response){
 		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
 		return 0;
 	}
-	else if(server_storage.storage_table[file_index]->whos_locking == client_id){
-		response->code[0] = FILE_ALREADY_LOCKED ;
-		response->code[1] = EINVAL;
+	else if(server_storage.storage_table[file_index]->whos_locking != client_id){
+		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
+		response->code[0] = FILE_LOCKED_BY_OTHERS;
+		response->code[1] = EBUSY;
 		return -1;
 	}
 	insert_client_file_list(&server_storage.storage_table[file_index]->clients_waiting_lock, client_id);

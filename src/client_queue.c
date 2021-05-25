@@ -32,11 +32,12 @@ int pop_client(clients_list **head, clients_list **tail){
 	
 } 
 
-void insert_lock_list(int com, int id, lock_waiters **head, lock_waiters **tail){
-	lock_waiters* new = (lock_waiters*) malloc(sizeof(lock_waiters));
+void insert_lock_list(int com, int id, char *pathname, lock_waiters_list **head, lock_waiters_list **tail){
+	lock_waiters_list* new = (lock_waiters_list*) malloc(sizeof(lock_waiters_list));
 	CHECKALLOC(new, "Errore inserimento nella lista lock");
 	new->com = com;
 	new->id = id;
+	strncpy(new->pathname, pathname, UNIX_MAX_PATH);
 	new->next = (*head);
 	new->prev = NULL;
 	if((*tail) == NULL)
@@ -46,22 +47,32 @@ void insert_lock_list(int com, int id, lock_waiters **head, lock_waiters **tail)
 	(*head) = new;	
 } 
 
-int pop_lock_client(int *com, int *id, lock_waiters **head, lock_waiters **tail){
-	lock_waiters *befree = NULL;
+int get_lock_client(int *id, char *pathname, lock_waiters_list **head, lock_waiters_list **tail){
+	lock_waiters_list *befree = NULL;
+	lock_waiters_list *scanner = (*tail);
+	int retval = 0;
 	if((*tail) == NULL)
 		return -1;
 
-	*com = (*tail)->com;
-	*id = (*tail)->id;
-	befree = (*tail);
-	if((*tail)->prev != NULL)
-		(*tail)->prev->next = NULL;
-	
-	if(((*tail) = (*tail)->prev) == NULL)
-		(*head) = NULL;
+	while(scanner->prev != NULL && strncmp(scanner->pathname, pathname, UNIX_MAX_PATH) == 0)
+		scanner = scanner->prev;
+
+	if(scanner == NULL) return -1;
+	befree = scanner;
+	retval = scanner->com;
+	*id = scanner->com;
+	if(scanner->prev != NULL)
+		scanner->prev->next = scanner->next;
+	else
+		(*head) = scanner->next;
+
+	if(scanner->next != NULL)
+		scanner->next->prev = scanner->prev;
+	else	
+		(*tail) = scanner->prev;
 	
 	free(befree);
-	return 0;
+	return retval;
 	
 }
 

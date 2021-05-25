@@ -19,6 +19,7 @@ pthread_mutex_t can_accept_mtx = PTHREAD_MUTEX_INITIALIZER;
 bool *free_threads;
 clients_list *ready_queue[2];
 clients_list *done_queue[2];
+lock_waiters_list *lock_waiters_queue[2];
 int m_w_pipe[2]; // 1 lettura, 0 scrittura
 extern void* worker(void* args);
 pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -54,7 +55,11 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	nfds_t com_size = DEFAULTFDS;
 	ready_queue[0] = NULL;
 	ready_queue[1] = NULL;
-	
+	done_queue[0] = NULL;
+	done_queue[1] = NULL;
+	lock_waiters_queue[0] = NULL;
+	lock_waiters_queue[1] = NULL;
+
 	CHECKALLOC(com_fd, "pollfd");
 	bool thread_finished = false;
 	pthread_t *workers;
