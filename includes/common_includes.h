@@ -95,51 +95,54 @@
 
 
 #define CHECKEXIT(condizione, printErrno, msg)			\
-	if(condizione)						\
-	{							\
-		if(printErrno)					\
-		{						\
+	if(condizione){							\
+		if(printErrno){						\
 			perror("Errore -> "msg);		\
 			fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__);			\
 		}						\
 		else						\
 			fprintf(stderr, "Errore (file %s, linea %d): "msg"\n", __FILE__, __LINE__);	\
-		fflush(stderr);					\
 		exit(EXIT_FAILURE);				\
 	}
 
 #define CHECKSCEXIT(call, printErrno, msg)			\
-	if(call < 0)						\
-	{							\
-		if(printErrno)					\
-		{						\
+	if(call < 0){							\
+		if(printErrno){						\
 			perror("Errore -> "msg);		\
 			fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__);			\
 		}						\
 		else						\
 			fprintf(stderr, "Errore (file %s, linea %d): "msg"\n", __FILE__, __LINE__);	\
-		fflush(stderr);					\
 		exit(EXIT_FAILURE);				\
 	}
 
 
-#define CHECKERRNO(condizione, msg)	if(condizione) {perror("Errore -> "msg); fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__); fflush(stderr);}
+#define CHECKERRNO(condizione, msg)	if(condizione) {perror("Errore -> "msg); fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__);}
 
-#define CHECKALLOC(pointer, msg) if(pointer == NULL) {fprintf(stderr, "Memoria esaurita (file %s, linea %d): "msg"\n", __FILE__, __LINE__);fflush(stderr);exit(EXIT_FAILURE);}
+#define CHECKALLOC(pointer, msg) if(pointer == NULL) {fprintf(stderr, "Memoria esaurita (file %s, linea %d): "msg"\n", __FILE__, __LINE__);exit(EXIT_FAILURE);}
 // #define CHECKPOLL(poll_val)	if(poll_val == -1) {if(errno == EINTR) continue; else {perror("Errore poll -> "); fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__); fflush(stderr);}}
 
 
 #define SAFELOCK(mutex_var)				\
-	if(pthread_mutex_lock(&mutex_var) != 0)		\
-	{						\
+	if(pthread_mutex_lock(&mutex_var) != 0){						\
 		fprintf(stderr, "Errore (file %s, linea %d): lock di "#mutex_var" non riuscita\n", __FILE__, __LINE__);		\
 		exit(EXIT_FAILURE);			\
 	}
 
 #define SAFEUNLOCK(mutex_var)				\
-	if(pthread_mutex_unlock(&mutex_var) != 0)	\
-	{						\
+	if(pthread_mutex_unlock(&mutex_var) != 0){						\
 		fprintf(stderr, "Errore (file %s, linea %d): unlock di "#mutex_var" non riuscita\n", __FILE__, __LINE__);		\
 		exit(EXIT_FAILURE);			\
 	}
 	
+#define CHECKRW(call, size, msg)			\
+	if(call < 0){							\
+		perror("Errore -> "msg);		\
+		fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__);			\
+		exit(EXIT_FAILURE);				\
+	} \
+	else if(call != size){ \
+		fprintf(stderr, "Errore, non tutti i "#size" bytes sono stati scritti -> "msg);		\
+		fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__);			\
+		exit(EXIT_FAILURE);				\
+	}

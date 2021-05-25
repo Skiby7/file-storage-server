@@ -26,6 +26,8 @@ extern int m_w_pipe[2];
 
 extern void func(clients_list *head);
 
+
+
 /** TODO:
  * - Implementare una lista globale di lock waiters con associato com e client id
  *
@@ -44,16 +46,16 @@ static int handle_request(int com, client_request *request){
 	log_buffer = (char *) calloc(LOG_BUFF, sizeof(char));
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->command, request->client_id, &response);
-		CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
+		CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
 	}
 
 	else if(request->command & READ){
 		exit_status = read_file(request->pathname, &data_buffer, request->client_id, &response);
 		if(exit_status == 0){
-			CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
-			CHECKERRNO((read(com, request, sizeof(client_request)) < 0), "Writing to client");
+			CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
+			CHECKRW(readn(com, request, sizeof(client_request)), sizeof(client_request), "Writing to client");
 			if(request->command & FILE_OPERATION_SUCCESS){
-				CHECKERRNO((write(com, data_buffer, response.size) < 0), "Writing to client");
+				CHECKRW(writen(com, data_buffer, response.size), response.size, "Writing to client");
 				sprintf(log_buffer,"Client %d read %d bytes", request->client_id, response.size);
 				SAFELOCK(log_access_mtx);
 				write_to_log(log_buffer);
@@ -70,13 +72,13 @@ static int handle_request(int com, client_request *request){
 		
 		response.code[0] = FILE_OPERATION_SUCCESS;
 		data_buffer = (unsigned char *)calloc(request->size, sizeof(unsigned char));
-		CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
-		CHECKERRNO((read(com, data_buffer, request->size) < 0), "Reading from client");
+		CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
+		CHECKRW(readn(com, data_buffer, request->size), request->size, "Reading from client");
 
 		exit_status = write_to_file(data_buffer, request->size, request->pathname, request->client_id, &response);
 		
 		if(exit_status == 0){
-			CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
+			CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
 			sprintf(log_buffer,"Client %d wrote %d bytes", request->client_id, request->size);
 			SAFELOCK(log_access_mtx);
 			write_to_log(log_buffer);
@@ -91,8 +93,8 @@ static int handle_request(int com, client_request *request){
 	}
 	else if(request->command & APPEND){
 		response.code[0] = FILE_OPERATION_SUCCESS;
-		CHECKERRNO((write(com, &response, sizeof(response)) < 0), "Writing to client");
-		CHECKERRNO((read(com, data_buffer, request->size) < 0), "Writing to client");
+		CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
+		CHECKRW(readn(com, data_buffer, request->size), request->size, "Reading from client");
 		exit_status = append_to_file(data_buffer, request->size, request->pathname, request->client_id, &response);
 		if(exit_status == 0){
 			CHECKERRNO((write(com, data_buffer, response.size) < 0), "Writing to client");
@@ -106,6 +108,24 @@ static int handle_request(int com, client_request *request){
 			free(data_buffer);
 			return -1;
 		} 
+	}
+	else if(request->command & (SET_LOCK | O_LOCK)){ // TEST THIS
+		response.code[0] = FILE_OPERATION_SUCCESS;
+		CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
+		CHECKRW(readn(com, data_buffer, request->size), request->size, "Reading from client");
+		exit_status = append_to_file(data_buffer, request->size, request->pathname, request->client_id, &response);
+		if(exit_status == 0){
+			CHECKERRNO((write(com, data_buffer, response.size) < 0), "Writing to client");
+			sprintf(log_buffer,"Client %d wrote %d bytes", request->client_id, request->size);
+			SAFELOCK(log_access_mtx);
+			write_to_log(log_buffer);
+			SAFEUNLOCK(log_access_mtx);
+			free(data_buffer);
+	}
+	else{
+		free(data_buffer);
+		return -1;
+	} 
 	}
 	free(log_buffer);
 	return exit_status;
@@ -157,9 +177,8 @@ void* worker(void* args){
 		// SAFEUNLOCK(log_access_mtx);
 		
 	
-		CHECKERRNO((read(com, &request, sizeof(request)) < 0), "Reading from client");
+		CHECKRW(readn(com, &request, sizeof(request)), sizeof(request), "Reading from client");
 		if(request.command & QUIT) {
-			// close(com); Now I try to send back the com that the client will close to keep track of connecitons/disconnections
 			memset(buffer, 0, sizeof(buffer));
 			SAFELOCK(free_threads_mtx);
 			free_threads[whoami] = true;
@@ -194,7 +213,7 @@ void* worker(void* args){
 		// SAFEUNLOCK(log_access_mtx);
 		memset(buffer, 0, sizeof(buffer));
 		sprintf(buffer, "%d", com);
-		CHECKERRNO((write(m_w_pipe[1], buffer, sizeof(buffer)) < 0), "Return com");
+		CHECKRW(writen(m_w_pipe[1], buffer, sizeof(buffer)), sizeof(buffer), "Return com");
 		memset(buffer, 0, sizeof(buffer));	
 		SAFELOCK(free_threads_mtx);
 		free_threads[whoami] = true;

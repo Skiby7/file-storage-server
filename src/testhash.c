@@ -1,7 +1,6 @@
 #include "common_includes.h"
 #include "server.h"
 #include "client_queue.h"
-#include "hash.h"
 #include "file.h"
 #include "fssApi.h"
 #include <limits.h>
