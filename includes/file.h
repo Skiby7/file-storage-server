@@ -19,12 +19,10 @@ typedef struct clients_{
 typedef struct fssFile_{
 	char *name;
 	unsigned char *data;
-	bool locked;
 	bool deleted;
 	unsigned short use_stat;
 	clients_file_queue *clients_open;
 	unsigned int whos_locking;
-	clients_file_queue *clients_waiting_lock;
 	unsigned long size;
 	time_t create_time;
 	time_t last_modified;
@@ -45,6 +43,7 @@ typedef struct storage_{
 int init_storage(int max_file_num, int max_size);
 void clean_storage();
 int open_file(char *filename, int flags, int client_id, server_response *response);
+int close_file(char *filename, int client_id, server_response *response);
 int read_file(char *filename, unsigned char **buffer, int client_id, server_response *response);
 int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response);
 int append_to_file(unsigned char* new_data, int new_data_size, char *filename, int client_id, server_response *response);

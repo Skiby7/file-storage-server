@@ -7,6 +7,8 @@
  * - Dare a ogni file una mutex in modo che possa fare la copia in e out senza bloccare nessuno
  * - Controllare l'accesso ai campi della struct e alla storage table
  * - Check del filecount in get_free_index
+ * - Close file
+ * - Remove lock queue from file
 */
 
 storage server_storage;
@@ -40,7 +42,7 @@ static int check_memory(unsigned int new_size, unsigned int old_size){
 		for(int i = 0; i < table_size; i++){
 			if(server_storage.storage_table[i] != NULL){
 				if(pthread_mutex_trylock(&server_storage.storage_table[i]->file_mutex) == 0){ // Se non avviene il lock vuole dire che il file e' in uso
-					if(server_storage.storage_table[i]->use_stat == clean_level && !server_storage.storage_table[i]->locked){
+					if(server_storage.storage_table[i]->use_stat == clean_level && server_storage.storage_table[i]->whos_locking == -1){
 						server_storage.storage_table[i]->deleted = true;
 						server_storage.file_count -= 1;
 						server_storage.size -= server_storage.storage_table[i]->size;
@@ -157,7 +159,7 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 	}
 	if(file_exists){
 		SAFELOCK(server_storage.storage_table[file_index]->file_mutex);
-		if(server_storage.storage_table[file_index]->locked && server_storage.storage_table[file_index]->whos_locking != client_id){
+		if(server_storage.storage_table[file_index]->whos_locking != client_id){
 			SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
 			response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
 			return -1;
@@ -167,13 +169,45 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 			response->code[0] = FILE_OPERATION_FAILED | FILE_ALREADY_OPEN;
 			return -1;
 		}
-		if(lock_file){
-			server_storage.storage_table[file_index]->locked = true;
-			server_storage.storage_table[file_index]->whos_locking = client_id;
+ 		if(lock_file){
+			if(server_storage.storage_table[file_index]->whos_locking == -1)
+				server_storage.storage_table[file_index]->whos_locking = client_id;
+			
+			else{
+				remove_client_file_list(&server_storage.storage_table[file_index]->clients_open, client_id);
+				SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
+				response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
+				response->code[1] = EBUSY;
+				return -1;
+			}
 		}
-		
 		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
 	}
+	response->code[0] = FILE_OPERATION_SUCCESS;
+	return 0;
+}
+
+int close_file(char *filename, int client_id, server_response *response){
+	int file_index = search_file(filename);
+	if(file_index == -1){
+		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
+		response->code[1] = ENOENT;
+		return -1; 
+	}
+	SAFELOCK(server_storage.storage_table[file_index]->file_mutex);
+	if(server_storage.storage_table[file_index]->whos_locking != client_id || server_storage.storage_table[file_index]->whos_locking != -1){
+		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
+		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
+		response->code[1] = EACCES;
+		return -1; 
+	}
+	
+	if(remove_client_file_list(&server_storage.storage_table[file_index]->clients_open, client_id) < 0){
+		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
+		response->code[0] = FILE_OPERATION_FAILED;
+		return -1; 
+	}
+	SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	return 0;
 }
@@ -348,7 +382,6 @@ int lock_file(char *filename, int client_id, server_response *response){
 		response->code[1] = EINVAL;
 		return -1;
 	}
-	insert_client_file_list(&server_storage.storage_table[file_index]->clients_waiting_lock, client_id);
 	SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
 	response->code[0] = FILE_LOCKED_BY_OTHERS | FILE_OPERATION_FAILED;
 	response->code[1] = EBUSY;
@@ -364,24 +397,7 @@ int unlock_file(char *filename, int client_id, server_response *response){
 	}
 	SAFELOCK(server_storage.storage_table[file_index]->file_mutex);
 	if(server_storage.storage_table[file_index]->whos_locking == client_id){
-		if(server_storage.storage_table[file_index]->clients_waiting_lock == NULL)
-			server_storage.storage_table[file_index]->whos_locking = -1;
-		else{
-			if(server_storage.storage_table[file_index]->clients_waiting_lock->next == NULL){
-				server_storage.storage_table[file_index]->whos_locking = server_storage.storage_table[file_index]->clients_waiting_lock->id;
-				free(server_storage.storage_table[file_index]->clients_waiting_lock);
-				server_storage.storage_table[file_index]->clients_waiting_lock = NULL;
-			}
-			else{
-				while (server_storage.storage_table[file_index]->clients_waiting_lock->next->next != NULL){
-					server_storage.storage_table[file_index]->clients_waiting_lock = server_storage.storage_table[file_index]->clients_waiting_lock->next;
-				}
-					
-				server_storage.storage_table[file_index]->whos_locking = server_storage.storage_table[file_index]->clients_waiting_lock->next->id;
-				free(server_storage.storage_table[file_index]->clients_waiting_lock->next);
-				server_storage.storage_table[file_index]->clients_waiting_lock->next = NULL;
-			}
-		}
+		server_storage.storage_table[file_index]->whos_locking = -1;
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
 		return 0;
@@ -392,10 +408,8 @@ int unlock_file(char *filename, int client_id, server_response *response){
 		response->code[1] = EBUSY;
 		return -1;
 	}
-	insert_client_file_list(&server_storage.storage_table[file_index]->clients_waiting_lock, client_id);
 	SAFEUNLOCK(server_storage.storage_table[file_index]->file_mutex);
-	response->code[0] = FILE_LOCKED_BY_OTHERS;
-	response->code[1] = EBUSY;
+	response->code[0] = FILE_NOT_LOCKED | FILE_OPERATION_FAILED;
 	return -1;
 }
 
@@ -499,10 +513,8 @@ static void init_file(int id, char *filename, bool locked){
 	}
 
 	server_storage.storage_table[index]->deleted = false;
-	server_storage.storage_table[index]->locked = locked;
 	if(locked) server_storage.storage_table[index]->whos_locking = id;
 	else server_storage.storage_table[index]->whos_locking = -1;
-	server_storage.storage_table[index]->clients_waiting_lock = NULL;
 	server_storage.storage_table[index]->name = (char *)calloc(strlen(filename) + 1, sizeof(char));
 	CHECKALLOC(server_storage.storage_table[index]->name, "Errore inserimento nuovo file");
 	strncpy(server_storage.storage_table[index]->name, filename, strlen(filename));

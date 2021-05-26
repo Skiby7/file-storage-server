@@ -8,10 +8,10 @@ int open_log(char *pathname){
 	if((logfile = fopen(pathname, "w")) == NULL){
 		log_available = false;
 		fprintf(stderr, ANSI_COLOR_RED"Impossibile %s! La sessione non verrà registrata.\n", pathname);
-		return 0;
+		return -1;
 	}
 	log_available = true;
-	return 1;
+	return 0;
 
 }
 
@@ -27,7 +27,7 @@ int write_to_log(char *msg){
 		fprintf(logfile, "[%s] %s\n", timestamp, msg);
 		return 0;
 	}
-	return 1;
+	return -1;
 }
 
 int close_log(){
@@ -35,5 +35,5 @@ int close_log(){
 		fclose(logfile);
 		return 0;	
 	}
-	return 1;
+	return -1;
 }

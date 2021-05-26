@@ -53,7 +53,7 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 		CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
 	}
 	else if(request->command & CLOSE){
-		exit_status = close_file(request->pathname, request->command, request->client_id, &response); // CLOSE FILE DA IMPLEMENTARE
+		exit_status = close_file(request->pathname, request->client_id, &response); 
 		CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
 	}
 	else if(request->command & READ){
@@ -218,8 +218,9 @@ void* worker(void* args){
 	memset(&respond_to_client, 0, sizeof(respond_to_client));
 	
 
-	fflush(stdout);
 	while(true){
+		fflush(stdout);
+
 		// Thread waits for work to be assigned
 		SAFELOCK(ready_queue_mtx);
 		while(ready_queue[1] == NULL){

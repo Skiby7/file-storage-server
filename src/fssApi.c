@@ -10,7 +10,6 @@ char open_connection_name[UNIX_MAX_PATH] = "None";
  * - Check #malloc = #frees file_deleted_request 
 */
 
-// Return value <= 0 to check result with CHECKSCEXITS
 ssize_t readn(int fd, void *ptr, size_t n){
 	size_t nleft;
 	ssize_t nread;
@@ -30,7 +29,7 @@ ssize_t readn(int fd, void *ptr, size_t n){
 		nleft -= nread;
 		ptr += nread;
 	}
-	return (n - nleft); /* return <= 0 */
+	return (n - nleft); /* return >= 0 */
 }
 
 ssize_t writen(int fd, void *ptr, size_t n){
