@@ -24,9 +24,13 @@ typedef struct fssFile_{
 	clients_file_queue *clients_open;
 	unsigned int whos_locking;
 	unsigned long size;
+	unsigned short writers;
+	unsigned int readers;
 	time_t create_time;
 	time_t last_modified;
-	pthread_mutex_t file_mutex;
+	pthread_mutex_t order_mutex;
+	pthread_mutex_t access_mutex;
+	pthread_cond_t go_cond;
 } fssFile;
 
 typedef struct storage_{

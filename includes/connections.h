@@ -5,17 +5,18 @@
 
 
 typedef struct client_request_{
-	pid_t client_id;
-	char pathname[UNIX_MAX_PATH];
-	unsigned int size;
+	unsigned int client_id;
 	unsigned char command;
-	unsigned char flags; 
+	unsigned char flags;
+	char pathname[UNIX_MAX_PATH];
+	unsigned long size;
+	unsigned char* data;
 } client_request;
 
 typedef struct server_response_{
 	char filename[UNIX_MAX_PATH];
-	unsigned int size;
 	unsigned char code[2]; // 1 -> RESULT 2 -> ERRNO
-	bool deleted_file;
+	unsigned long size;
+	unsigned char *data;
 } server_response;
 

@@ -34,6 +34,8 @@ ssize_t writen(int fd, void *ptr, size_t n);
 /** TODO:
  * - Implementare una lista globale di lock waiters con associato com e client id
  * - Implementare close_file server side
+ * - Port read_all, serialize_response and deserialize_request here to read/write from/to client in one shot
+ * - Insert in done_queue broken coms  
 */
 
 
