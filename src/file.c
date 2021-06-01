@@ -9,6 +9,7 @@
 
 storage server_storage;
 pthread_mutex_t storage_access_mtx = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t start_LFU_selector = PTHREAD_COND_INITIALIZER;
 static void init_file(int id, char *filename, bool locked);
 static unsigned int search_file(const char* pathname);
 static unsigned int get_free_index(const char* pathname);
@@ -132,8 +133,6 @@ static int remove_client_file_list(clients_file_queue **head, int id){
 	}
 }
 
-
-
 int open_file(char *filename, int flags, int client_id, server_response *response){
 
 	int file_index = search_file(filename);
@@ -179,8 +178,12 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 				return -1;
 			}
 		}
+		server_storage.storage_table[file_index]->use_stat += 1;
 		stop_write(file_index);
 	}
+	SAFELOCK(storage_access_mtx);
+	pthread_cond_signal(&start_LFU_selector);
+	SAFEUNLOCK(storage_access_mtx);
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	return 0;
 }
@@ -253,8 +256,7 @@ int read_file(char *filename, unsigned char **buffer, int client_id, server_resp
 		CHECKALLOC(*buffer, "Errore allocazione memoria read_file");
 		response->size = server_storage.storage_table[file_index]->size;
 		memcpy(*buffer, server_storage.storage_table[file_index]->data, response->size);
-		if(server_storage.storage_table[file_index]->use_stat < 2)
-			server_storage.storage_table[file_index]->use_stat += 1;
+		server_storage.storage_table[file_index]->use_stat += 1;
 
 
 		/* QUI HO FINITO DI LEGGERE ED ESCO */
@@ -301,12 +303,14 @@ int write_to_file(unsigned char *data, int length, char *filename, int client_id
 		CHECKALLOC(server_storage.storage_table[file_index], "Errore allocazione wite_to_file");
 		memcpy(server_storage.storage_table[file_index]->data, data, length);
 		server_storage.storage_table[file_index]->size = length;
+		server_storage.storage_table[file_index]->use_stat += 1;
 		server_storage.storage_table[file_index]->last_modified = time(NULL);
 		
 		/* QUI HO FINITO DI SCRIVERE ED ESCO */
 		stop_write(file_index);
 		SAFELOCK(storage_access_mtx);
 		server_storage.size += (length - old_size);
+		pthread_cond_signal(&start_LFU_selector);
 		SAFEUNLOCK(storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		
@@ -341,15 +345,18 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *filename, i
 		
 		server_storage.storage_table[file_index]->data = (unsigned char *) realloc(server_storage.storage_table[file_index]->data, new_data_size + old_size);
 		CHECKALLOC(server_storage.storage_table[file_index], "Errore allocazione append_to_file");
-		for (size_t i = old_size, j = 0; j < new_data_size; i++, j++)
-			server_storage.storage_table[file_index]->data[i] = new_data[j];
+		memcpy(server_storage.storage_table[file_index]->data + old_size, new_data, new_data_size);
+		// for (size_t i = old_size, j = 0; j < new_data_size; i++, j++)
+		// 	server_storage.storage_table[file_index]->data[i] = new_data[j];
 
 		server_storage.storage_table[file_index]->size = new_data_size + old_size;
+		server_storage.storage_table[file_index]->use_stat += 1;
 		server_storage.storage_table[file_index]->last_modified = time(NULL);
 
 		stop_write(file_index);
 		SAFELOCK(storage_access_mtx);
 		server_storage.size += new_data_size;
+		pthread_cond_signal(&start_LFU_selector);
 		SAFEUNLOCK(storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		return 0;
@@ -378,6 +385,7 @@ int lock_file(char *filename, int client_id, server_response *response){
 	start_write(file_index);
 	if(server_storage.storage_table[file_index]->whos_locking == -1){
 		server_storage.storage_table[file_index]->whos_locking = client_id;
+		server_storage.storage_table[file_index]->use_stat += 1;
 		stop_write(file_index);
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		return 0;
@@ -440,10 +448,7 @@ void clean_storage(){
 static unsigned int search_file(const char* pathname){
 	int i = 0, max_len = 0, index = 0, path_len = 0;
 	path_len = strlen(pathname);
-
-	SAFELOCK(storage_access_mtx);
 	max_len = 2*server_storage.file_limit;
-	SAFEUNLOCK(storage_access_mtx);
 	while(true){
 		
 		index = hash_val(pathname, i, max_len, path_len);
@@ -536,18 +541,19 @@ static void init_file(int id, char *filename, bool locked){
 	server_storage.storage_table[index]->name = (char *)calloc(strlen(filename) + 1, sizeof(char));
 	CHECKALLOC(server_storage.storage_table[index]->name, "Errore inserimento nuovo file");
 	strncpy(server_storage.storage_table[index]->name, filename, strlen(filename));
-	server_storage.storage_table[index]->use_stat = 2;
+	server_storage.storage_table[index]->use_stat = 10;
 	server_storage.storage_table[index]->readers = 0;
 	server_storage.storage_table[index]->writers = 0;
 	SAFEUNLOCK(storage_access_mtx);
 }
 
-void* clock_algorithm(void *args){ // Lui va a diritto
-	int table_size = 0;
-	SAFELOCK(storage_access_mtx);
-	table_size = 2*server_storage.file_limit;
-	SAFEUNLOCK(storage_access_mtx);
+void* use_stat_update(void *args){ // Lui va a diritto
+	int table_size =  2*server_storage.file_limit;
+	
 	while(true){
+		SAFELOCK(storage_access_mtx)
+		pthread_cond_wait(&start_LFU_selector, &storage_access_mtx);
+		SAFEUNLOCK(storage_access_mtx);
 		for(int i = 0; i < table_size; i++){
 			SAFELOCK(storage_access_mtx);
 			if(server_storage.storage_table[i] == NULL){
@@ -560,10 +566,9 @@ void* clock_algorithm(void *args){ // Lui va a diritto
 			if(server_storage.storage_table[i]->use_stat != 0 && !server_storage.storage_table[i]->deleted)
 				server_storage.storage_table[i]->use_stat -= 1;
 			stop_write(i);
-			}
 		}
-		sleep(5); // Provvisorio
 	}
+}
 
 
 void start_read(int file_index){
