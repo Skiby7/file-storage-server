@@ -1,5 +1,8 @@
 #include "fssApi.h"
+#ifndef CONNECTIONS_H_
+#define CONNECTIONS_H_
 #include "connections.h"
+#endif
 #include "serialization.h"
 
 extern int socket_fd;
@@ -87,8 +90,7 @@ int openFile(const char *pathname, int flags){
 	memset(open_request.pathname, 0, UNIX_MAX_PATH);
 	strncpy(open_request.pathname, pathname, UNIX_MAX_PATH);
 	open_request.client_id = getpid();
-	CHECKRW(writen(socket_fd, &open_request, sizeof(open_request)), sizeof(open_request), "Errore invio richiesta openFile");
-	CHECKRW(readn(socket_fd, &open_response, sizeof(open_response)), sizeof(open_response), "Errore lettura risposta server");
+	handle_connection(open_request, &open_response);
 	if(open_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(open_response.code);
 		return -1;
@@ -231,8 +233,7 @@ int lockFile(const char* pathname){
 	memset(lock_request.pathname, 0, UNIX_MAX_PATH);
 	strncpy(lock_request.pathname, pathname, UNIX_MAX_PATH);
 	lock_request.client_id = getpid();
-	CHECKRW(writen(socket_fd, &lock_request, sizeof(lock_request)),  sizeof(lock_request), "Errore invio richiesta lockFile");
-	CHECKRW(readn(socket_fd, &lock_response, sizeof(lock_response)), sizeof(lock_response), "Errore lettura risposta server"); // Si blocca qui finche' non gli viene notificato che l'operazione e' riuscita
+	handle_connection(lock_request, &lock_response);
 	if(lock_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(lock_response.code);
 		return -1;

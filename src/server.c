@@ -266,8 +266,8 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
 	}
 	CHECKEXIT(pthread_join(signal_handler_thread, NULL) != 0, false, "Errore durante il join dei workers");
-	CHECKEXIT(pthread_cancel(&use_stat_thread) != 0, false, "Errore durante la cancellazione dei workers attivi");
-	CHECKEXIT(pthread_join(&use_stat_thread, NULL) != 0, false, "Errore durante la cancellazione dei workers attivi");
+	CHECKEXIT(pthread_cancel(use_stat_thread) != 0, false, "Errore durante la cancellazione dei workers attivi");
+	CHECKEXIT(pthread_join(use_stat_thread, NULL) != 0, false, "Errore durante la cancellazione dei workers attivi");
 	for (size_t i = 0; i < com_size; i++){
 			if(com_fd[i].fd != 0)
 				close(com_fd[i].fd);

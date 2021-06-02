@@ -113,7 +113,7 @@ void print_storage(){
 	{
 		if(server_storage.storage_table[i] != NULL){
 			puts(server_storage.storage_table[i]->name);
-			printf("size: %d", server_storage.storage_table[i]->size);
+			printf("size: %lu", server_storage.storage_table[i]->size);
 			if(server_storage.storage_table[i]->data != NULL){
 				for (size_t j = 0; j < server_storage.storage_table[i]->size; j++)
 				{

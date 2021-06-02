@@ -3,8 +3,10 @@
 #include "common_includes.h"
 #endif
 #include <sys/stat.h>
+#ifndef CONNECTIONS_H_
+#define CONNECTIONS_H_
 #include "connections.h"
-
+#endif
 #define BITS_IN_int     ( sizeof(int) * CHAR_BIT )
 #define THREE_QUARTERS  ((int) ((BITS_IN_int * 3) / 4))
 #define ONE_EIGHTH      ((int) (BITS_IN_int / 8))

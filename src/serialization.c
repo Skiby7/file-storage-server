@@ -122,8 +122,8 @@ int serialize_response(server_response response, unsigned char** buffer, unsigne
 	memcpy(*buffer, &response.filename, sizeof(response.filename));
 	increment += sizeof(response.filename);
 
-	uint_to_char(response.code, &tmp);
-	memcpy(*buffer + increment, tmp, sizeof(response.code));
+	
+	memcpy(*buffer + increment, response.code, sizeof(response.code));
 	free(tmp);
 	increment += sizeof(response.code);
 
@@ -164,52 +164,55 @@ int deserialize_response(server_response *response, unsigned char** buffer, unsi
 ssize_t readn(int fd, void *ptr, size_t n){
 	size_t nleft;
 	ssize_t nread;
-
+	uint8_t *pointer = ptr;
 	nleft = n;
 	while (nleft > 0)
 	{
-		if ((nread = read(fd, ptr, nleft)) < 0)
+		if ((nread = read(fd, pointer, nleft)) < 0)
 		{
-			if (nleft == n)
+			if (nleft == n){
+				ptr = pointer;
 				return -1; /* error, return -1 */
+			}
 			else
 				break; /* error, return amount read so far */
 		}
 		else if (nread == 0)
 			break; /* EOF */
 		nleft -= nread;
-		ptr += nread;
+		pointer += nread;
 	}
+	ptr = pointer;
 	return (n - nleft); /* return >= 0 */
 }
 
 ssize_t writen(int fd, void *ptr, size_t n){
 	size_t nleft;
 	ssize_t nwritten;
-
+	uint8_t *pointer = ptr;
 	nleft = n;
 	while (nleft > 0)
 	{
-		if ((nwritten = write(fd, ptr, nleft)) < 0)
+		if ((nwritten = write(fd, pointer, nleft)) < 0)
 		{
-			if (nleft == n)
+			if (nleft == n){
+				ptr = pointer;
 				return -1; /* error, return -1 */
+			}
 			else
 				break; /* error, return amount written so far */
 		}
 		else if (nwritten == 0)
 			break;
 		nleft -= nwritten;
-		ptr += nwritten;
+		pointer += nwritten;
 	}
+	ptr = pointer;
 	return (n - nleft); /* return >= 0 */
 }
 
 
-
-
-
-void reset_buffer(unsigned char** buffer, int* buff_size){
+void reset_buffer(unsigned char** buffer, size_t* buff_size){
 	free(*buffer);
 	*buffer = NULL;
 	*buff_size = 0;

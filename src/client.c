@@ -52,7 +52,7 @@ int main(int argc, char* argv[]){
 	bool f = false, p = false;
 	char buffer[100];
 	char sockname[UNIX_MAX_PATH];
-	unsigned char *databuffer = NULL;
+	void **databuffer = NULL;
 	size_t data_size = 0;
 	struct timespec abstime = {
 		.tv_nsec = 0,
@@ -91,9 +91,9 @@ int main(int argc, char* argv[]){
 				break;
 			case 'r':
 					CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
-					readFile(optarg, &databuffer, &data_size);
+					readFile(optarg, databuffer, &data_size);
 					for (size_t i = 0; i < data_size; i++){
-						printf("%c", databuffer[i]);
+						printf("%c", *(char*)databuffer[i]);
 					}
 					
 				break;
@@ -121,10 +121,10 @@ int main(int argc, char* argv[]){
 	CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
 	openFile("README.md", O_CREATE | O_LOCK);
 	writeFile("README.md", NULL);
-	readFile("README.md", &databuffer, &data_size);
+	readFile("README.md", databuffer, &data_size);
 	if(databuffer != NULL){
 		for (size_t i = 0; i < data_size; i++)
-			printf("%c", databuffer[i]);
+			printf("%c", *(char*)databuffer[i]);
 		
 	}
 

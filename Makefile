@@ -16,14 +16,15 @@ server:  libutils
 client: libutils
 		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./build -lutils 
 
-libutils: parser.o fssApi.o client_queue.o connections.o log.o file.o
-		ar rvs build/libutils.a build/parser.o build/fssApi.o build/client_queue.o build/connections.o build/log.o build/file.o
+libutils: parser.o fssApi.o client_queue.o connections.o log.o file.o serialization.o
+		ar rvs build/libutils.a build/parser.o build/fssApi.o build/client_queue.o build/connections.o build/log.o build/file.o build/serialization.o
 		rm build/parser.o
 		rm build/fssApi.o
 		rm build/client_queue.o
 		rm build/connections.o
 		rm build/log.o
 		rm build/file.o
+		rm build/serialization.o
 
 
 
@@ -45,6 +46,8 @@ log.o:
 file.o: 
 		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) -c src/file.c -o build/file.o
 
+serialization.o:
+		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) -c src/serialization.c -o build/serialization.o
 
 
 

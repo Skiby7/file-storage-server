@@ -31,7 +31,7 @@ extern void func(clients_list *head);
 ssize_t safe_read(int fd, void *ptr, size_t n);
 ssize_t safe_write(int fd, void *ptr, size_t n);
 int read_all_buffer(int com, unsigned char **buffer, unsigned long *buff_size);
-
+void logger(char *log);
 
 
 /** TODO:
@@ -42,7 +42,6 @@ int read_all_buffer(int com, unsigned char **buffer, unsigned long *buff_size);
 static int handle_request(int com, client_request *request, bool *client_waiting_lock){
 	int exit_status = -1, lock_com = 0, lock_id = 0;
 	char *log_buffer = NULL;
-	char *data_buffer = NULL;
 	char *pipe_buffer = NULL;
 	server_response response;
 	unsigned char* serialized_response = NULL;
@@ -69,8 +68,8 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 		safe_write(com, serialized_response, response_size);
 		reset_buffer(&serialized_response, &response_size);
 		if(exit_status == 0){
-			snprintf(log_buffer, LOG_BUFF, "Client %d read %d bytes", request->client_id, response.size);
-			log(log_buffer);
+			snprintf(log_buffer, LOG_BUFF, "Client %d read %lu bytes", request->client_id, response.size);
+			logger(log_buffer);
 		}
 	}
 	else if(request->command & WRITE){
@@ -79,20 +78,18 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 		safe_write(com, serialized_response, response_size);
 		reset_buffer(&serialized_response, &response_size);
 		if(exit_status == 0){
-			CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
-			snprintf(log_buffer, LOG_BUFF, "Client %d wrote %d bytes", request->client_id, request->size);
-			log(log_buffer);		
+			snprintf(log_buffer, LOG_BUFF, "Client %d wrote %lu bytes", request->client_id, request->size);
+			logger(log_buffer);		
 		} 
 	}
 	else if(request->command & APPEND){
-		exit_status = append_to_file(data_buffer, request->size, request->pathname, request->client_id, &response);
+		exit_status = append_to_file(request->data, request->size, request->pathname, request->client_id, &response);
 		serialize_response(response, &serialized_response, &response_size);
 		safe_write(com, serialized_response, response_size);
 		reset_buffer(&serialized_response, &response_size);
 		if(exit_status == 0){
-			CHECKRW(write(com, data_buffer, response.size),  response.size, "Writing to client");
-			snprintf(log_buffer, LOG_BUFF, "Client %d wrote %d bytes", request->client_id, request->size);
-			log(log_buffer);
+			snprintf(log_buffer, LOG_BUFF, "Client %d wrote %lu bytes", request->client_id, request->size);
+			logger(log_buffer);
 		} 
 	}
 	else if(request->command & SET_LOCK){ // TEST THIS
@@ -102,14 +99,14 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 				serialize_response(response, &serialized_response, &response_size);
 				safe_write(com, serialized_response, response_size);
 				reset_buffer(&serialized_response, &response_size);
-				snprintf(log_buffer, log_buffer, "Client %d locked %s", request->client_id, request->pathname);
-				log(log_buffer);
+				snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", request->client_id, request->pathname);
+				logger(log_buffer);
 			}
 			else if(response.code[0] | FILE_LOCKED_BY_OTHERS){
 				insert_lock_file_list(request->pathname, request->client_id, com);
 				*client_waiting_lock = true;
 				snprintf(log_buffer, LOG_BUFF, "Client %d waiting on %s", request->client_id, request->pathname);
-				log(log_buffer);
+				logger(log_buffer);
 				free(log_buffer);
 				return 0;
 			}
@@ -118,7 +115,7 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 				safe_write(com, serialized_response, response_size);
 				reset_buffer(&serialized_response, &response_size);
 				snprintf(log_buffer, LOG_BUFF, "Client %d failed locking %s with error %s", request->client_id, request->pathname, strerror(response.code[1]));
-				log(log_buffer);
+				logger(log_buffer);
 			}
 		}
 		else{
@@ -128,7 +125,7 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 				safe_write(com, serialized_response, response_size);
 				reset_buffer(&serialized_response, &response_size);
 				snprintf(log_buffer, LOG_BUFF, "Client %d unlocked %s", request->client_id, request->pathname);
-				log(log_buffer);
+				logger(log_buffer);
 				
 				if(pop_lock_file_list(request->pathname, &lock_id, &lock_com) == 0){
 					while (fcntl(lock_com, F_GETFD) != 0){
@@ -151,7 +148,7 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 					sprintf(pipe_buffer, "%d", lock_com);
 					CHECKRW(writen(m_w_pipe[1], pipe_buffer, PIPE_BUF), PIPE_BUF, "Return com");
 					snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", lock_id, request->pathname);
-					log(log_buffer);
+					logger(log_buffer);
 					free(pipe_buffer);
 				}
 				free(log_buffer);
@@ -159,7 +156,7 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 			}
 			CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
 			snprintf(log_buffer, LOG_BUFF, "Client %d failed locking %s with error %s", request->client_id, request->pathname, strerror(response.code[1]));
-			log(log_buffer);
+			logger(log_buffer);
 			free(log_buffer);
 			return -1;
 		} 
@@ -169,7 +166,8 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 }
 
 void* worker(void* args){
-	int com = 0, request_buffer_size = 0;
+	int com = 0;
+	size_t request_buffer_size = 0;
 	bool client_waiting_lock = false;
 	int whoami = *(int*) args;
 	char buffer[PIPE_BUF];
@@ -208,11 +206,11 @@ void* worker(void* args){
 			continue;
 		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
 		// snprintf(log_buffer, LOG_BUFF, "[Thread %d] received request from client %d", whoami, com);
-		// log(log_buffer);;
+		// logger(log_buffer);;
 		
 		client_waiting_lock = false;
 		read_all_buffer(com, &request_buffer, &request_buffer_size);
-		deserialize_request(&request, request_buffer, request_buffer_size);
+		deserialize_request(&request, &request_buffer, request_buffer_size);
 		if(request.command & QUIT) {
 			memset(buffer, 0, sizeof(buffer));
 			SAFELOCK(free_threads_mtx);
@@ -228,9 +226,7 @@ void* worker(void* args){
 
 		if(request_status < 0){
 			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
-			SAFELOCK(log_access_mtx);
-			write_to_log(log_buffer);
-			SAFEUNLOCK(log_access_mtx);
+			logger(log_buffer);
 			
 			continue;
 		}
@@ -295,7 +291,7 @@ int read_all_buffer(int com, unsigned char **buffer, unsigned long *buff_size){
 	return 0;
 }
 
-void log(char *log){
+void logger(char *log){
 	SAFELOCK(log_access_mtx);
 	write_to_log(log);
 	SAFEUNLOCK(log_access_mtx);
