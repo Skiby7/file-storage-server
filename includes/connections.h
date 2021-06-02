@@ -17,6 +17,6 @@ typedef struct server_response_{
 	char filename[UNIX_MAX_PATH];
 	unsigned char code[2]; // 1 -> RESULT 2 -> ERRNO
 	unsigned long size;
-	unsigned char *data;
+	unsigned char* data;
 } server_response;
 

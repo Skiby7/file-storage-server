@@ -331,7 +331,7 @@ int remove_file(char *filename, int client_id,  server_response *response){
 	return 0;
 }
 
-int read_file(char *filename, unsigned char **buffer, int client_id, server_response *response){
+int read_file(char *filename, int client_id, server_response *response){
 	int file_index = search_file(filename);
 	if(file_index == -1){
 		response->code[0] = FILE_NOT_EXISTS | FILE_OPERATION_FAILED;
@@ -343,10 +343,10 @@ int read_file(char *filename, unsigned char **buffer, int client_id, server_resp
 	/* QUI INIZIO A LEGGERE */
 	if(check_client_id(server_storage.storage_table[file_index]->clients_open, client_id) == -1 && 
 								(server_storage.storage_table[file_index]->whos_locking == -1 || server_storage.storage_table[file_index]->whos_locking == client_id)){
-		*buffer = (unsigned char *) calloc(server_storage.storage_table[file_index]->size, sizeof(unsigned char));
-		CHECKALLOC(*buffer, "Errore allocazione memoria read_file");
+		response->data = (unsigned char *) calloc(server_storage.storage_table[file_index]->size, sizeof(unsigned char));
+		CHECKALLOC(response->data, "Errore allocazione memoria read_file");
 		response->size = server_storage.storage_table[file_index]->size;
-		memcpy(*buffer, server_storage.storage_table[file_index]->data, response->size);
+		memcpy(response->data, server_storage.storage_table[file_index]->data, response->size);
 		server_storage.storage_table[file_index]->use_stat += 1;
 
 
