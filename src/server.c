@@ -64,6 +64,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	bool thread_finished = false;
 	pthread_t *workers;
 	pthread_t signal_handler_thread;
+	pthread_t use_stat_thread;
 	sigset_t signal_mask;
 	struct sockaddr_un sockaddress; // Socket init
 	
@@ -113,7 +114,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	com_count = 2;
 	write_to_log("Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1.");
 	CHECKEXIT(pthread_create(&signal_handler_thread, NULL, &sig_wait_thread, NULL) != 0, false, "Errore di creazione del signal handler thread");
-
+	CHECKEXIT(pthread_create(&use_stat_thread, NULL, &use_stat_update, NULL) != 0, false, "Errore di creazione di use stat thread");
 	for (int i = 0; i < configuration.workers; i++){
 		CHECKEXIT(pthread_create(&workers[i], NULL, &worker, &i), false, "Errore di creazione dei worker");
 	}
@@ -266,6 +267,8 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
 	}
 	CHECKEXIT(pthread_join(signal_handler_thread, NULL) != 0, false, "Errore durante il join dei workers");
+	CHECKEXIT(pthread_cancel(&use_stat_thread) != 0, false, "Errore durante la cancellazione dei workers attivi");
+	CHECKEXIT(pthread_join(&use_stat_thread, NULL) != 0, false, "Errore durante la cancellazione dei workers attivi");
 	for (size_t i = 0; i < com_size; i++){
 			if(com_fd[i].fd != 0)
 				close(com_fd[i].fd);

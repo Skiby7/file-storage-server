@@ -589,7 +589,6 @@ static void init_file(int id, char *filename, bool locked){
 
 void* use_stat_update(void *args){ // Lui va a diritto
 	int table_size =  2*server_storage.file_limit;
-	
 	while(true){
 		SAFELOCK(storage_access_mtx)
 		pthread_cond_wait(&start_LFU_selector, &storage_access_mtx);

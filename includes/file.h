@@ -54,3 +54,4 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *filename, i
 int lock_file(char *filename, int client_id, server_response *response);
 int unlock_file(char *filename, int client_id, server_response *response);
 void print_storage();
+void* use_stat_update(void *args);
