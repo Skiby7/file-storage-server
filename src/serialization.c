@@ -207,24 +207,7 @@ ssize_t writen(int fd, void *ptr, size_t n){
 
 
 
-void read_all_buffer(int com, unsigned char **buffer, unsigned long *buff_size){
-	int index = 0, nreads = 0, read_bytes = 0;
-	*buff_size = 1024;
-	*buffer = realloc(*buffer, *buff_size);
-	memset(*buffer, 0, sizeof(unsigned char));
-	do{
-		read_bytes = safe_read(com, *buffer + index, *buff_size - index);
-		nreads += read_bytes;
-		// printf("read %d bytes\n", read_bytes);
-		// printf("buff_size %ld\n", *buff_size);
-		if(nreads >= *buff_size){
-			*buff_size += 1024;
-			*buffer = realloc(*buffer, *buff_size);
-			CHECKALLOC(*buffer, "Erorre di riallocazione durante la read dal socket");
-		}
-		index += read_bytes;
-	}while(read_bytes > 0);
-}
+
 
 void reset_buffer(unsigned char** buffer, int* buff_size){
 	free(*buffer);
