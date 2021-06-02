@@ -15,6 +15,11 @@ typedef struct clients_{
 	struct clients_ *next;
 } clients_file_queue;
 
+typedef struct lockers_{
+	int id;
+	int com;
+	struct lockers_ *next;
+} lock_file_queue;
 
 typedef struct fssFile_{
 	char *name;
@@ -22,6 +27,7 @@ typedef struct fssFile_{
 	bool deleted;
 	unsigned short use_stat;
 	clients_file_queue *clients_open;
+	lock_file_queue *lock_waiters;
 	unsigned int whos_locking;
 	unsigned long size;
 	unsigned short writers;
@@ -53,5 +59,7 @@ int write_to_file(unsigned char *data, int length, char *filename, int client_id
 int append_to_file(unsigned char* new_data, int new_data_size, char *filename, int client_id, server_response *response);
 int lock_file(char *filename, int client_id, server_response *response);
 int unlock_file(char *filename, int client_id, server_response *response);
+int insert_lock_file_list(char *filename, int id, int com);
+int pop_lock_file_list(char *filename, int *id, int *com);
 void print_storage();
 void* use_stat_update(void *args);

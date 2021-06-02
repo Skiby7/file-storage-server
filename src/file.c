@@ -135,12 +135,63 @@ static int check_client_id(clients_file_queue *head, int id){
 	return 0;
 }
 
+static int check_client_id_lock(lock_file_queue *head, int id){
+	while(head != NULL){
+		if(head->id == id) return -1;
+		head = head->next;
+	}
+	return 0;
+}
+
 static int insert_client_file_list(clients_file_queue **head, int id){
 	if(check_client_id((*head), id) == -1) return -1;
 	clients_file_queue *new = (clients_file_queue *) malloc(sizeof(clients_file_queue));
 	new->id = id;
 	new->next = (*head);
 	(*head) = new;	
+	return 0;
+}
+
+int insert_lock_file_list(char *filename, int id, int com){
+	int file_index = search_file(filename);
+	start_write(file_index);
+
+	if(check_client_id_lock(server_storage.storage_table[file_index]->lock_waiters, id) == -1){
+		stop_write(file_index);
+		return -1;
+	}
+	lock_file_queue *new = (lock_file_queue *) malloc(sizeof(lock_file_queue));
+	new->id = id;
+	new->com = com;
+	new->next = server_storage.storage_table[file_index]->lock_waiters;
+	server_storage.storage_table[file_index]->lock_waiters = new;	
+	stop_write(file_index);
+	return 0;
+}
+
+int pop_lock_file_list(char *filename, int *id, int *com){
+	int file_index = search_file(filename);
+	start_write(file_index);
+
+	lock_file_queue *scanner = server_storage.storage_table[file_index]->lock_waiters;
+	if(scanner == NULL){
+		stop_write(file_index);
+		return -1;
+	}
+	if(scanner->next == NULL){
+		*id = scanner->id;
+		*com = scanner->com;
+		free(scanner);	
+		server_storage.storage_table[file_index]->lock_waiters = NULL;
+		stop_write(file_index);
+		return 0;
+	}
+	while(scanner->next->next != NULL) scanner = scanner->next;
+	*id = scanner->next->id;
+	*com = scanner->next->com;
+	free(scanner->next);
+	scanner->next = NULL;
+	stop_write(file_index);
 	return 0;
 }
 
@@ -609,7 +660,6 @@ void* use_stat_update(void *args){ // Lui va a diritto
 	}
 }
 
-
 void start_read(int file_index){
 	SAFELOCK(server_storage.storage_table[file_index]->order_mutex); // ACQUIRE ORDER
 	SAFELOCK(server_storage.storage_table[file_index]->access_mutex); // ACQUIRE ACCESS
@@ -656,8 +706,6 @@ void stop_write(int file_index){
 	}
 	SAFEUNLOCK(server_storage.storage_table[file_index]->access_mutex);
 }
-
-
 
 static inline unsigned int hash_pjw(const void* key){
     char *datum = (char *)key;

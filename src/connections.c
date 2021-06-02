@@ -13,7 +13,6 @@ extern volatile sig_atomic_t abort_connections;
 extern pthread_mutex_t abort_connections_mtx;
 extern clients_list *ready_queue[2];
 extern clients_list *done_queue[2];
-extern lock_waiters_list *lock_waiters_queue[2];
 
 extern bool *free_threads;
 extern pthread_mutex_t free_threads_mtx;
@@ -129,9 +128,7 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 				SAFEUNLOCK(log_access_mtx);
 			}
 			else if(response.code[0] | FILE_LOCKED_BY_OTHERS){
-				SAFELOCK(lock_queue_mtx);
-				insert_lock_list(com, request->client_id, request->pathname, &lock_waiters_queue[0], &lock_waiters_queue[1]);
-				SAFEUNLOCK(lock_queue_mtx);
+				insert_lock_file_list(request->pathname, request->client_id, com);
 				*client_waiting_lock = true;
 				sprintf(log_buffer,"Client %d waiting on %s", request->client_id, request->pathname);
 				SAFELOCK(log_access_mtx);
@@ -158,24 +155,26 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 				SAFELOCK(log_access_mtx);
 				write_to_log(log_buffer);
 				SAFEUNLOCK(log_access_mtx);
-				SAFELOCK(lock_queue_mtx);
-				lock_com = get_lock_client(&lock_id, request->pathname, &lock_waiters_queue[0], &lock_waiters_queue[1]);
-				SAFEUNLOCK(lock_queue_mtx);
-				if(lock_com > 0){
+				
+
+				if(pop_lock_file_list(request->pathname, &lock_id, &lock_com) == 0){
 					pipe_buffer = (char *)calloc(PIPE_BUF, sizeof(char));
 					CHECKALLOC(pipe_buffer, "Errore allocazione pipe_buf handler ");
 					while (fcntl(lock_com, F_GETFD) != 0){
-						sprintf(pipe_buffer, "%d", lock_com);
-						CHECKRW(writen(m_w_pipe[1], pipe_buffer, PIPE_BUF), PIPE_BUF, "Return com");
-
-						SAFELOCK(lock_queue_mtx);
-						lock_com = get_lock_client(&lock_id, request->pathname, &lock_waiters_queue[0], &lock_waiters_queue[1]);
-						SAFEUNLOCK(lock_queue_mtx);
-						if(lock_com < 0) return 0;
+						SAFELOCK(done_queue_mtx);
+						insert_client_list(com, &done_queue[0], &done_queue[1]);
+						SAFEUNLOCK(done_queue_mtx);
+						
+						if(pop_lock_file_list(request->pathname, &lock_id, &lock_com) < 0) return 0;
+						
 					}
 					memset(&response, 0, sizeof(response));
 					lock_file(request->pathname, lock_id, &response); // Add errorcheck per write su log
 					CHECKRW(writen(lock_com, &response, sizeof(response)), sizeof(response), "Errore risposta lockfile ");
+					pipe_buffer = (char *)calloc(PIPE_BUF, sizeof(char));
+					CHECKALLOC(pipe_buffer, "Errore allocazione pipe_buf handler ");
+					sprintf(pipe_buffer, "%d", lock_com);
+					CHECKRW(writen(m_w_pipe[1], pipe_buffer, PIPE_BUF), PIPE_BUF, "Return com");
 					sprintf(log_buffer,"Client %d locked %s", lock_id, request->pathname);
 					SAFELOCK(log_access_mtx);
 					write_to_log(log_buffer);
@@ -194,16 +193,11 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 			SAFEUNLOCK(log_access_mtx);
 			free(log_buffer);
 			return -1;
-			
-			
 		} 
 	}
 	free(log_buffer);
 	return exit_status;
 }
-
-
-
 
 void* worker(void* args){
 	int com = 0;
