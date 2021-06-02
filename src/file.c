@@ -54,7 +54,7 @@ static int check_memory(unsigned int new_size){
 			
 			}
 		}
-		if(clean_level == 2){
+		if(clean_level == 32){
 			SAFEUNLOCK(storage_access_mtx);
 			return -1;
 		}
@@ -62,6 +62,38 @@ static int check_memory(unsigned int new_size){
 	}
 	SAFEUNLOCK(storage_access_mtx);
 	return 0;
+}
+
+static int check_count(){
+	int file_count = 0, file_limit = 0, clean_level, table_size = 0;
+	SAFELOCK(storage_access_mtx);
+	file_count = server_storage.file_count;
+	file_limit = server_storage.file_limit;
+	table_size = 2*file_limit;
+	if(file_count + 1 < file_limit){
+		SAFEUNLOCK(storage_access_mtx);
+		return 0;
+	}
+	while(clean_level < 33){
+		for(int i = 0; i < table_size; i++){
+			if(server_storage.storage_table[i] != NULL){
+				start_write(i);
+				if(server_storage.storage_table[i]->use_stat == clean_level && server_storage.storage_table[i]->whos_locking == -1){
+					server_storage.storage_table[i]->deleted = true;
+					server_storage.storage_table[i]->size = 0;
+					free(server_storage.storage_table[i]->data);
+					server_storage.file_count -= 1;
+					server_storage.size -= server_storage.storage_table[i]->size;
+					stop_write(i);
+					SAFEUNLOCK(storage_access_mtx);
+					return 0;
+				}
+			}
+		}
+		clean_level++;
+	}
+	SAFEUNLOCK(storage_access_mtx);
+	return -1;
 }
 
 int init_storage(int max_file_num, int max_size){
@@ -148,14 +180,23 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 		response->code[0] = FILE_EXISTS;
 		return -1;
 	}
+	
 	if(!file_exists && !create_file){
 		response->code[0] = FILE_OPERATION_FAILED;
 		return -1;
 	}
+
 	if(!file_exists){
-		init_file(client_id, filename, lock_file);
-	}
-	if(file_exists){
+		if(check_count() == 0)
+			init_file(client_id, filename, lock_file);
+		else{
+			response->code[0] = FILE_OPERATION_FAILED;
+			response->code[1] = ENOMEM;
+			return -1;
+		}
+	} 
+	
+	else if(file_exists){
 		start_write(file_index);
 		if(server_storage.storage_table[file_index]->whos_locking != client_id){
 			stop_write(file_index);
@@ -168,8 +209,7 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 			return -1;
 		}
  		if(lock_file){
-			if(server_storage.storage_table[file_index]->whos_locking == -1)
-				server_storage.storage_table[file_index]->whos_locking = client_id;
+			if(server_storage.storage_table[file_index]->whos_locking == -1) server_storage.storage_table[file_index]->whos_locking = client_id;
 			else{
 				remove_client_file_list(&server_storage.storage_table[file_index]->clients_open, client_id);
 				stop_write(file_index);
