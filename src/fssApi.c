@@ -76,18 +76,16 @@ int closeConnection(const char *sockname){
 	client_request close_request;
 	server_response close_response;
 	unsigned char* buffer = NULL;
-	size_t buff_size = 0;
 	memset(&close_request, 0, sizeof close_request);
 	if (strncmp(sockname, open_connection_name, UNIX_MAX_PATH) != 0){
 		errno = EINVAL;
 		return -1;
 	}
 	close_request.command = QUIT;
-	serialize_request(close_request, &buffer, &buff_size);
-	CHECKRW(writen(socket_fd, buffer, buff_size), buff_size, "Errore invio richiesta closeFile");
-	free(buffer);
+	handle_connection(close_request, &close_response);
 	// memset(open_connection_name, 0, UNIX_MAX_PATH);
 	// strncpy(open_connection_name, "None", UNIX_MAX_PATH);
+	// return close(socket_fd);
 	return close(socket_fd);
 }
 
@@ -129,7 +127,6 @@ int closeFile(const char *pathname){
 int readFile(const char *pathname, void **buf, size_t *size){
 	client_request read_request;
 	server_response read_response;
-	unsigned char* response_buffer = NULL;
 	memset(&read_request, 0, sizeof(client_request));
 	memset(&read_response, 0, sizeof(server_response));
 	read_request.command = READ;

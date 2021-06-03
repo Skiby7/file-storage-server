@@ -11,16 +11,15 @@ config configuration; // Server config
 bool can_accept = true;
 bool abort_connections = false;
 pthread_mutex_t ready_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t done_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t log_access_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t client_is_ready = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t abort_connections_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t can_accept_mtx = PTHREAD_MUTEX_INITIALIZER;
 bool *free_threads;
 clients_list *ready_queue[2];
-clients_list *done_queue[2];
 
-int m_w_pipe[2]; // 1 lettura, 0 scrittura
+int good_fd_pipe[2]; // 1 lettura, 0 scrittura
+int done_fd_pipe[2]; // 1 lettura, 0 scrittura
 extern void* worker(void* args);
 pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -55,8 +54,6 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	nfds_t com_size = DEFAULTFDS;
 	ready_queue[0] = NULL;
 	ready_queue[1] = NULL;
-	done_queue[0] = NULL;
-	done_queue[1] = NULL;
 
 
 	CHECKALLOC(com_fd, "pollfd");
@@ -93,7 +90,8 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 
 	memset(com_fd, -1, sizeof(struct pollfd));
 	memset(buffer, 0, PIPE_BUF);
-	CHECKEXIT((pipe(m_w_pipe) == -1), true, "Impossibile inizializzare la pipe");
+	CHECKEXIT((pipe(good_fd_pipe) == -1), true, "Impossibile inizializzare la pipe");
+	CHECKEXIT((pipe(done_fd_pipe) == -1), true, "Impossibile inizializzare la pipe");
 	write_to_log("Pipe inzializzata.");
 
 
@@ -108,9 +106,11 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 
 	com_fd[0].fd = socket_fd;
 	com_fd[0].events = POLLIN;
-	com_fd[1].fd = m_w_pipe[0];
+	com_fd[1].fd = good_fd_pipe[0];
 	com_fd[1].events = POLLIN;
-	com_count = 2;
+	com_fd[2].fd = done_fd_pipe[0];
+	com_fd[2].events = POLLIN;
+	com_count = 3;
 	write_to_log("Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1.");
 	CHECKEXIT(pthread_create(&signal_handler_thread, NULL, &sig_wait_thread, NULL) != 0, false, "Errore di creazione del signal handler thread");
 	CHECKEXIT(pthread_create(&use_stat_thread, NULL, &use_stat_update, NULL) != 0, false, "Errore di creazione di use stat thread");
@@ -119,7 +119,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	}
 	puts(ANSI_COLOR_RESET);
 	while(true){
-		poll_val = poll(com_fd, com_count, 10);
+		poll_val = poll(com_fd, com_count, -1);
 		CHECKERRNO(poll_val < 0, "Errore durante il polling");
 		// PRINT_POLLING(poll_print);
 		SAFELOCK(abort_connections_mtx);
@@ -128,46 +128,45 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			break;
 		}
 		SAFEUNLOCK(abort_connections_mtx);
-		if(poll_val != 0){
-			if(com_fd[0].revents & POLLIN){
-				com = accept(socket_fd, NULL, 0);
-				SAFELOCK(can_accept_mtx);
-				if(!can_accept){
-					SAFEUNLOCK(can_accept_mtx);
-					close(com);
-				}
-				else{
-					SAFEUNLOCK(can_accept_mtx);
-					CHECKERRNO((com < 0), "Errore durante la accept");
-					client_accepted++;
-					for (size_t i = 0; i < configuration.workers; i++){
-						SAFELOCK(free_threads_mtx);
-						if(free_threads[i]){ // Se ho un thread libero gli assegno subito il lavoro e continuo il ciclo
-							SAFEUNLOCK(free_threads_mtx);
-							SAFELOCK(ready_queue_mtx);
-							insert_client_list(com, &ready_queue[0], &ready_queue[1]);
-							pthread_cond_signal(&client_is_ready);
-							SAFEUNLOCK(ready_queue_mtx);	
-							break;
-						}
+		
+		if(com_fd[0].revents & POLLIN){
+			com = accept(socket_fd, NULL, 0);
+			SAFELOCK(can_accept_mtx);
+			if(!can_accept){
+				SAFEUNLOCK(can_accept_mtx);
+				close(com);
+			}
+			else{
+				SAFEUNLOCK(can_accept_mtx);
+				CHECKERRNO((com < 0), "Errore durante la accept");
+				client_accepted++;
+				for (size_t i = 0; i < configuration.workers; i++){
+					SAFELOCK(free_threads_mtx);
+					if(free_threads[i]){ // Se ho un thread libero gli assegno subito il lavoro e continuo il ciclo
 						SAFEUNLOCK(free_threads_mtx);
 						SAFELOCK(ready_queue_mtx);
 						insert_client_list(com, &ready_queue[0], &ready_queue[1]);
+						pthread_cond_signal(&client_is_ready);
 						SAFEUNLOCK(ready_queue_mtx);	
+						break;
 					}
+					SAFEUNLOCK(free_threads_mtx);
+					SAFELOCK(ready_queue_mtx);
+					insert_client_list(com, &ready_queue[0], &ready_queue[1]);
+					SAFEUNLOCK(ready_queue_mtx);	
 				}
-			}	
+			}
+		}	
 			
-			if(com_fd[1].revents & POLLIN){
-				read_bytes = read(m_w_pipe[0], buffer, sizeof(buffer));
-				CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
-				if(strncmp(buffer, "termina", PIPE_BUF) != 0){
-					tmp = strtol(buffer, NULL, 10);
-					if(tmp <= 0){
-						fprintf(stderr, "Errore strtol! Buffer -> %s\n", buffer);
-						fflush(stderr);
-						continue;
-					}
+		if(com_fd[1].revents & POLLIN){
+			read_bytes = read(good_fd_pipe[0], buffer, sizeof(buffer));
+			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
+			if(strncmp(buffer, "termina", PIPE_BUF) != 0){
+				tmp = strtol(buffer, NULL, 10);
+				if(tmp <= 0)
+					fprintf(stderr, "Errore strtol! Buffer -> %s\n", buffer);
+					
+				else{
 					if (com_size - com_count < 3){
 						com_size = realloc_com_fd(&com_fd, com_size);
 						for (size_t i = com_count; i < com_size; i++){
@@ -178,18 +177,32 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 					insert_com_fd(tmp, &com_size, &com_count, com_fd);
 				}
 			}
-				
-			for(size_t i = 2; i < com_size; i++){
-				if((com_fd[i].revents & POLLIN) && com_fd[i].fd != 0){
-					SAFELOCK(ready_queue_mtx);
-					insert_client_list(com_fd[i].fd, &ready_queue[0], &ready_queue[1]);
-					SAFEUNLOCK(ready_queue_mtx);
-					com_fd[i].fd = 0;
-					com_fd[i].events = 0;
-					com_count--;
-				}
+		}
+			
+		if(com_fd[2].revents & POLLIN){
+			read_bytes = read(done_fd_pipe[0], buffer, sizeof buffer);
+			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
+			
+			tmp = strtol(buffer, NULL, 10);
+			if(tmp <= 0)
+				fprintf(stderr, "Errore strtol! Buffer -> %s\n", buffer);
+			else{
+				CHECKERRNO(close(tmp) < 0, "Errore chiusura done queue pipe");
+				client_closed++;
 			}
 		}
+			
+		for(size_t i = 3; i < com_size; i++){
+			if((com_fd[i].revents & POLLIN) && com_fd[i].fd != 0){
+				SAFELOCK(ready_queue_mtx);
+				insert_client_list(com_fd[i].fd, &ready_queue[0], &ready_queue[1]);
+				SAFEUNLOCK(ready_queue_mtx);
+				com_fd[i].fd = 0;
+				com_fd[i].events = 0;
+				com_count--;
+			}
+		}
+		
 
 		for (size_t i = 0; i < configuration.workers; i++){
 			SAFELOCK(free_threads_mtx);
@@ -208,10 +221,6 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 			}
 			SAFEUNLOCK(free_threads_mtx);
 		}
-		
-		SAFELOCK(done_queue_mtx);
-		clean_done_list(&done_queue[0], &client_closed);
-		SAFEUNLOCK(done_queue_mtx);
 		
 		SAFELOCK(can_accept_mtx);
 		if(!can_accept && client_accepted == client_closed){
@@ -274,12 +283,13 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 	}
 	
 	close(socket_fd);
-	close(m_w_pipe[0]);
-	close(m_w_pipe[1]);
+	close(good_fd_pipe[0]);
+	close(good_fd_pipe[1]);
+	close(done_fd_pipe[0]);
+	close(done_fd_pipe[1]);
 	puts("socket closed");
 	freeConfig(&configuration);
 	clean_ready_list(&ready_queue[0]);
-	clean_done_list(&done_queue[0], &client_closed);
 	puts("list closed");
 	free(workers);
 	puts("workers closed");
@@ -354,7 +364,7 @@ void* sig_wait_thread(void *args){
 			can_accept = false;
 			SAFEUNLOCK(can_accept_mtx);
 			sprintf(buffer, "termina");
-			CHECKERRNO((write(m_w_pipe[1], buffer, sizeof(buffer)) < 0), "Errore invio terminazione sulla pipe");
+			CHECKERRNO((write(good_fd_pipe[1], buffer, sizeof(buffer)) < 0), "Errore invio terminazione sulla pipe");
 			break;
 		}
 		if(signum == SIGHUP){
@@ -362,7 +372,7 @@ void* sig_wait_thread(void *args){
 			can_accept = false;
 			SAFEUNLOCK(can_accept_mtx);
 			sprintf(buffer, "termina");
-			CHECKERRNO((write(m_w_pipe[1], buffer, sizeof(buffer)) < 0), "Errore invio terminazione sulla pipe");
+			CHECKERRNO((write(good_fd_pipe[1], buffer, sizeof(buffer)) < 0), "Errore invio terminazione sulla pipe");
 			break;
 		}
 	}

@@ -130,13 +130,7 @@ int main(int argc, char* argv[]){
 	readFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", &databuffer, &data_size);
 	sleep(2);
 	closeConnection(sockname);
-	// unlockFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md");
-	if(databuffer != NULL){
-		for (size_t i = 0; i < data_size; i++)
-			printf("%c", databuffer[i]);
-		
-	}
-
+	
 	
 	
 	

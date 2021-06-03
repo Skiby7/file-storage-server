@@ -42,14 +42,4 @@ void clean_ready_list(clients_list **head){
 	}
 }
 
-void clean_done_list(clients_list **head, int *client_closed){
-	clients_list *befree = NULL;
-	while((*head)!=NULL){
-		close((*head)->com);
-		befree = (*head);
-		(*head) = (*head)->next;
-		free(befree);
-		*client_closed+=1;
-	}
-}
 
