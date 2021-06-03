@@ -143,7 +143,7 @@
 		exit(EXIT_FAILURE);				\
 	} \
 	else if(call != size){ \
-		fprintf(stderr, "Errore, non tutti i "#size" bytes sono stati scritti -> "msg);		\
+		fprintf(stderr, "Errore, non tutti i bytes sono stati scritti -> "msg);		\
 		fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__);			\
 		exit(EXIT_FAILURE);				\
 	}

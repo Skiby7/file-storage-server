@@ -30,7 +30,7 @@ extern int m_w_pipe[2];
 extern void func(clients_list *head);
 ssize_t safe_read(int fd, void *ptr, size_t n);
 ssize_t safe_write(int fd, void *ptr, size_t n);
-int read_all_buffer(int com, unsigned char **buffer, unsigned long *buff_size);
+ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 void logger(char *log);
 
 
@@ -48,8 +48,9 @@ static int handle_request(int com, client_request *request, bool *client_waiting
 	size_t response_size = 0;
 	memset(&response, 0, sizeof(response));
 	log_buffer = (char *) calloc(LOG_BUFF, sizeof(char));
+	printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
 	if(request->command & OPEN){
-		exit_status = open_file(request->pathname, request->command, request->client_id, &response);
+		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
 		serialize_response(response, &serialized_response, &response_size);
 		safe_write(com, serialized_response, response_size);
 		reset_buffer(&serialized_response, &response_size);
@@ -208,11 +209,16 @@ void* worker(void* args){
 		// snprintf(log_buffer, LOG_BUFF, "[Thread %d] received request from client %d", whoami, com);
 		// logger(log_buffer);;
 		
-		client_waiting_lock = false;
+		// client_waiting_lock = false;
+		// request_buffer_size = 300;
+		// request_buffer = calloc(request_buffer_size, 1);
+		// safe_read(com, request_buffer, request_buffer_size);
 		read_all_buffer(com, &request_buffer, &request_buffer_size);
 		deserialize_request(&request, &request_buffer, request_buffer_size);
+
+		puts("Deserialized request");
+		printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
 		if(request.command & QUIT) {
-			memset(buffer, 0, sizeof(buffer));
 			SAFELOCK(free_threads_mtx);
 			free_threads[whoami] = true;
 			SAFEUNLOCK(free_threads_mtx);
@@ -252,7 +258,7 @@ void* worker(void* args){
 
 ssize_t safe_write(int fd, void *ptr, size_t n){
 	int exit_status = 0;
-	if((exit_status = writen(fd, ptr, n)) < 0){
+	if((exit_status = write(fd, ptr, n)) < 0){
 		SAFELOCK(done_queue_mtx);
 		insert_client_list(fd, &done_queue[0], &done_queue[1]);
 		SAFEUNLOCK(done_queue_mtx);
@@ -263,7 +269,7 @@ ssize_t safe_write(int fd, void *ptr, size_t n){
 
 ssize_t safe_read(int fd, void *ptr, size_t n){
 	int exit_status = 0;
-	if((exit_status = readn(fd, ptr, n)) < 0){
+	if((exit_status = read(fd, ptr, n)) < 0){
 		SAFELOCK(done_queue_mtx);
 		insert_client_list(fd, &done_queue[0], &done_queue[1]);
 		SAFEUNLOCK(done_queue_mtx);
@@ -272,23 +278,32 @@ ssize_t safe_read(int fd, void *ptr, size_t n){
 	return exit_status;
 }
 
-int read_all_buffer(int com, unsigned char **buffer, unsigned long *buff_size){
-	int index = 0, nreads = 0, read_bytes = 0;
+
+ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
+	size_t all_read = 0, packet_size = 0;
+	ssize_t read_bytes = 0;
 	*buff_size = 1024;
 	*buffer = realloc(*buffer, *buff_size);
-	memset(*buffer, 0, sizeof(unsigned char));
-	do{
-		read_bytes = safe_read(com, *buffer + index, *buff_size - index);
-		if(read_bytes < 0) return -1;
-		nreads += read_bytes;
-		if(nreads >= *buff_size){
+	unsigned char packet_size_buff[sizeof(unsigned long)];
+	memset(packet_size_buff, 0, sizeof(unsigned long));
+	while (true){
+		if ((read_bytes = safe_read(com, *buffer + all_read, *buff_size - all_read)) < 0)
+			return -1;
+		all_read += read_bytes;
+		if(all_read >= *buff_size){
+			puts("realloc");
 			*buff_size += 1024;
 			*buffer = realloc(*buffer, *buff_size);
 			CHECKALLOC(*buffer, "Erorre di riallocazione durante la read dal socket");
 		}
-		index += read_bytes;
-	}while(read_bytes > 0);
-	return 0;
+		if(packet_size == 0 && read_bytes >= sizeof(unsigned long)){
+			memcpy(packet_size_buff, *buffer, sizeof(unsigned long));
+			packet_size = char_to_ulong(packet_size_buff);
+		}
+		if(all_read >= packet_size)
+			break;
+	}
+	return all_read; /* return >= 0 */
 }
 
 void logger(char *log){

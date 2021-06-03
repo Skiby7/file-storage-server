@@ -28,7 +28,7 @@ void stop_write(int file_index);
  * @returns 0 if the operation is successful, -1 if the file is too big or there are no locked files to remove
  *
  */
-static int check_memory(unsigned int new_size){
+static int check_memory(unsigned int new_size, int caller){
 	int max_capacity = 0, actual_capacity = 0, table_size = 0, clean_level = 0;
 	SAFELOCK(storage_access_mtx);
 	max_capacity = server_storage.size_limit;
@@ -40,7 +40,7 @@ static int check_memory(unsigned int new_size){
 	}
 	while(new_size + actual_capacity > max_capacity){
 		for(int i = 0; i < table_size; i++){
-			if(server_storage.storage_table[i] != NULL){
+			if(server_storage.storage_table[i] != NULL && i != caller){
 				start_write(i);
 				if(server_storage.storage_table[i]->use_stat == clean_level && server_storage.storage_table[i]->whos_locking == -1){
 					server_storage.storage_table[i]->deleted = true;
@@ -51,7 +51,6 @@ static int check_memory(unsigned int new_size){
 				}
 				stop_write(i);
 				if(new_size + actual_capacity > max_capacity) break;
-			
 			}
 		}
 		if(clean_level == 32){
@@ -223,10 +222,11 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 	bool file_exists = false;
 	bool create_file = false;
 	bool lock_file = false;
-	
 	if(file_index != -1) file_exists = true;
 	if(flags & O_CREATE) create_file = true;
 	if(flags & O_LOCK) lock_file = true;
+
+	
 	if(file_exists && create_file){
 		response->code[0] = FILE_EXISTS;
 		return -1;
@@ -272,9 +272,9 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 		server_storage.storage_table[file_index]->use_stat += 1;
 		stop_write(file_index);
 	}
-	SAFELOCK(storage_access_mtx);
-	pthread_cond_signal(&start_LFU_selector);
-	SAFEUNLOCK(storage_access_mtx);
+	// SAFELOCK(storage_access_mtx);
+	// pthread_cond_signal(&start_LFU_selector);
+	// SAFEUNLOCK(storage_access_mtx);
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	return 0;
 }
@@ -370,6 +370,7 @@ int read_file(char *filename, int client_id, server_response *response){
 
 int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response){
 	int file_index = search_file(filename);
+	// printf("FILE INDEX: %d\n", file_index);
 	int old_size = 0;
 	if(file_index == -1){
 		response->code[1] = ENOENT;
@@ -382,14 +383,12 @@ int write_to_file(unsigned char *data, int length, char *filename, int client_id
 	/* QUI SI SCRIVE */
 	if(server_storage.storage_table[file_index]->whos_locking == client_id){ // If a file is locked, it's already open
 		old_size = server_storage.storage_table[file_index]->size;
-		if(check_memory(length) < 0){
-			stop_write(file_index);
+		if(check_memory(length, file_index) < 0){
+			// stop_write(file_index);
 			response->code[1] = EFBIG;
 			response->code[0] = FILE_OPERATION_FAILED;
 			return -1;
 		}
-		
-
 		server_storage.storage_table[file_index]->data = (unsigned char *) realloc(server_storage.storage_table[file_index]->data, length);
 		CHECKALLOC(server_storage.storage_table[file_index], "Errore allocazione wite_to_file");
 		memcpy(server_storage.storage_table[file_index]->data, data, length);
@@ -427,7 +426,7 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *filename, i
 								(server_storage.storage_table[file_index]->whos_locking == -1 || server_storage.storage_table[file_index]->whos_locking == client_id)){
 
 		old_size = server_storage.storage_table[file_index]->size;
-		if(check_memory(new_data_size + old_size) < 0){
+		if(check_memory(new_data_size + old_size, file_index) < 0){
 			stop_write(file_index);
 			response->code[1] = EFBIG;
 			response->code[0] = FILE_OPERATION_FAILED;
@@ -684,6 +683,7 @@ void stop_read(int file_index){
 		}
 	}
 	SAFEUNLOCK(server_storage.storage_table[file_index]->access_mutex);
+
 }
 
 void start_write(int file_index){
@@ -695,6 +695,9 @@ void start_write(int file_index){
 			exit(EXIT_FAILURE);
 		}
 	}
+	server_storage.storage_table[file_index]->writers += 1;
+	SAFEUNLOCK(server_storage.storage_table[file_index]->order_mutex); 
+	SAFEUNLOCK(server_storage.storage_table[file_index]->access_mutex); 
 }
 
 void stop_write(int file_index){
@@ -705,6 +708,7 @@ void stop_write(int file_index){
 		exit(EXIT_FAILURE);
 	}
 	SAFEUNLOCK(server_storage.storage_table[file_index]->access_mutex);
+
 }
 
 static inline unsigned int hash_pjw(const void* key){

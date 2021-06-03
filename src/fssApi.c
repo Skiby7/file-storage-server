@@ -7,7 +7,7 @@
 
 extern int socket_fd;
 char open_connection_name[UNIX_MAX_PATH] = "None";
-int read_all_buffer(int com, unsigned char **buffer, unsigned long *buff_size);
+ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 void clean_request(client_request* request);
 void clean_response(server_response* response);
 int handle_connection(client_request request, server_response *response);
@@ -72,12 +72,22 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 }
 
 int closeConnection(const char *sockname){
+	printf("%s %s\n", open_connection_name, sockname);
+	client_request close_request;
+	server_response close_response;
+	unsigned char* buffer = NULL;
+	size_t buff_size = 0;
+	memset(&close_request, 0, sizeof close_request);
 	if (strncmp(sockname, open_connection_name, UNIX_MAX_PATH) != 0){
 		errno = EINVAL;
 		return -1;
 	}
-	memset(open_connection_name, 0, UNIX_MAX_PATH);
-	strncpy(open_connection_name, "None", UNIX_MAX_PATH);
+	close_request.command = QUIT;
+	serialize_request(close_request, &buffer, &buff_size);
+	CHECKRW(writen(socket_fd, buffer, buff_size), buff_size, "Errore invio richiesta closeFile");
+	free(buffer);
+	// memset(open_connection_name, 0, UNIX_MAX_PATH);
+	// strncpy(open_connection_name, "None", UNIX_MAX_PATH);
 	return close(socket_fd);
 }
 
@@ -86,7 +96,8 @@ int openFile(const char *pathname, int flags){
 	server_response open_response;
 	memset(&open_request, 0, sizeof(client_request));
 	memset(&open_response, 0, sizeof(server_response));
-	open_request.command = flags | OPEN;
+	open_request.command = OPEN;
+	open_request.flags = flags;
 	memset(open_request.pathname, 0, UNIX_MAX_PATH);
 	strncpy(open_request.pathname, pathname, UNIX_MAX_PATH);
 	open_request.client_id = getpid();
@@ -118,6 +129,7 @@ int closeFile(const char *pathname){
 int readFile(const char *pathname, void **buf, size_t *size){
 	client_request read_request;
 	server_response read_response;
+	unsigned char* response_buffer = NULL;
 	memset(&read_request, 0, sizeof(client_request));
 	memset(&read_response, 0, sizeof(server_response));
 	read_request.command = READ;
@@ -131,9 +143,9 @@ int readFile(const char *pathname, void **buf, size_t *size){
 	} 
 	if(read_response.code[0] & FILE_OPERATION_SUCCESS){
 		*size = read_response.size;
-		*buf = read_response.data;
+		*buf = realloc(*buf, *size);
 		CHECKALLOC(*buf, "Errore di allocazione buffer lettura");
-		memset(&read_request, 0, sizeof(client_request));
+		memcpy(*buf, read_response.data, *size);
 	}
 	else{
 		errno = check_error(read_response.code);
@@ -141,6 +153,7 @@ int readFile(const char *pathname, void **buf, size_t *size){
 		return -1;
 	}
 	clean_request(&read_request);
+	clean_response(&read_response);
 	return 0;
 
 }
@@ -172,7 +185,8 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 
 int writeFile(const char* pathname, const char* dirname){
 	struct stat file_info;
-	int file, size = 0;
+	int file;
+	size_t size = 0, read_bytes = 0;
 	client_request write_request;
 	server_response write_response;
 	memset(&write_request, 0, sizeof(client_request));
@@ -188,13 +202,16 @@ int writeFile(const char* pathname, const char* dirname){
 	size = file_info.st_size;
 	write_request.data = (unsigned char *) calloc(size, sizeof(unsigned char));
 	CHECKALLOC(write_request.data, "Errore di allocazione writeFile");
-	CHECKRW(readn(file, write_request.data, size), size, "Errore copia del file nella richiesta writeFile");
+	if((read_bytes = read(file, write_request.data, size)) != size)
+		printf("read %lu, size %lu\n", read_bytes, size);
 
 	write_request.command = WRITE;
 	strncpy(write_request.pathname, pathname, UNIX_MAX_PATH);
 	write_request.client_id = getpid();
 	write_request.size = size;
+	puts("writeFile -> handle");
 	handle_connection(write_request, &write_response);
+	puts("writeFile <- handle");
 	if(write_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(write_response.code);
 		clean_request(&write_request);
@@ -262,23 +279,50 @@ int unlockFile(const char* pathname){
 }
 
 
-int read_all_buffer(int com, unsigned char **buffer, unsigned long *buff_size){
-	int index = 0, nreads = 0, read_bytes = 0;
+// int read_all_buffer(int com, unsigned char **buffer, unsigned long *buff_size){
+// 	int index = 0, nreads = 0, read_bytes = 0;
+// 	*buff_size = 1024;
+// 	*buffer = realloc(*buffer, *buff_size);
+// 	memset(*buffer, 0, sizeof(unsigned char));
+// 	do{
+// 		read_bytes = readn(com, *buffer + index, *buff_size - index);
+// 		if(read_bytes < 0) return -1;
+// 		nreads += read_bytes;
+// 		if(nreads >= *buff_size){
+// 			*buff_size += 1024;
+// 			*buffer = realloc(*buffer, *buff_size);
+// 			CHECKALLOC(*buffer, "Erorre di riallocazione durante la read dal socket");
+// 		}
+// 		index += read_bytes;
+// 	}while(read_bytes > 0);
+// 	return 0;
+// }
+
+ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
+	size_t all_read = 0, packet_size = 0;
+	ssize_t read_bytes = 0;
 	*buff_size = 1024;
 	*buffer = realloc(*buffer, *buff_size);
-	memset(*buffer, 0, sizeof(unsigned char));
-	do{
-		read_bytes = readn(com, *buffer + index, *buff_size - index);
-		if(read_bytes < 0) return -1;
-		nreads += read_bytes;
-		if(nreads >= *buff_size){
+	bool got_packet_size = false;
+	unsigned char packet_size_buff[sizeof(unsigned long)];
+	memset(packet_size_buff, 0, sizeof(unsigned long));
+	while (true){
+		if ((read_bytes = read(com, *buffer + all_read, *buff_size - all_read)) < 0)
+			return -1;
+		all_read += read_bytes;
+		if(all_read >= *buff_size){
 			*buff_size += 1024;
 			*buffer = realloc(*buffer, *buff_size);
 			CHECKALLOC(*buffer, "Erorre di riallocazione durante la read dal socket");
 		}
-		index += read_bytes;
-	}while(read_bytes > 0);
-	return 0;
+		if(!got_packet_size && read_bytes >= sizeof(unsigned long)){
+			memcpy(packet_size_buff, *buffer, sizeof(unsigned long));
+			packet_size = char_to_ulong(packet_size_buff);
+		}
+		if(packet_size == all_read)
+			break;
+	}
+	return all_read; /* return >= 0 */
 }
 
 int handle_connection(client_request request, server_response *response){
@@ -289,6 +333,9 @@ int handle_connection(client_request request, server_response *response){
 	reset_buffer(&buffer, &buff_size);
 	if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
 	deserialize_response(response, &buffer, buff_size);
+	puts("Deserialized response");
+	printf("code 0: 0x%.2x\ncode 1: 0x%.2x\npath: %s\nsize: %lu\n", response->code[0], response->code[1], response->filename, response->size);
+
 	return 0;
 }
 

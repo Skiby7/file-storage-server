@@ -52,7 +52,7 @@ int main(int argc, char* argv[]){
 	bool f = false, p = false;
 	char buffer[100];
 	char sockname[UNIX_MAX_PATH];
-	void **databuffer = NULL;
+	unsigned char*databuffer = NULL;
 	size_t data_size = 0;
 	struct timespec abstime = {
 		.tv_nsec = 0,
@@ -89,22 +89,22 @@ int main(int argc, char* argv[]){
 				else
 					puts(ANSI_COLOR_RED"Socket File già specificato!"ANSI_COLOR_RESET);
 				break;
-			case 'r':
-					CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
-					readFile(optarg, databuffer, &data_size);
-					for (size_t i = 0; i < data_size; i++){
-						printf("%c", *(char*)databuffer[i]);
-					}
+			// case 'r':
+			// 		CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
+			// 		readFile(optarg, databuffer, &data_size);
+			// 		for (size_t i = 0; i < data_size; i++){
+			// 			printf("%c", databuffer[i]);
+			// 		}
 					
-				break;
+			// 	break;
 
-			case 'W':
-					CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
-					openFile(optarg, O_CREATE);
-					puts("aperto");
-					writeFile(optarg, NULL);
-					puts("scritto");
-				break;
+			// case 'W':
+			// 		CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
+			// 		openFile(optarg, O_CREATE);
+			// 		puts("aperto");
+			// 		writeFile(optarg, NULL);
+			// 		puts("scritto");
+			// 	break;
 				
 			case ':': {
 			printf("l'opzione '-%c' richiede un argomento\n", optopt);
@@ -119,17 +119,25 @@ int main(int argc, char* argv[]){
 
 
 	CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
-	openFile("README.md", O_CREATE | O_LOCK);
-	writeFile("README.md", NULL);
-	readFile("README.md", databuffer, &data_size);
+	puts("Connected");
+	sleep(2);
+	openFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", O_CREATE | O_LOCK);
+	puts("Aperto");
+	sleep(2);
+	writeFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", NULL);
+	puts("Scritto");
+	sleep(2);
+	readFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", &databuffer, &data_size);
+	sleep(2);
+	closeConnection(sockname);
+	// unlockFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md");
 	if(databuffer != NULL){
 		for (size_t i = 0; i < data_size; i++)
-			printf("%c", *(char*)databuffer[i]);
+			printf("%c", databuffer[i]);
 		
 	}
 
 	
-	CHECKSCEXIT(closeConnection(sockname), true, "Errore di disconnesione");
 	
 	
 	return 0;
