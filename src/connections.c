@@ -54,8 +54,8 @@ int sendback_client(int com, bool done){
 	sprintf(buffer, "%d", com);
 	if(done) write(done_fd_pipe[1], buffer, PIPE_BUF);
 	else write(good_fd_pipe[1], buffer, PIPE_BUF);
-	// free(buffer);
-	printf("SENTBACK %d\n", com);
+	free(buffer);
+	// printf("SENTBACK %d\n", com);
 	return 0;
 }
 
@@ -67,7 +67,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 	size_t response_size = 0;
 	memset(&response, 0, sizeof(response));
 	log_buffer = (char *) calloc(LOG_BUFF, sizeof(char));
-	printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
+	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
 		if(respond_to_client(com, response) < 0) return -2;
@@ -159,7 +159,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 		response.code[0] = FILE_OPERATION_SUCCESS;
 		if(respond_to_client(com, response) > 0){
 			sendback_client(com, true);
-			printf("Sentback %d from handle_request\n", com);
+			// printf("Sentback %d from handle_request\n", com);
 			
 		}
 		free(log_buffer);
@@ -167,6 +167,8 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 	}
 end:
 	sendback_client(com, false);
+	if(response.data != NULL)
+		free(response.data);
 	free(log_buffer);
 	return exit_status;
 }
@@ -221,7 +223,9 @@ void* worker(void* args){
 		// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
 
 		request_status = handle_request(com, &request); // Response is set and log is updated
-
+		if(request.data != NULL){
+			free(request.data);
+		}
 		if(request_status < 0){
 			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
 			logger(log_buffer);
@@ -246,7 +250,7 @@ ssize_t safe_write(int fd, void *ptr, size_t n){
 	int exit_status = 0;
 	if((exit_status = write(fd, ptr, n)) < 0){
 		sendback_client(fd, true);
-		printf("Sentback %d from safe_write\n", fd);
+		// printf("Sentback %d from safe_write\n", fd);
 		return -1;
 	}
 	return exit_status;

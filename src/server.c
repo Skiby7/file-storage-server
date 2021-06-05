@@ -122,7 +122,7 @@ int main(int argc, char* argv[]){
 		poll_val = poll(com_fd, com_count, -1);
 		CHECKERRNO(poll_val < 0, "Errore durante il polling");
 		// PRINT_POLLING(poll_print);
-		printf("poll_val -> %d\n", poll_val);
+		// printf("poll_val -> %d\n", poll_val);
 		SAFELOCK(abort_connections_mtx);
 		if(abort_connections){
 			SAFEUNLOCK(abort_connections_mtx);
@@ -171,7 +171,7 @@ int main(int argc, char* argv[]){
 		}	
 			
 		if(com_fd[1].revents & POLLIN){
-			printf("REVENTS %d \n", com_fd[2].revents);
+			// printf("REVENTS %d \n", com_fd[2].revents);
 
 			read_bytes = read(good_fd_pipe[0], buffer, sizeof(buffer));
 			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
@@ -181,7 +181,7 @@ int main(int argc, char* argv[]){
 					fprintf(stderr, "Errore strtol good_pipe! Buffer -> %s\n", buffer);
 					
 				else{
-					printf("ARRIVED %d in good_pipe\n", tmp);
+					// printf("ARRIVED %d in good_pipe\n", tmp);
 
 					if (com_size - com_count < 3){
 						com_size = realloc_com_fd(&com_fd, com_size);
@@ -196,7 +196,7 @@ int main(int argc, char* argv[]){
 		}
 			
 		if(com_fd[2].revents & POLLIN){
-			printf("REVENTS %d \n", com_fd[2].revents);
+			// printf("REVENTS %d \n", com_fd[2].revents);
 			read_bytes = read(done_fd_pipe[0], buffer, sizeof buffer);
 			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
 			
@@ -205,11 +205,10 @@ int main(int argc, char* argv[]){
 				fprintf(stderr, "Errore strtol done_pipe! Buffer -> %s\n", buffer);
 			else{
 				// shutdown(tmp, SHUT_RDWR);
-				printf("ARRIVED %d in done_pipe\n", tmp);
+				// printf("ARRIVED %d in done_pipe\n", tmp);
 
 				CHECKERRNO(close(tmp) < 0, "Errore chiusura done queue pipe");
 				client_closed++;
-				sleep(2);
 				continue;
 			}
 		}
@@ -282,16 +281,17 @@ int main(int argc, char* argv[]){
 	pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
 	SAFEUNLOCK(ready_queue_mtx);
 	
-	for (int i = 0; i < configuration.workers; i++){
-		SAFELOCK(free_threads_mtx);
-		if(!free_threads[i]){
-			SAFEUNLOCK(free_threads_mtx);
-			printf("Dentro cancel\n");
-			CHECKEXIT(pthread_cancel(workers[i]) != 0, false, "Errore durante la cancellazione dei workers attivi");
-			puts("Cancelling");
-		}
-		SAFEUNLOCK(free_threads_mtx);
-	}
+	// for (int i = 0; i < configuration.workers; i++){
+	// 	SAFELOCK(free_threads_mtx);
+	// 	if(!free_threads[i]){
+	// 		SAFEUNLOCK(free_threads_mtx);
+	// 		// printf("Dentro cancel\n");
+	// 		// CHECKEXIT(pthread_cancel(workers[i]) != 0, false, "Errore durante la cancellazione dei workers attivi");
+	// 		printf("%d\n", pthread_cancel(workers[i]));
+	// 		puts("Cancelling");
+	// 	}
+	// 	SAFEUNLOCK(free_threads_mtx);
+	// }
 	
 	for (int i = 0; i < configuration.workers; i++){
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
@@ -311,6 +311,7 @@ int main(int argc, char* argv[]){
 	close(done_fd_pipe[1]);
 	puts("socket closed");
 	freeConfig(&configuration);
+	clean_storage();
 	clean_ready_list(&ready_queue[0]);
 	puts("list closed");
 	free(workers);

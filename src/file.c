@@ -63,6 +63,25 @@ static int check_memory(unsigned int new_size, int caller){
 	return 0;
 }
 
+void clean_attibutes(int index){
+	clients_file_queue *befree = NULL;
+	lock_file_queue *bfree1 = NULL;
+	if(server_storage.storage_table[index]->clients_open != NULL){
+		while (server_storage.storage_table[index]->clients_open != NULL){
+			befree = server_storage.storage_table[index]->clients_open;
+			server_storage.storage_table[index]->clients_open = server_storage.storage_table[index]->clients_open->next;
+			free(befree);
+		}
+	}
+	if(server_storage.storage_table[index]->lock_waiters != NULL){
+		while (server_storage.storage_table[index]->lock_waiters != NULL){
+			befree = server_storage.storage_table[index]->lock_waiters;
+			server_storage.storage_table[index]->lock_waiters = server_storage.storage_table[index]->lock_waiters->next;
+			free(befree);
+		}
+	}
+}
+
 static int check_count(){
 	int file_count = 0, file_limit = 0, clean_level, table_size = 0;
 	SAFELOCK(storage_access_mtx);
@@ -390,7 +409,7 @@ int write_to_file(unsigned char *data, int length, char *filename, int client_id
 			return -1;
 		}
 		server_storage.storage_table[file_index]->data = (unsigned char *) realloc(server_storage.storage_table[file_index]->data, length);
-		CHECKALLOC(server_storage.storage_table[file_index], "Errore allocazione wite_to_file");
+		CHECKALLOC(server_storage.storage_table[file_index], "Errore allocazione write_to_file");
 		memcpy(server_storage.storage_table[file_index]->data, data, length);
 		server_storage.storage_table[file_index]->size = length;
 		server_storage.storage_table[file_index]->use_stat += 1;
@@ -521,6 +540,9 @@ int unlock_file(char *filename, int client_id, server_response *response){
 void clean_storage(){
 	for(int i = 0; i < 2*server_storage.file_limit; i++){
 		if(server_storage.storage_table[i] != NULL){
+			clean_attibutes(i);
+			free(server_storage.storage_table[i]->data);
+			free(server_storage.storage_table[i]->name);
 			free(server_storage.storage_table[i]);
 		}
 	}
