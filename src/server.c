@@ -44,7 +44,7 @@ void func(clients_list *head){
 	
 }
 
-int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
+int main(int argc, char* argv[]){
 	
 	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0, poll_print = 0; // i = 0, ready_com = 0
 	char buffer[PIPE_BUF]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
@@ -122,6 +122,7 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 		poll_val = poll(com_fd, com_count, -1);
 		CHECKERRNO(poll_val < 0, "Errore durante il polling");
 		// PRINT_POLLING(poll_print);
+		printf("poll_val -> %d\n", poll_val);
 		SAFELOCK(abort_connections_mtx);
 		if(abort_connections){
 			SAFEUNLOCK(abort_connections_mtx);
@@ -136,37 +137,52 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 				SAFEUNLOCK(can_accept_mtx);
 				close(com);
 			}
+			else if(com < 0){
+				SAFEUNLOCK(can_accept_mtx);
+				CHECKERRNO(true, "Errore durante la accept");
+			}
 			else{
 				SAFEUNLOCK(can_accept_mtx);
-				CHECKERRNO((com < 0), "Errore durante la accept");
 				client_accepted++;
-				for (size_t i = 0; i < configuration.workers; i++){
-					SAFELOCK(free_threads_mtx);
-					if(free_threads[i]){ // Se ho un thread libero gli assegno subito il lavoro e continuo il ciclo
-						SAFEUNLOCK(free_threads_mtx);
-						SAFELOCK(ready_queue_mtx);
-						insert_client_list(com, &ready_queue[0], &ready_queue[1]);
-						pthread_cond_signal(&client_is_ready);
-						SAFEUNLOCK(ready_queue_mtx);	
-						break;
+				// for (size_t i = 0; i < configuration.workers; i++){
+					// SAFELOCK(free_threads_mtx);
+					// if(free_threads[i]){ // Se ho un thread libero gli assegno subito il lavoro e continuo il ciclo
+					// 	SAFEUNLOCK(free_threads_mtx);
+					// 	SAFELOCK(ready_queue_mtx);
+					// 	insert_client_list(com, &ready_queue[0], &ready_queue[1]);
+					// 	pthread_cond_signal(&client_is_ready);
+					// 	SAFEUNLOCK(ready_queue_mtx);	
+					// 	break;
+					// }
+					// SAFEUNLOCK(free_threads_mtx);
+				// 	SAFELOCK(ready_queue_mtx);
+				// 	insert_client_list(com, &ready_queue[0], &ready_queue[1]);
+				// 	SAFEUNLOCK(ready_queue_mtx);	
+				// }
+				if (com_size - com_count < 3){
+						com_size = realloc_com_fd(&com_fd, com_size);
+						for (size_t i = com_count; i < com_size; i++){
+							com_fd[i].fd = 0;
+							com_fd[i].events = 0;
+						}
 					}
-					SAFEUNLOCK(free_threads_mtx);
-					SAFELOCK(ready_queue_mtx);
-					insert_client_list(com, &ready_queue[0], &ready_queue[1]);
-					SAFEUNLOCK(ready_queue_mtx);	
-				}
+				insert_com_fd(com, &com_size, &com_count, com_fd);
 			}
 		}	
 			
 		if(com_fd[1].revents & POLLIN){
+			printf("REVENTS %d \n", com_fd[2].revents);
+
 			read_bytes = read(good_fd_pipe[0], buffer, sizeof(buffer));
 			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
 			if(strncmp(buffer, "termina", PIPE_BUF) != 0){
 				tmp = strtol(buffer, NULL, 10);
 				if(tmp <= 0)
-					fprintf(stderr, "Errore strtol! Buffer -> %s\n", buffer);
+					fprintf(stderr, "Errore strtol good_pipe! Buffer -> %s\n", buffer);
 					
 				else{
+					printf("ARRIVED %d in good_pipe\n", tmp);
+
 					if (com_size - com_count < 3){
 						com_size = realloc_com_fd(&com_fd, com_size);
 						for (size_t i = com_count; i < com_size; i++){
@@ -180,15 +196,21 @@ int main(int argc, char* argv[]){ // REMEMBER FFLUSH FOR THREAD PRINTF
 		}
 			
 		if(com_fd[2].revents & POLLIN){
+			printf("REVENTS %d \n", com_fd[2].revents);
 			read_bytes = read(done_fd_pipe[0], buffer, sizeof buffer);
 			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
 			
 			tmp = strtol(buffer, NULL, 10);
 			if(tmp <= 0)
-				fprintf(stderr, "Errore strtol! Buffer -> %s\n", buffer);
+				fprintf(stderr, "Errore strtol done_pipe! Buffer -> %s\n", buffer);
 			else{
+				// shutdown(tmp, SHUT_RDWR);
+				printf("ARRIVED %d in done_pipe\n", tmp);
+
 				CHECKERRNO(close(tmp) < 0, "Errore chiusura done queue pipe");
 				client_closed++;
+				sleep(2);
+				continue;
 			}
 		}
 			

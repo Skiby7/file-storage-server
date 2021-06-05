@@ -123,11 +123,11 @@ int main(int argc, char* argv[]){
 	sleep(2);
 	openFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", O_CREATE | O_LOCK);
 	puts("Aperto");
-	sleep(2);
-	writeFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", NULL);
-	puts("Scritto");
-	sleep(2);
-	readFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", &databuffer, &data_size);
+	// sleep(2);
+	// writeFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", NULL);
+	// puts("Scritto");
+	// sleep(2);
+	// readFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", &databuffer, &data_size);
 	sleep(2);
 	closeConnection(sockname);
 	

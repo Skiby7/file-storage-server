@@ -52,9 +52,9 @@ int sendback_client(int com, bool done){
 	char* buffer = NULL;
 	buffer = calloc(PIPE_BUF, sizeof(char));
 	sprintf(buffer, "%d", com);
-	if(done){ CHECKRW(writen(done_fd_pipe[1], buffer, PIPE_BUF), PIPE_BUF, "Return com");}
-	else{ CHECKRW(writen(good_fd_pipe[1], buffer, PIPE_BUF), PIPE_BUF, "Return com");}
-	free(buffer);
+	if(done) write(done_fd_pipe[1], buffer, PIPE_BUF);
+	else write(good_fd_pipe[1], buffer, PIPE_BUF);
+	// free(buffer);
 	printf("SENTBACK %d\n", com);
 	return 0;
 }
@@ -157,7 +157,11 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 	else if(request->command & QUIT) {
 		puts(ANSI_COLOR_BLUE"QUIT REQUEST"ANSI_COLOR_RESET);
 		response.code[0] = FILE_OPERATION_SUCCESS;
-		if(respond_to_client(com, response) > 0) sendback_client(com, true);
+		if(respond_to_client(com, response) > 0){
+			sendback_client(com, true);
+			printf("Sentback %d from handle_request\n", com);
+			
+		}
 		free(log_buffer);
 		return 0;
 	}
@@ -213,8 +217,8 @@ void* worker(void* args){
 		}
 		deserialize_request(&request, &request_buffer, request_buffer_size);
 
-		puts("Deserialized request");
-		printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
+		// puts("Deserialized request");
+		// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
 
 		request_status = handle_request(com, &request); // Response is set and log is updated
 
@@ -242,6 +246,7 @@ ssize_t safe_write(int fd, void *ptr, size_t n){
 	int exit_status = 0;
 	if((exit_status = write(fd, ptr, n)) < 0){
 		sendback_client(fd, true);
+		printf("Sentback %d from safe_write\n", fd);
 		return -1;
 	}
 	return exit_status;

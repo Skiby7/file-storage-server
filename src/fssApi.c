@@ -72,7 +72,6 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 }
 
 int closeConnection(const char *sockname){
-	printf("%s %s\n", open_connection_name, sockname);
 	client_request close_request;
 	server_response close_response;
 	unsigned char* buffer = NULL;
@@ -85,8 +84,10 @@ int closeConnection(const char *sockname){
 	handle_connection(close_request, &close_response);
 	// memset(open_connection_name, 0, UNIX_MAX_PATH);
 	// strncpy(open_connection_name, "None", UNIX_MAX_PATH);
-	// return close(socket_fd);
+	// shutdown(socket_fd, SHUT_RDWR);
+	// sleep(2);
 	return close(socket_fd);
+	return 0;
 }
 
 int openFile(const char *pathname, int flags){
