@@ -15,7 +15,7 @@
 typedef struct clients_{
 	int id;
 	struct clients_ *next;
-} clients_file_queue;
+} open_file_client_list;
 
 typedef struct lockers_{
 	int id;
@@ -28,7 +28,7 @@ typedef struct fssFile_{
 	unsigned char *data;
 	bool deleted;
 	unsigned short use_stat;
-	clients_file_queue *clients_open;
+	open_file_client_list *clients_open;
 	lock_file_queue *lock_waiters;
 	unsigned int whos_locking;
 	unsigned long size;

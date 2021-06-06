@@ -64,7 +64,7 @@ static int check_memory(unsigned int new_size, int caller){
 }
 
 void clean_attibutes(int index){
-	clients_file_queue *befree = NULL;
+	open_file_client_list *befree = NULL;
 	lock_file_queue *bfree1 = NULL;
 	if(server_storage.storage_table[index]->clients_open != NULL){
 		while (server_storage.storage_table[index]->clients_open != NULL){
@@ -145,7 +145,7 @@ void print_storage(){
 
 }
 
-static int check_client_id(clients_file_queue *head, int id){
+static int check_client_id(open_file_client_list *head, int id){
 	while(head != NULL){
 		if(head->id == id) return -1;
 		head = head->next;
@@ -153,6 +153,15 @@ static int check_client_id(clients_file_queue *head, int id){
 	return 0;
 }
 
+/**
+ * Check whether an id is already in the lock_file_queue or not
+ * 
+ * @param head pointer to the head of the queue
+ * @param id th id of the client to check
+ * 
+ * @returns 0 if the id is not in the queue, else returns -1 
+ *
+ */
 static int check_client_id_lock(lock_file_queue *head, int id){
 	while(head != NULL){
 		if(head->id == id) return -1;
@@ -161,15 +170,34 @@ static int check_client_id_lock(lock_file_queue *head, int id){
 	return 0;
 }
 
-static int insert_client_file_list(clients_file_queue **head, int id){
+/**
+ * Insert client id in the open file list
+ * 
+ * @param head double pointer to the head of the list
+ * @param id the id of the client to add
+ * 
+ * @returns 0 if successful, -1 the client is already in the list 
+ *
+ */
+static int insert_client_file_list(open_file_client_list **head, int id){
 	if(check_client_id((*head), id) == -1) return -1;
-	clients_file_queue *new = (clients_file_queue *) malloc(sizeof(clients_file_queue));
+	open_file_client_list *new = (open_file_client_list *) malloc(sizeof(open_file_client_list));
 	new->id = id;
 	new->next = (*head);
 	(*head) = new;	
 	return 0;
 }
 
+/**
+ * Insert client id in the lock_file_queue of the filename
+ * 
+ * @param filename pathname of the file
+ * @param id the id of the client to add
+ * @param com the file descriptor of the client
+ * 
+ * @returns 0 if successful, -1 the client is already in the list 
+ *
+ */
 int insert_lock_file_list(char *filename, int id, int com){
 	int file_index = search_file(filename);
 	start_write(file_index);
@@ -187,6 +215,16 @@ int insert_lock_file_list(char *filename, int id, int com){
 	return 0;
 }
 
+/**
+ * Pop client id in the lock_file_queue of the filename
+ * 
+ * @param filename pathname of the file
+ * @param id pointer to return the id of the client popped
+ * @param com pointer to return the com of the client popped
+ * 
+ * @returns 0 if successful, -1 the client is not in the queue 
+ *
+ */
 int pop_lock_file_list(char *filename, int *id, int *com){
 	int file_index = search_file(filename);
 	start_write(file_index);
@@ -213,9 +251,9 @@ int pop_lock_file_list(char *filename, int *id, int *com){
 	return 0;
 }
 
-static int remove_client_file_list(clients_file_queue **head, int id){
-	clients_file_queue *scanner = (* head);
-	clients_file_queue *befree = NULL;
+static int remove_client_file_list(open_file_client_list **head, int id){
+	open_file_client_list *scanner = (* head);
+	open_file_client_list *befree = NULL;
 	if((* head)->id == id){
 		befree = (* head);
 		(* head) = (*head)->next;
@@ -234,6 +272,18 @@ static int remove_client_file_list(clients_file_queue **head, int id){
 	}
 }
 
+/**
+ * Open the file identified by filename with the specified flags: if the file not exists, O_CREATE must be passed, 
+ * else if file exists and O_CREATE is passed, the operation fails
+ * 
+ * @param filename pathname of the file
+ * @param flags O_CREATE to create the file, O_LOCK to lock the file
+ * @param client_id id of the client opening the file
+ * @param response pointer to the server_response
+ * 
+ * @returns set the response and returns 0 if successful, -1 if something went wrong
+ *
+ */
 int open_file(char *filename, int flags, int client_id, server_response *response){
 
 	int file_index = search_file(filename);
@@ -298,6 +348,16 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 	return 0;
 }
 
+/**
+ * Close the file identified by filename
+ * 
+ * @param filename pathname of the file
+ * @param client_id id of the client closing the file
+ * @param response pointer to the server_response
+ * 
+ * @returns set the response and returns 0 if successful, -1 if something went wrong
+ *
+ */
 int close_file(char *filename, int client_id, server_response *response){
 	int file_index = search_file(filename);
 	if(file_index == -1){
@@ -323,6 +383,16 @@ int close_file(char *filename, int client_id, server_response *response){
 	return 0;
 }
 
+/**
+ * Remove the file identified by filename
+ * 
+ * @param filename pathname of the file
+ * @param client_id id of the client removing the file
+ * @param response pointer to the server_response
+ * 
+ * @returns set the response and returns 0 if successful, -1 if something went wrong
+ *
+ */
 int remove_file(char *filename, int client_id,  server_response *response){
 	int file_index = search_file(filename);
 	if(file_index == -1){
@@ -350,6 +420,16 @@ int remove_file(char *filename, int client_id,  server_response *response){
 	return 0;
 }
 
+/**
+ * Read the file identified by filename and copy the data in response->data
+ * 
+ * @param filename pathname of the file
+ * @param client_id id of the client reading the file
+ * @param response pointer to the server_response
+ * 
+ * @returns set the response and returns 0 if successful, -1 if something went wrong
+ *
+ */
 int read_file(char *filename, int client_id, server_response *response){
 	int file_index = search_file(filename);
 	if(file_index == -1){
@@ -387,6 +467,19 @@ int read_file(char *filename, int client_id, server_response *response){
 
 }
 
+/**
+ * Write data in the file identified by filename. The client identified by client_id must have performed 
+ * an open_file with O_CREATE and O_LOCK set, otherwise the operation fails.
+ * 
+ * @param data data to be written
+ * @param length length of data in bytes
+ * @param filename pathname of the file
+ * @param client_id id of the client reading the file
+ * @param response pointer to the server_response
+ * 
+ * @returns set the response and returns 0 if successful, -1 if something went wrong
+ *
+ */
 int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response){
 	int file_index = search_file(filename);
 	// printf("FILE INDEX: %d\n", file_index);
@@ -432,6 +525,18 @@ int write_to_file(unsigned char *data, int length, char *filename, int client_id
 	
 }
 
+/**
+ * Append new_data in the file identified by filename.
+ * 
+ * @param new_data data to be written
+ * @param new_data_size length of new_data in bytes
+ * @param filename pathname of the file
+ * @param client_id id of the client reading the file
+ * @param response pointer to the server_response
+ * 
+ * @returns set the response and returns 0 if successful, -1 if something went wrong
+ *
+ */
 int append_to_file(unsigned char* new_data, int new_data_size, char *filename, int client_id, server_response *response){
 	int file_index = search_file(filename);
 	int old_size = 0;
@@ -483,6 +588,16 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *filename, i
 
 }
 
+/**
+ * Lock the file identified by filename
+ * 
+ * @param filename pathname of the file
+ * @param client_id id of the client reading the file
+ * @param response pointer to the server_response
+ * 
+ * @returns set the response and returns 0 if successful, -1 if something went wrong
+ *
+ */
 int lock_file(char *filename, int client_id, server_response *response){
 	int file_index = search_file(filename);
 	if(file_index == -1){
@@ -511,6 +626,16 @@ int lock_file(char *filename, int client_id, server_response *response){
 	return -1;
 }
 
+/**
+ * Unlock the file identified by filename
+ * 
+ * @param filename pathname of the file
+ * @param client_id id of the client reading the file
+ * @param response pointer to the server_response
+ * 
+ * @returns set the response and returns 0 if successful, -1 if something went wrong
+ *
+ */
 int unlock_file(char *filename, int client_id, server_response *response){
 	int file_index = search_file(filename);
 	if(file_index == -1){
@@ -537,6 +662,10 @@ int unlock_file(char *filename, int client_id, server_response *response){
 	return -1;
 }
 
+/**
+ * Clean all the heap allocated memory of the storage
+ * 
+ */
 void clean_storage(){
 	for(int i = 0; i < 2*server_storage.file_limit; i++){
 		if(server_storage.storage_table[i] != NULL){
