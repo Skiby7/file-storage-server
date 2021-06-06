@@ -8,7 +8,7 @@ bool verbose = false; // tipo di op, file su cui si opera, exito e byte letti/sc
 
 
 int socket_fd;
-
+char sockname[AF_UNIX_MAX_PATH];
 void print_help(){
 	printf("-h\t\tMostra questo messaggio\n\n"
 			"-p\t\tAbilita le stampe di ogni operazione sullo standard output\n\n"
@@ -28,22 +28,20 @@ void print_help(){
 
 }
 
-// void signal_handler(int signum){
+void signal_handler(int signum){
 	
-// 	if(signum == SIGHUP)
-// 		puts(ANSI_COLOR_RED"Received SIGHUP"ANSI_COLOR_RESET);
+	if(signum == SIGHUP)
+		puts(ANSI_COLOR_RED"Received SIGHUP"ANSI_COLOR_RESET);
 
-// 	if(signum == SIGQUIT)
-// 		puts(ANSI_COLOR_RED"Received SIGQUIT"ANSI_COLOR_RESET);
-// 	if(signum == SIGINT)
-// 		puts(ANSI_COLOR_RED"Received SIGINT"ANSI_COLOR_RESET);
+	if(signum == SIGQUIT)
+		puts(ANSI_COLOR_RED"Received SIGQUIT"ANSI_COLOR_RESET);
+	if(signum == SIGINT)
+		puts(ANSI_COLOR_RED"Received SIGINT"ANSI_COLOR_RESET);
 	
-// 	write(socket_fd, QUIT, strlen(QUIT));
-// 	close(socket_fd);
-// 	exit(EXIT_SUCCESS);
+	closeConnection(sockname);
+	exit(EXIT_SUCCESS);
 		
-// }
-
+}
 
 
 int main(int argc, char* argv[]){
@@ -51,22 +49,22 @@ int main(int argc, char* argv[]){
 	int opt;
 	bool f = false, p = false;
 	char buffer[100];
-	char sockname[UNIX_MAX_PATH];
-	unsigned char*databuffer = NULL;
+	unsigned char* databuffer = NULL;
 	size_t data_size = 0;
+	char pathname_tmp[PATH_MAX];
 	struct timespec abstime = {
 		.tv_nsec = 0,
 		.tv_sec = 3
 	};
 	memset(buffer, 0, 100);
-	memset(sockname, 0, UNIX_MAX_PATH);
+	memset(sockname, 0, AF_UNIX_MAX_PATH);
 
-	// struct sigaction sig; 
-	// memset(&sig, 0, sizeof(sig));
-	// sig.sa_handler = signal_handler;
-	// sigaction(SIGINT,&sig,NULL);
-	// sigaction(SIGHUP,&sig,NULL);
-	// sigaction(SIGQUIT,&sig,NULL);
+	struct sigaction sig; 
+	memset(&sig, 0, sizeof(sig));
+	sig.sa_handler = signal_handler;
+	sigaction(SIGINT,&sig,NULL);
+	sigaction(SIGHUP,&sig,NULL);
+	sigaction(SIGQUIT,&sig,NULL);
 
 	
 	while ((opt = getopt(argc,argv, "hpf:r:W:")) != -1) {
@@ -84,25 +82,25 @@ int main(int argc, char* argv[]){
 			case 'f': 
 				if(!f){	
 					f = true;
-					strncpy(sockname, optarg, UNIX_MAX_PATH); 
+					strncpy(sockname, optarg, AF_UNIX_MAX_PATH); 
+					puts(optarg);
+					// CHECKERRNO(openConnection(sockname, 500, abstime) < 0, "Errore di connesione");
+					// puts("connesso");
 				}
 				else
 					puts(ANSI_COLOR_RED"Socket File già specificato!"ANSI_COLOR_RESET);
 				break;
 			// case 'r':
-			// 		CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
-			// 		readFile(optarg, databuffer, &data_size);
-			// 		for (size_t i = 0; i < data_size; i++){
-			// 			printf("%c", databuffer[i]);
-			// 		}
-					
-			// 	break;
+			// 		realpath(optarg, pathname_tmp);
+			// 		CHECKERRNO(openFile(pathname_tmp, 0), "Errore read");
+			// 		CHECKERRNO(readFile(pathname_tmp, &databuffer, &data_size), "Errore read");
+			// 		break;
 
 			// case 'W':
-			// 		CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
-			// 		openFile(optarg, O_CREATE);
-			// 		puts("aperto");
-			// 		writeFile(optarg, NULL);
+			// 		realpath(optarg, pathname_tmp);
+			// 		puts(pathname_tmp);
+			// 		CHECKERRNO(openFile(pathname_tmp, O_CREATE | O_LOCK), "Errore read");
+			// 		CHECKERRNO(writeFile(pathname_tmp, NULL), "Errore read");					
 			// 		puts("scritto");
 			// 	break;
 				
@@ -115,20 +113,10 @@ int main(int argc, char* argv[]){
 			default:;
 		}
 	}
-	
-
-
-	CHECKSCEXIT(openConnection(sockname, 500, abstime), true, "Errore di connesione");
-	puts("Connected");
-	// sleep(2);
-	openFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", O_CREATE | O_LOCK);
-	puts("Aperto");
-	// sleep(2);
-	writeFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", NULL);
-	puts("Scritto");
-	// sleep(2);
-	readFile("/home/leonardo/Documents/SO/Project/file-storage-server/README.md", &databuffer, &data_size);
-	// sleep(2);
+	CHECKERRNO(openConnection(sockname, 500, abstime) < 0, "Errore di connesione");
+puts("connesso");
+	// openConnection(sockname, 500, abstime);
+	sleep(2);
 	closeConnection(sockname);
 	
 	

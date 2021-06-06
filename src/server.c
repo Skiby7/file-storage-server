@@ -48,7 +48,7 @@ int main(int argc, char* argv[]){
 	
 	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0, poll_print = 0; // i = 0, ready_com = 0
 	char buffer[PIPE_BUF]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
-	char SOCKETADDR[UNIX_MAX_PATH]; // Indirizzo del socket
+	char SOCKETADDR[AF_UNIX_MAX_PATH]; // Indirizzo del socket
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));
 	nfds_t com_count = 0;
 	nfds_t com_size = DEFAULTFDS;
@@ -94,11 +94,12 @@ int main(int argc, char* argv[]){
 	CHECKEXIT((pipe(done_fd_pipe) == -1), true, "Impossibile inizializzare la pipe");
 	write_to_log("Pipe inzializzata.");
 
-
-	strncpy(sockaddress.sun_path, SOCKETADDR, UNIX_MAX_PATH);
+	memset(sockaddress.sun_path, 0, sizeof sockaddress.sun_path);
+	strncpy(sockaddress.sun_path, SOCKETADDR, AF_UNIX_MAX_PATH);
+	sockaddress.sun_path[0] = 0;
 	sockaddress.sun_family = AF_UNIX;
 	socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	unlink(SOCKETADDR);
+	// unlink(SOCKETADDR);
 	CHECKSCEXIT(bind(socket_fd, (struct sockaddr *) &sockaddress, sizeof(sockaddress)), true, "Non sono riuscito a fare la bind");
 	CHECKSCEXIT(listen(socket_fd, 10), true, "Impossibile effettuare la listen");
 	write_to_log("Ho inizializzato il socket ed ho eseguito la bind e la listen.");
@@ -330,7 +331,7 @@ void printconf(const char* socketaddr){
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, "Workers:",
 			configuration.workers, "Mem:", configuration.mem, "Files:", 
-			configuration.files, "Socket file:", socketaddr, "Log:", configuration.log);
+			configuration.files, "Socket file:", configuration.sockname, "Log:", configuration.log);
 }
 	
 void init(char *sockname){
@@ -345,9 +346,12 @@ void init(char *sockname){
 		exit(EXIT_FAILURE);
 	}
 	fclose(conf);
-	memset(sockname, 0 , UNIX_MAX_PATH);
-	sprintf(sockname, "/tmp/");
-	strncat(sockname, configuration.sockname, strlen(configuration.sockname));
+	// memset(sockname, 0 , AF_UNIX_MAX_PATH);
+	// sockname[0] = '\0';
+	// memcpy(sockname + 1, configuration.sockname, sizeof configuration.sockname);
+	strncpy(sockname, configuration.sockname, strlen(configuration.sockname));
+	// sprintf(sockname, "/tmp/");
+	// strncat(sockname, configuration.sockname, strlen(configuration.sockname));
 }
 
 void insert_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){

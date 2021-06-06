@@ -127,22 +127,24 @@ int init_storage(int max_file_num, int max_size){
 }
 
 void print_storage(){
-	for (size_t i = 0; i < 2*server_storage.file_limit; i++)
-	{
+	SAFELOCK(storage_access_mtx);
+	size_t table_size = 2*server_storage.file_limit;
+	SAFEUNLOCK(storage_access_mtx);
+	char create_time[100];
+	char last_modified[100];
+	for (size_t i = 0; i < table_size; i++){
+		SAFELOCK(storage_access_mtx);
 		if(server_storage.storage_table[i] != NULL){
-			puts(server_storage.storage_table[i]->name);
-			printf("size: %lu", server_storage.storage_table[i]->size);
-			if(server_storage.storage_table[i]->data != NULL){
-				for (size_t j = 0; j < server_storage.storage_table[i]->size; j++)
-				{
-					printf("%c", server_storage.storage_table[i]->data[j]);
-				}
-				
+			SAFEUNLOCK(storage_access_mtx);
+			start_read(i);
+			strftime(create_time, 99, "%d-%m-%Y %X", localtime(&server_storage.storage_table[i]->create_time));
+			strftime(last_modified, 99, "%d-%m-%Y %X", localtime(&server_storage.storage_table[i]->last_modified));
+			printf("----------\nName: %s\nSize: %lu\nUse_stat: %d\nCreated time: %s\nLast modified: %s\nLocker: %d\n----------\n\n", 
+				server_storage.storage_table[i]->name, server_storage.storage_table[i]->size, server_storage.storage_table[i]->use_stat, create_time, last_modified, server_storage.storage_table[i]->whos_locking);
+			stop_read(i);
 			}
-		}
+		SAFEUNLOCK(storage_access_mtx);
 	}
-	
-
 }
 
 static int check_client_id(open_file_client_list *head, int id){
@@ -522,7 +524,6 @@ int write_to_file(unsigned char *data, int length, char *filename, int client_id
 	response->code[1] = EACCES;
 	response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_LOCKED;
 	return -1;
-	
 }
 
 /**

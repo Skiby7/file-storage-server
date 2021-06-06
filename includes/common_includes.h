@@ -41,7 +41,8 @@
 
 
 
-#define UNIX_MAX_PATH 108
+#define UNIX_MAX_PATH PATH_MAX
+#define AF_UNIX_MAX_PATH 108
 #define EALLOC "Error while allocating memory!"
 
 #define ANSI_COLOR_RED     "\x1b[31m"

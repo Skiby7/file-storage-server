@@ -6,7 +6,7 @@
 #include "serialization.h"
 
 extern int socket_fd;
-char open_connection_name[UNIX_MAX_PATH] = "None";
+char open_connection_name[AF_UNIX_MAX_PATH] = "None";
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 void clean_request(client_request* request);
 void clean_response(server_response* response);
@@ -43,13 +43,15 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 		.tv_nsec = 0,
 		.tv_sec = 0
 	};
-	if (strncmp(open_connection_name, "None", UNIX_MAX_PATH) != 0){
+	if (strncmp(open_connection_name, "None", AF_UNIX_MAX_PATH) != 0){
 		errno = ENFILE;
 		return -1;
 	}
-	memset(open_connection_name, 0, UNIX_MAX_PATH);
+	memset(open_connection_name, 0, AF_UNIX_MAX_PATH);
+	memset(sockaddress.sun_path, 0, sizeof sockaddress.sun_path);
 	strncpy(sockaddress.sun_path, sockname, UNIX_MAX_PATH);
-	strncpy(open_connection_name, sockname, UNIX_MAX_PATH);
+	sockaddress.sun_path[0] = 0;
+	strncpy(open_connection_name, sockname, AF_UNIX_MAX_PATH);
 	sockaddress.sun_family = AF_UNIX;
 	socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	puts(ANSI_COLOR_CYAN "Provo a connettermi...\n" ANSI_COLOR_RESET);
@@ -76,7 +78,7 @@ int closeConnection(const char *sockname){
 	server_response close_response;
 	unsigned char* buffer = NULL;
 	memset(&close_request, 0, sizeof close_request);
-	if (strncmp(sockname, open_connection_name, UNIX_MAX_PATH) != 0){
+	if (strncmp(sockname, open_connection_name, AF_UNIX_MAX_PATH) != 0){
 		errno = EINVAL;
 		return -1;
 	}
@@ -87,7 +89,7 @@ int closeConnection(const char *sockname){
 	// shutdown(socket_fd, SHUT_RDWR);
 	// sleep(2);
 	return close(socket_fd);
-	return 0;
+	
 }
 
 int openFile(const char *pathname, int flags){
@@ -267,8 +269,7 @@ int unlockFile(const char* pathname){
 	memset(unlock_request.pathname, 0, UNIX_MAX_PATH);
 	strncpy(unlock_request.pathname, pathname, UNIX_MAX_PATH);
 	unlock_request.client_id = getpid();
-	CHECKRW(write(socket_fd, &unlock_request, sizeof(unlock_request)), sizeof(unlock_request), "Errore invio richiesta unlockFile");
-	CHECKRW(read(socket_fd, &unlock_response, sizeof(unlock_response)), sizeof(unlock_response), "Errore lettura risposta server");
+	handle_connection(unlock_request, &unlock_response);
 	if(unlock_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(unlock_response.code);
 		return -1;

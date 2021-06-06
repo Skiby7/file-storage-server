@@ -157,15 +157,13 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 	else if(request->command & QUIT) {
 		puts(ANSI_COLOR_BLUE"QUIT REQUEST"ANSI_COLOR_RESET);
 		response.code[0] = FILE_OPERATION_SUCCESS;
-		if(respond_to_client(com, response) > 0){
-			sendback_client(com, true);
-			// printf("Sentback %d from handle_request\n", com);
-			
-		}
+		if(respond_to_client(com, response) > 0) sendback_client(com, true);
+		snprintf(log_buffer, LOG_BUFF, "Client %d quitted", request->client_id);
 		free(log_buffer);
 		return 0;
 	}
 end:
+	print_storage();
 	sendback_client(com, false);
 	if(response.data != NULL)
 		free(response.data);
