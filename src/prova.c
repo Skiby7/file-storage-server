@@ -113,8 +113,18 @@ static unsigned int hash_val(const void* key, unsigned int i, unsigned int max_l
 	return ((hash_pjw(key) + i*fnv_hash_function(key, key_len)) % max_len);
 }
 int main(){
-	char path[] = "README.md";
-	printf("%d\n", hash_val(path, 0, 100, sizeof(path)));
+	// char path[] = "README.md";
+	// printf("%d\n", hash_val(path, 0, 100, sizeof(path)));
+	char *string = NULL;
+	string = malloc(10);
+	if(!string){
+		puts("string is null");
+	}
+
+	if(string){
+		puts("string is not null");
+	}
+	free(string);
 	
 	
 	

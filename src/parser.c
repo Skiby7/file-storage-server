@@ -12,9 +12,8 @@ static inline void removeChar(char *token){
 int parseConfig(FILE *conf, config *configuration) {
 
 	char *tmpstr, *token;
-	char *buff = (char *) malloc(MAX_BUFFER_LEN);
+	char *buff = (char *) calloc(MAX_BUFFER_LEN, 1);
 	int tokenlen = 0;
-	memset(buff, 0, MAX_BUFFER_LEN);
 	while(fgets(buff, MAX_BUFFER_LEN, conf) != NULL){
 		token = strtok_r(buff, DELIM, &tmpstr);
 		if(token[0] == '\n' || token[0] == '#') continue;

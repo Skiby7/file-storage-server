@@ -48,9 +48,7 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 		return -1;
 	}
 	memset(open_connection_name, 0, AF_UNIX_MAX_PATH);
-	memset(sockaddress.sun_path, 0, sizeof sockaddress.sun_path);
-	strncpy(sockaddress.sun_path, sockname, UNIX_MAX_PATH);
-	sockaddress.sun_path[0] = 0;
+	strncpy(sockaddress.sun_path, sockname, AF_UNIX_MAX_PATH);
 	strncpy(open_connection_name, sockname, AF_UNIX_MAX_PATH);
 	sockaddress.sun_family = AF_UNIX;
 	socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -332,8 +330,8 @@ int handle_connection(client_request request, server_response *response){
 	reset_buffer(&buffer, &buff_size);
 	if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
 	deserialize_response(response, &buffer, buff_size);
-	puts("Deserialized response");
-	printf("code 0: 0x%.2x\ncode 1: 0x%.2x\npath: %s\nsize: %lu\n", response->code[0], response->code[1], response->filename, response->size);
+	// puts("Deserialized response");
+	// printf("code 0: 0x%.2x\ncode 1: 0x%.2x\npath: %s\nsize: %lu\n", response->code[0], response->code[1], response->filename, response->size);
 
 	return 0;
 }

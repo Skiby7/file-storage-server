@@ -41,7 +41,7 @@
 
 
 
-#define UNIX_MAX_PATH PATH_MAX
+#define UNIX_MAX_PATH 200
 #define AF_UNIX_MAX_PATH 108
 #define EALLOC "Error while allocating memory!"
 

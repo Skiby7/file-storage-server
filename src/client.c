@@ -2,31 +2,20 @@
 #define COMMON_INCLUDES_H
 #include "common_includes.h"
 #endif
-#include "fssApi.h"
 #include <getopt.h>
+#ifndef CLIENT_H
+#define CLIENT_H
+#include "client.h"
+#endif
+#include "work.h"
 bool verbose = false; // tipo di op, file su cui si opera, exito e byte letti/scritti
-
+void enqueue_work(unsigned char command, char *args, work_queue **head, work_queue **tail);
+int pop_work(unsigned char* command, char **args, work_queue **head, work_queue **tail);
 
 int socket_fd;
 char sockname[AF_UNIX_MAX_PATH];
-void print_help(){
-	printf("-h\t\tMostra questo messaggio\n\n"
-			"-p\t\tAbilita le stampe di ogni operazione sullo standard output\n\n"
-			"-f filename\tSpecifica il nome del socket a cui connettersi\n\n"
-			"-w dirname[n=0]\tInvia al server n file della cartella 'dirname'.\n               \tSe n = 0 o non specificato, si invierà il maggior\n               \tnumero di file che il server riesce a gestire.\n\n"
-			"-D dirname\tNon ho capito per ora\n\n"
-			"-R [n = 0]\tQuesta opzione permettere di leggere n file qualsiasi memorizzati sul server.\n          \tSe n non è specificato, si leggeranno tutti i file presenti sul server.\n\n"
-			"-d dirname\tSpecifica dove salvare i file letti da server.\n"ANSI_COLOR_RED"          \tSe non viene specificata la cartella, i file non verranno salvati!\n\n" ANSI_COLOR_RESET
-			"-t time\t\tTempo in millisecondi che intercorre fra l'invio di due richieste successive al server.\n       \t\tSe non specificato (-t 0), non si ha delay fra le richieste\n\n"
-			"-W file1[,fileN]\tFile da inviare al server separati da una virgola\n\n"
-			"-r file1[,file2]\tFile da leggere dal server separati da una virgola\n\n"
-			"-l file1[,file2]\tFile su cui acquisire la mutex\n\n"
-			"-u file1[,file2]\tFile su cui rilasciare la mutex\n\n"
-			"-c file1[,file2]\tFile da rimuovere dal server"
-			"\n");
-	exit(EXIT_SUCCESS);
+client_conf config;
 
-}
 
 void signal_handler(int signum){
 	
@@ -38,15 +27,21 @@ void signal_handler(int signum){
 	if(signum == SIGINT)
 		puts(ANSI_COLOR_RED"Received SIGINT"ANSI_COLOR_RESET);
 	
-	closeConnection(sockname);
+	// closeConnection(sockname);
 	exit(EXIT_SUCCESS);
-		
 }
+
+
+
 
 
 int main(int argc, char* argv[]){
 	printf(ANSI_CLEAR_SCREEN);
 	int opt;
+	work_queue *job_queue[2];
+	job_queue[0] = NULL;
+	job_queue[1] = NULL;
+
 	bool f = false, p = false;
 	char buffer[100];
 	unsigned char* databuffer = NULL;
@@ -56,9 +51,10 @@ int main(int argc, char* argv[]){
 		.tv_nsec = 0,
 		.tv_sec = 3
 	};
+	memset(&config, 0, sizeof config);
 	memset(buffer, 0, 100);
 	memset(sockname, 0, AF_UNIX_MAX_PATH);
-
+	
 	struct sigaction sig; 
 	memset(&sig, 0, sizeof(sig));
 	sig.sa_handler = signal_handler;
@@ -67,13 +63,13 @@ int main(int argc, char* argv[]){
 	sigaction(SIGQUIT,&sig,NULL);
 
 	
-	while ((opt = getopt(argc,argv, "hpf:r:W:")) != -1) {
+	while ((opt = getopt(argc,argv, "hpf:r:W:o:")) != -1) {
 		switch(opt) {
-			case 'h': print_help(); break;
+			case 'h': PRINT_HELP; break;
 			case 'p': 
 				if(!p){	
 					p = true;
-					verbose = true; 
+					config.verbose = true; 
 					printf(ANSI_COLOR_GREEN"-> Abilitato output verboso <-\n"ANSI_COLOR_RESET); 
 				}
 				else
@@ -82,27 +78,24 @@ int main(int argc, char* argv[]){
 			case 'f': 
 				if(!f){	
 					f = true;
-					strncpy(sockname, optarg, AF_UNIX_MAX_PATH); 
-					puts(optarg);
-					// CHECKERRNO(openConnection(sockname, 500, abstime) < 0, "Errore di connesione");
-					// puts("connesso");
+					strncpy(config.sockname, optarg, AF_UNIX_MAX_PATH); 
 				}
 				else
 					puts(ANSI_COLOR_RED"Socket File già specificato!"ANSI_COLOR_RESET);
 				break;
-			// case 'r':
-			// 		realpath(optarg, pathname_tmp);
-			// 		CHECKERRNO(openFile(pathname_tmp, 0), "Errore read");
-			// 		CHECKERRNO(readFile(pathname_tmp, &databuffer, &data_size), "Errore read");
-			// 		break;
+			case 'o':
+					puts("prima open");
+					realpath(optarg, pathname_tmp);
+					// CHECKERRNO(openFile(pathname_tmp, 0), "Errore open");
+					puts("dopo open");
+					break;
+			case 'r':
+					enqueue_work(READ_FILES, optarg, &job_queue[0], &job_queue[1]);
+					break;
 
-			// case 'W':
-			// 		realpath(optarg, pathname_tmp);
-			// 		puts(pathname_tmp);
-			// 		CHECKERRNO(openFile(pathname_tmp, O_CREATE | O_LOCK), "Errore read");
-			// 		CHECKERRNO(writeFile(pathname_tmp, NULL), "Errore read");					
-			// 		puts("scritto");
-			// 	break;
+			case 'W':
+					enqueue_work(WRITE_FILES, optarg, &job_queue[0], &job_queue[1]);
+				break;
 				
 			case ':': {
 			printf("l'opzione '-%c' richiede un argomento\n", optopt);
@@ -113,14 +106,16 @@ int main(int argc, char* argv[]){
 			default:;
 		}
 	}
-	CHECKERRNO(openConnection(sockname, 500, abstime) < 0, "Errore di connesione");
-puts("connesso");
-	// openConnection(sockname, 500, abstime);
-	sleep(2);
-	closeConnection(sockname);
+	do_work(&job_queue[0], &job_queue[1]);
+	// CHECKERRNO(openConnection(config.sockname, 500, abstime), "Errore connessione");
 	
 	
 	
 	
 	return 0;
 }
+
+
+
+
+

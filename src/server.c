@@ -94,16 +94,13 @@ int main(int argc, char* argv[]){
 	CHECKEXIT((pipe(done_fd_pipe) == -1), true, "Impossibile inizializzare la pipe");
 	write_to_log("Pipe inzializzata.");
 
-	memset(sockaddress.sun_path, 0, sizeof sockaddress.sun_path);
 	strncpy(sockaddress.sun_path, SOCKETADDR, AF_UNIX_MAX_PATH);
-	sockaddress.sun_path[0] = 0;
 	sockaddress.sun_family = AF_UNIX;
 	socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	// unlink(SOCKETADDR);
+	unlink(SOCKETADDR);
 	CHECKSCEXIT(bind(socket_fd, (struct sockaddr *) &sockaddress, sizeof(sockaddress)), true, "Non sono riuscito a fare la bind");
 	CHECKSCEXIT(listen(socket_fd, 10), true, "Impossibile effettuare la listen");
 	write_to_log("Ho inizializzato il socket ed ho eseguito la bind e la listen.");
-
 
 	com_fd[0].fd = socket_fd;
 	com_fd[0].events = POLLIN;
@@ -346,12 +343,10 @@ void init(char *sockname){
 		exit(EXIT_FAILURE);
 	}
 	fclose(conf);
-	// memset(sockname, 0 , AF_UNIX_MAX_PATH);
-	// sockname[0] = '\0';
-	// memcpy(sockname + 1, configuration.sockname, sizeof configuration.sockname);
-	strncpy(sockname, configuration.sockname, strlen(configuration.sockname));
-	// sprintf(sockname, "/tmp/");
-	// strncat(sockname, configuration.sockname, strlen(configuration.sockname));
+	memset(sockname, 0 , UNIX_MAX_PATH);
+	sprintf(sockname, "/tmp/");
+	strncat(sockname, configuration.sockname, strlen(configuration.sockname));
+	puts(sockname);
 }
 
 void insert_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){

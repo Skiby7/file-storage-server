@@ -10,23 +10,28 @@ TARGETS = server client
 
 all: server client
 
-server:  libutils
-		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lutils
+server:  libserver libcommon
+		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon
 
-client: libutils
-		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./build -lutils 
+client: libclient libcommon
+		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./build -lclient -lcommon
 
-libutils: parser.o fssApi.o client_queue.o connections.o log.o file.o serialization.o
-		ar rvs build/libutils.a build/parser.o build/fssApi.o build/client_queue.o build/connections.o build/log.o build/file.o build/serialization.o
+libserver: parser.o fssApi.o client_queue.o log.o file.o
+		ar rvs build/libserver.a build/parser.o build/fssApi.o build/client_queue.o build/log.o build/file.o
 		rm build/parser.o
 		rm build/fssApi.o
 		rm build/client_queue.o
-		rm build/connections.o
 		rm build/log.o
 		rm build/file.o
+
+libclient: work.o
+		ar rvs build/libclient.a build/work.o
+		rm build/work.o
+
+libcommon: connections.o serialization.o
+		ar rvs build/libcommon.a build/connections.o build/serialization.o	
 		rm build/serialization.o
-
-
+		rm build/connections.o
 
 parser.o: 
 		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) -c src/parser.c -o build/parser.o 
@@ -49,7 +54,8 @@ file.o:
 serialization.o:
 		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) -c src/serialization.c -o build/serialization.o
 
-
+work.o: 
+		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) -c src/work.c -o build/work.o
 
 clean: 
 		$(RM) build/* src/*.h.gch bin/client bin/server

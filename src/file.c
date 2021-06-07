@@ -485,7 +485,6 @@ int read_file(char *filename, int client_id, server_response *response){
 int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response){
 	int file_index = search_file(filename);
 	// printf("FILE INDEX: %d\n", file_index);
-	int old_size = 0;
 	if(file_index == -1){
 		response->code[1] = ENOENT;
 		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
@@ -496,7 +495,6 @@ int write_to_file(unsigned char *data, int length, char *filename, int client_id
 
 	/* QUI SI SCRIVE */
 	if(server_storage.storage_table[file_index]->whos_locking == client_id){ // If a file is locked, it's already open
-		old_size = server_storage.storage_table[file_index]->size;
 		if(check_memory(length, file_index) < 0){
 			// stop_write(file_index);
 			response->code[1] = EFBIG;
@@ -513,7 +511,7 @@ int write_to_file(unsigned char *data, int length, char *filename, int client_id
 		/* QUI HO FINITO DI SCRIVERE ED ESCO */
 		stop_write(file_index);
 		SAFELOCK(storage_access_mtx);
-		server_storage.size += (length - old_size);
+		server_storage.size += length;
 		pthread_cond_signal(&start_LFU_selector);
 		SAFEUNLOCK(storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
@@ -789,7 +787,7 @@ static void init_file(int id, char *filename, bool locked){
 	SAFEUNLOCK(storage_access_mtx);
 }
 
-void* use_stat_update(void *args){ // Lui va a diritto
+void* use_stat_update(void *args){
 	int table_size =  2*server_storage.file_limit;
 	while(true){
 		SAFELOCK(storage_access_mtx)

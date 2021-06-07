@@ -67,7 +67,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 	size_t response_size = 0;
 	memset(&response, 0, sizeof(response));
 	log_buffer = (char *) calloc(LOG_BUFF, sizeof(char));
-	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
+	printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
 		if(respond_to_client(com, response) < 0) return -2;
