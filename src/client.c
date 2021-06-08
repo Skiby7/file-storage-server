@@ -8,12 +8,8 @@
 #include "client.h"
 #endif
 #include "work.h"
-bool verbose = false; // tipo di op, file su cui si opera, exito e byte letti/scritti
-void enqueue_work(unsigned char command, char *args, work_queue **head, work_queue **tail);
-int pop_work(unsigned char* command, char **args, work_queue **head, work_queue **tail);
 
 int socket_fd;
-char sockname[AF_UNIX_MAX_PATH];
 client_conf config;
 
 
@@ -27,7 +23,7 @@ void signal_handler(int signum){
 	if(signum == SIGINT)
 		puts(ANSI_COLOR_RED"Received SIGINT"ANSI_COLOR_RESET);
 	
-	// closeConnection(sockname);
+	closeConnection(config.sockname);
 	exit(EXIT_SUCCESS);
 }
 
@@ -41,7 +37,7 @@ int main(int argc, char* argv[]){
 	work_queue *job_queue[2];
 	job_queue[0] = NULL;
 	job_queue[1] = NULL;
-
+	DIR* check_dir;
 	bool f = false, p = false;
 	char buffer[100];
 	unsigned char* databuffer = NULL;
@@ -53,7 +49,6 @@ int main(int argc, char* argv[]){
 	};
 	memset(&config, 0, sizeof config);
 	memset(buffer, 0, 100);
-	memset(sockname, 0, AF_UNIX_MAX_PATH);
 	
 	struct sigaction sig; 
 	memset(&sig, 0, sizeof(sig));
@@ -63,9 +58,9 @@ int main(int argc, char* argv[]){
 	sigaction(SIGQUIT,&sig,NULL);
 
 	
-	while ((opt = getopt(argc,argv, "hpf:r:W:o:")) != -1) {
+	while ((opt = getopt(argc,argv, "hpf:r:W:w:R:d:t:l:u:c:")) != -1) {
 		switch(opt) {
-			case 'h': PRINT_HELP; break;
+			case 'h': PRINT_HELP;
 			case 'p': 
 				if(!p){	
 					p = true;
@@ -83,12 +78,6 @@ int main(int argc, char* argv[]){
 				else
 					puts(ANSI_COLOR_RED"Socket File già specificato!"ANSI_COLOR_RESET);
 				break;
-			case 'o':
-					puts("prima open");
-					realpath(optarg, pathname_tmp);
-					// CHECKERRNO(openFile(pathname_tmp, 0), "Errore open");
-					puts("dopo open");
-					break;
 			case 'r':
 					enqueue_work(READ_FILES, optarg, &job_queue[0], &job_queue[1]);
 					break;
@@ -96,7 +85,36 @@ int main(int argc, char* argv[]){
 			case 'W':
 					enqueue_work(WRITE_FILES, optarg, &job_queue[0], &job_queue[1]);
 				break;
-				
+			case 'w':
+					enqueue_work(WRITE_DIR, optarg, &job_queue[0], &job_queue[1]);
+				break;
+			case 'R':
+					enqueue_work(READ_N_FILES, optarg, &job_queue[0], &job_queue[1]);
+				break;
+			case 'd':
+					if((check_dir = opendir(optarg))){
+						strncpy(config.dirname, realpath(optarg, NULL), UNIX_MAX_PATH);
+						close(check_dir);
+					}
+					else puts(ANSI_COLOR_RED"Cartella non valida, non sarà possibile salvare i file letti!"ANSI_COLOR_RESET);
+				break;
+			case 't':
+					errno = 0;
+					config.interval = strtol(optarg, NULL, 10);
+					if(errno != 0){
+						perror("L'intervallo richiesto non è valido");
+						config.interval = 0;
+					}
+				break;
+			case 'l':
+					enqueue_work(LOCK_FILES, optarg, &job_queue[0], &job_queue[1]);
+				break;
+			case 'u':
+					enqueue_work(UNLOCK_FILES, optarg, &job_queue[0], &job_queue[1]);
+				break;
+			case 'c':
+					enqueue_work(DELETE_FILES, optarg, &job_queue[0], &job_queue[1]);
+				break;
 			case ':': {
 			printf("l'opzione '-%c' richiede un argomento\n", optopt);
 			} break;
@@ -106,8 +124,12 @@ int main(int argc, char* argv[]){
 			default:;
 		}
 	}
+
+	CHECKERRNO(openConnection(config.sockname, 500, abstime) < 0, "Errore connessione");
+	puts("connesso");
 	do_work(&job_queue[0], &job_queue[1]);
-	// CHECKERRNO(openConnection(config.sockname, 500, abstime), "Errore connessione");
+	CHECKERRNO(closeConnection(config.sockname) < 0, "Errore disconnessione");
+	
 	
 	
 	

@@ -327,8 +327,8 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 		}
 		if(insert_client_file_list(&server_storage.storage_table[file_index]->clients_open, client_id) < 0){
 			stop_write(file_index);
-			response->code[0] = FILE_OPERATION_FAILED | FILE_ALREADY_OPEN;
-			return -1;
+			response->code[0] = FILE_ALREADY_OPEN;
+			return 0;
 		}
  		if(lock_file){
 			if(server_storage.storage_table[file_index]->whos_locking == -1) server_storage.storage_table[file_index]->whos_locking = client_id;

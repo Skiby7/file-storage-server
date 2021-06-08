@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <unistd.h>
+#include <dirent.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <pthread.h>
@@ -119,7 +120,7 @@
 	}
 
 
-#define CHECKERRNO(condizione, msg)	if(condizione) {perror("Errore -> "msg); fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__);}
+#define CHECKERRNO(condizione, msg)	if(condizione) {perror("Errore -> "msg); fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__); errno = 0;}
 
 #define CHECKALLOC(pointer, msg) if(pointer == NULL) {fprintf(stderr, "Memoria esaurita (file %s, linea %d): "msg"\n", __FILE__, __LINE__);exit(EXIT_FAILURE);}
 // #define CHECKPOLL(poll_val)	if(poll_val == -1) {if(errno == EINTR) continue; else {perror("Errore poll -> "); fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__); fflush(stderr);}}

@@ -8,7 +8,7 @@
 
 typedef struct client_{
 	bool verbose;
-	bool isHelp;
+	// bool isHelp;
 	time_t interval;
 	char sockname[AF_UNIX_MAX_PATH];
 	char dirname[UNIX_MAX_PATH];

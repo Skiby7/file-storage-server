@@ -31,12 +31,24 @@ int handle_simple_request(char **args, unsigned char command){
 	char *tmpstr = NULL;
 	char *token = NULL;
 	token = strtok_r(*args, DELIM, &tmpstr);
-	
+	char real_path[PATH_MAX];
+	memset(real_path, 0, sizeof(char));
 	while(token){
-		if(command & WRITE_FILES){ CHECKERRNO(writeFile(token, NULL), "Errore scrittura file");}
-		else if(command & LOCK_FILES){ CHECKERRNO(lockFile(token), "Errore lock file");}
-		else if(command & UNLOCK_FILES){ CHECKERRNO(unlockFile(token), "Errore lock file");}
-		else if(command & DELETE_FILES){ CHECKERRNO(unlockFile(token), "Errore lock file");}
+		realpath(token, real_path);
+		if(command & WRITE_FILES){ 
+			if(openFile(real_path, O_CREATE | O_LOCK) >= 0)
+				CHECKERRNO(writeFile(real_path, NULL) < 0, "Errore scrittura file");
+		}
+		else if(command & LOCK_FILES){ 
+			CHECKERRNO(lockFile(real_path) < 0, "Errore lock file");
+		}
+		else if(command & UNLOCK_FILES){ 
+			CHECKERRNO(unlockFile(real_path) < 0, "Errore lock file");
+		}
+		else if(command & DELETE_FILES){ 
+			if(openFile(real_path, O_CREATE | O_LOCK) >= 0)
+				CHECKERRNO(removeFile(real_path), "Errore lock file");
+		}
 		token = strtok_r(NULL, DELIM, &tmpstr);
 	}
 	free(*args);
@@ -56,7 +68,6 @@ void do_work(work_queue **head, work_queue **tail){
 		free(args);
 		args = NULL;
 	}
-
 }
 
 void enqueue_work(unsigned char command, char *args, work_queue **head, work_queue **tail){
@@ -64,7 +75,7 @@ void enqueue_work(unsigned char command, char *args, work_queue **head, work_que
 	CHECKALLOC(new, "Errore inserimento nella lista pronti");
 	new->command = command;
 	new->args = (char *) calloc((strlen(args)+1), sizeof(char));
-	strcpy(new->args, args);
+	strncpy(new->args, args, strlen(args));
 	new->next = (*head);
 	new->prev = NULL;
 	if((*tail) == NULL)
@@ -81,7 +92,7 @@ int dequeue_work(unsigned char* command, char **args, work_queue **head, work_qu
 
 	*command = (*tail)->command;
 	*args = (char *) calloc((strlen((*tail)->args))+1, sizeof(char));
-	strcpy(args, (*tail)->args);
+	strncpy(*args, (*tail)->args, (strlen((*tail)->args)));
 	free((*tail)->args);
 	befree = (*tail);
 	if((*tail)->prev != NULL)
@@ -89,7 +100,6 @@ int dequeue_work(unsigned char* command, char **args, work_queue **head, work_qu
 	
 	if(((*tail) = (*tail)->prev) == NULL)
 		(*head) = NULL;
-	
 	free(befree);
 	return 0;
 } 

@@ -16,17 +16,17 @@ server:  libserver libcommon
 client: libclient libcommon
 		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./build -lclient -lcommon
 
-libserver: parser.o fssApi.o client_queue.o log.o file.o
-		ar rvs build/libserver.a build/parser.o build/fssApi.o build/client_queue.o build/log.o build/file.o
+libserver: parser.o client_queue.o log.o file.o
+		ar rvs build/libserver.a build/parser.o  build/client_queue.o build/log.o build/file.o
 		rm build/parser.o
-		rm build/fssApi.o
 		rm build/client_queue.o
 		rm build/log.o
 		rm build/file.o
 
-libclient: work.o
-		ar rvs build/libclient.a build/work.o
+libclient: work.o fssApi.o 
+		ar rvs build/libclient.a build/work.o build/fssApi.o
 		rm build/work.o
+		rm build/fssApi.o
 
 libcommon: connections.o serialization.o
 		ar rvs build/libcommon.a build/connections.o build/serialization.o	
