@@ -74,18 +74,14 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 int closeConnection(const char *sockname){
 	client_request close_request;
 	server_response close_response;
-	unsigned char* buffer = NULL;
 	memset(&close_request, 0, sizeof close_request);
 	if (strncmp(sockname, open_connection_name, AF_UNIX_MAX_PATH) != 0){
 		errno = EINVAL;
 		return -1;
 	}
 	close_request.command = QUIT;
+	close_request.client_id = getpid();
 	handle_connection(close_request, &close_response);
-	// memset(open_connection_name, 0, UNIX_MAX_PATH);
-	// strncpy(open_connection_name, "None", UNIX_MAX_PATH);
-	// shutdown(socket_fd, SHUT_RDWR);
-	// sleep(2);
 	return close(socket_fd);
 	
 }
@@ -315,8 +311,9 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 		if(!got_packet_size && read_bytes >= sizeof(unsigned long)){
 			memcpy(packet_size_buff, *buffer, sizeof(unsigned long));
 			packet_size = char_to_ulong(packet_size_buff);
+			// printf("packetsize = ")
 		}
-		if(packet_size == all_read)
+		if(packet_size <= all_read)
 			break;
 	}
 	return all_read; /* return >= 0 */
@@ -328,6 +325,7 @@ int handle_connection(client_request request, server_response *response){
 	serialize_request(request, &buffer, &buff_size);
 	CHECKRW(writen(socket_fd, buffer, buff_size), buff_size, "Errore invio richiesta readFile");
 	reset_buffer(&buffer, &buff_size);
+	puts("Request sent, waiting response...");
 	if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
 	deserialize_response(response, &buffer, buff_size);
 	// puts("Deserialized response");

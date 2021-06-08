@@ -53,9 +53,9 @@ int serialize_request(client_request request, unsigned char** buffer, unsigned l
 	unsigned char *tmp = NULL;
 	*buffer_len = sizeof(unsigned long) + sizeof(request.client_id) + sizeof(request.command) + sizeof(request.flags) + sizeof(request.pathname) + sizeof(request.size) + request.size;
 	*buffer = (unsigned char *) calloc(*buffer_len, sizeof(unsigned char));
-	printf("serialize_request packet_size = %lu\n", *buffer_len);
-
+	// printf("serialize_request packet_size = %lu\n", *buffer_len);
 	ulong_to_char(*buffer_len, &tmp);
+	
 	memcpy(*buffer, tmp, sizeof(unsigned long));
 	free(tmp);
 	increment += sizeof(unsigned long);

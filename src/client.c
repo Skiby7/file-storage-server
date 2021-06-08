@@ -40,8 +40,7 @@ int main(int argc, char* argv[]){
 	DIR* check_dir;
 	bool f = false, p = false;
 	char buffer[100];
-	unsigned char* databuffer = NULL;
-	size_t data_size = 0;
+
 	char pathname_tmp[PATH_MAX];
 	struct timespec abstime = {
 		.tv_nsec = 0,
@@ -124,13 +123,27 @@ int main(int argc, char* argv[]){
 			default:;
 		}
 	}
-
+	unsigned char* databuffer = NULL;
+	size_t datasize = 512;
+	databuffer = calloc(512, 1);
+	for (size_t i = 0; i < 512; i++)
+	{
+		databuffer[i] = rand()%127;
+	}
+	
 	CHECKERRNO(openConnection(config.sockname, 500, abstime) < 0, "Errore connessione");
-	puts("connesso");
-	do_work(&job_queue[0], &job_queue[1]);
+	// puts("connesso");
+	// do_work(&job_queue[0], &job_queue[1]);
+	openFile("README.md", O_CREATE | O_LOCK);
+	// openFile("Makefile", O_CREATE | O_LOCK);
+	// openFile("input", O_CREATE | O_LOCK);
+	appendToFile("README.md", databuffer, 512, NULL);
+	readFile("README.md", (void**)&databuffer, &datasize);
+	// readFile("Makefile", (void**)&databuffer, &datasize);
+	// readFile("input", (void**)&databuffer, &datasize);
 	CHECKERRNO(closeConnection(config.sockname) < 0, "Errore disconnessione");
 	
-	
+	free(databuffer);
 	
 	
 	

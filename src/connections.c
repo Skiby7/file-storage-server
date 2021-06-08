@@ -184,7 +184,7 @@ void* worker(void* args){
 	
 
 	while(true){
-		fflush(stdout);
+		// fflush(stdout);
 
 		// Thread waits for work to be assigned
 		SAFELOCK(ready_queue_mtx);
@@ -209,18 +209,19 @@ void* worker(void* args){
 		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
 		
 		
-		
+		puts("Start reading request");
 		if(read_all_buffer(com, &request_buffer, &request_buffer_size) < 0){
 			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
 			logger(log_buffer);
-
 		}
+		puts("Read done");
 		deserialize_request(&request, &request_buffer, request_buffer_size);
-
+		reset_buffer(&request_buffer, &request_buffer_size);
 		// puts("Deserialized request");
 		// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
 
 		request_status = handle_request(com, &request); // Response is set and log is updated
+		printf("REQUEST STATUS: %d\n", request_status);
 		if(request.data != NULL){
 			free(request.data);
 		}
@@ -277,7 +278,6 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 
 		all_read += read_bytes;
 		if(all_read >= *buff_size){
-			puts("realloc");
 			*buff_size += 1024;
 			*buffer = realloc(*buffer, *buff_size);
 			CHECKALLOC(*buffer, "Erorre di riallocazione durante la read dal socket");
@@ -285,6 +285,8 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 		if(packet_size == 0 && read_bytes >= sizeof(unsigned long)){
 			memcpy(packet_size_buff, *buffer, sizeof(unsigned long));
 			packet_size = char_to_ulong(packet_size_buff);
+			
+			printf("\n\nPACKETSIZE = %d\n\n", packet_size);
 		}
 		if(all_read >= packet_size)
 			break;

@@ -496,7 +496,7 @@ int write_to_file(unsigned char *data, int length, char *filename, int client_id
 	/* QUI SI SCRIVE */
 	if(server_storage.storage_table[file_index]->whos_locking == client_id){ // If a file is locked, it's already open
 		if(check_memory(length, file_index) < 0){
-			// stop_write(file_index);
+			stop_write(file_index);
 			response->code[1] = EFBIG;
 			response->code[0] = FILE_OPERATION_FAILED;
 			return -1;
