@@ -65,7 +65,7 @@ static int check_memory(unsigned int new_size, int caller){
 
 void clean_attibutes(int index){
 	open_file_client_list *befree = NULL;
-	lock_file_queue *bfree1 = NULL;
+	lock_file_queue *befree1 = NULL;
 	if(server_storage.storage_table[index]->clients_open != NULL){
 		while (server_storage.storage_table[index]->clients_open != NULL){
 			befree = server_storage.storage_table[index]->clients_open;
@@ -75,9 +75,9 @@ void clean_attibutes(int index){
 	}
 	if(server_storage.storage_table[index]->lock_waiters != NULL){
 		while (server_storage.storage_table[index]->lock_waiters != NULL){
-			befree = server_storage.storage_table[index]->lock_waiters;
+			befree1 = server_storage.storage_table[index]->lock_waiters;
 			server_storage.storage_table[index]->lock_waiters = server_storage.storage_table[index]->lock_waiters->next;
-			free(befree);
+			free(befree1);
 		}
 	}
 }

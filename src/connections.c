@@ -4,7 +4,7 @@
 #include "client_queue.h"
 #include "log.h"
 #include "serialization.h"
-#define LOG_BUFF 200
+#define LOG_BUFF 512
 
  
 
@@ -38,13 +38,27 @@ void logger(char *log);
  * - Insert in done_queue broken coms  
 */
 
+bool get_ack(int com){
+	unsigned char acknowledge = 0;
+	if(safe_read(com, &acknowledge, 1) < 0) return false;
+	return true;
+}
+
 int respond_to_client(int com, server_response response){
 	int exit_status = -1;
 	unsigned char* serialized_response = NULL;
 	size_t response_size = 0;
+	unsigned char* packet_size_buff = NULL;
 	serialize_response(response, &serialized_response, &response_size);
-	exit_status = safe_write(com, serialized_response, response_size);
-	reset_buffer(&serialized_response, &response_size);
+	ulong_to_char(response_size, &packet_size_buff);
+	if (safe_write(com, packet_size_buff, sizeof(unsigned long)) < 0){
+		free(packet_size_buff);
+		return -1;
+	}
+		return -1;
+	if(get_ack(com)) exit_status = safe_write(com, serialized_response, response_size);
+	free(serialized_response);
+	free(packet_size_buff);
 	return exit_status;
 }
 
@@ -175,11 +189,11 @@ void* worker(void* args){
 	int com = 0;
 	size_t request_buffer_size = 0;
 	int whoami = *(int*) args;
-	char log_buffer[200];
+	char log_buffer[LOG_BUFF];
 	int request_status = 0;
 	unsigned char* request_buffer;
 	client_request request;
-	memset(log_buffer, 0, 200);
+	memset(log_buffer, 0, LOG_BUFF);
 	memset(&request, 0, sizeof(request));
 	
 
@@ -209,26 +223,24 @@ void* worker(void* args){
 		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
 		
 		
-		puts("Start reading request");
 		if(read_all_buffer(com, &request_buffer, &request_buffer_size) < 0){
 			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
 			logger(log_buffer);
+			continue;
 		}
-		puts("Read done");
 		deserialize_request(&request, &request_buffer, request_buffer_size);
 		reset_buffer(&request_buffer, &request_buffer_size);
 		// puts("Deserialized request");
-		// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
+		printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
 
 		request_status = handle_request(com, &request); // Response is set and log is updated
 		printf("REQUEST STATUS: %d\n", request_status);
-		if(request.data != NULL){
-			free(request.data);
-		}
+
+		if(request.data) free(request.data);
+		
 		if(request_status < 0){
 			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
 			logger(log_buffer);
-			
 			continue;
 		}
 		SAFELOCK(free_threads_mtx);
@@ -265,33 +277,31 @@ ssize_t safe_read(int fd, void *ptr, size_t n){
 }
 
 
+
+
+
+
+bool send_ack(int com){
+	unsigned char acknowledge = 0x01;
+	if(safe_write(com, &acknowledge, 1) < 0) return false;
+	return true;
+}
+
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
-	size_t all_read = 0, packet_size = 0;
 	ssize_t read_bytes = 0;
-	*buff_size = 1024;
-	*buffer = realloc(*buffer, *buff_size);
+
+	// *buff_size = 1024;
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	memset(packet_size_buff, 0, sizeof(unsigned long));
-	while (true){
-		if ((read_bytes = safe_read(com, *buffer + all_read, *buff_size - all_read)) < 0)
-			return -1;
-
-		all_read += read_bytes;
-		if(all_read >= *buff_size){
-			*buff_size += 1024;
-			*buffer = realloc(*buffer, *buff_size);
-			CHECKALLOC(*buffer, "Erorre di riallocazione durante la read dal socket");
-		}
-		if(packet_size == 0 && read_bytes >= sizeof(unsigned long)){
-			memcpy(packet_size_buff, *buffer, sizeof(unsigned long));
-			packet_size = char_to_ulong(packet_size_buff);
-			
-			printf("\n\nPACKETSIZE = %d\n\n", packet_size);
-		}
-		if(all_read >= packet_size)
-			break;
-	}
-	return all_read; /* return >= 0 */
+	if (safe_read(com, packet_size_buff, sizeof packet_size_buff) < 0)
+		return -1;
+	
+	*buff_size = char_to_ulong(packet_size_buff);
+	printf("\n\nPACKETSIZE = %lu\n\n", *buff_size);
+	if(!send_ack(com)) return -1;
+	*buffer = realloc(*buffer, *buff_size);
+	read_bytes = safe_read(com, *buffer, *buff_size);
+	return read_bytes;
 }
 
 void logger(char *log){

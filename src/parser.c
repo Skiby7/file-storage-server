@@ -1,5 +1,5 @@
 #include "parser.h"
-#define MAX_BUFFER_LEN 151
+
 
 static inline void removeChar(char *token){
 	for (int i = strlen(token)-1; i != 0; i--)

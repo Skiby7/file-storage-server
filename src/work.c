@@ -61,9 +61,9 @@ void do_work(work_queue **head, work_queue **tail){
 	char* args = NULL;
 	while((*tail)){
 		dequeue_work(&command, &args, head, tail);
-		if(command & WRITE_DIR) return NULL;
+		if(command & WRITE_DIR) return;
 		else if(command & READ_FILES) handle_read_files(&args);
-		else if(command & READ_N_FILES) return NULL;
+		else if(command & READ_N_FILES) return;
 		else handle_simple_request(&args, command);
 		free(args);
 		args = NULL;

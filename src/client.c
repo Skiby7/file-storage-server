@@ -41,7 +41,7 @@ int main(int argc, char* argv[]){
 	bool f = false, p = false;
 	char buffer[100];
 
-	char pathname_tmp[PATH_MAX];
+	// char pathname_tmp[PATH_MAX];
 	struct timespec abstime = {
 		.tv_nsec = 0,
 		.tv_sec = 3
@@ -93,7 +93,7 @@ int main(int argc, char* argv[]){
 			case 'd':
 					if((check_dir = opendir(optarg))){
 						strncpy(config.dirname, realpath(optarg, NULL), UNIX_MAX_PATH);
-						close(check_dir);
+						closedir(check_dir);
 					}
 					else puts(ANSI_COLOR_RED"Cartella non valida, non sarà possibile salvare i file letti!"ANSI_COLOR_RESET);
 				break;
@@ -137,7 +137,8 @@ int main(int argc, char* argv[]){
 	openFile("README.md", O_CREATE | O_LOCK);
 	// openFile("Makefile", O_CREATE | O_LOCK);
 	// openFile("input", O_CREATE | O_LOCK);
-	appendToFile("README.md", databuffer, 512, NULL);
+	// appendToFile("README.md", databuffer, 512, NULL);
+	writeFile("README.md", NULL);
 	readFile("README.md", (void**)&databuffer, &datasize);
 	// readFile("Makefile", (void**)&databuffer, &datasize);
 	// readFile("input", (void**)&databuffer, &datasize);

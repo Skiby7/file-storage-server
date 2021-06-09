@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #ifndef COMMON_INCLUDES_H
 #define COMMON_INCLUDES_H
 #include "common_includes.h"

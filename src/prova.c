@@ -26,6 +26,55 @@ typedef struct clients_{
 	
 // }
 
+
+void ulong_to_char(unsigned long integer, unsigned char **array){
+	int n = sizeof(unsigned long);
+	unsigned char temp[n];
+	memset(temp, 0, n);
+	*array = (unsigned char *)calloc(n, sizeof(unsigned char));
+	n *= 8;
+	n -= 8;
+
+	for(int i = 0; i < sizeof(unsigned long); i++, n -= 8)
+    	temp[i] = (integer >> n) & 0xff;
+	memcpy(*array, temp, sizeof(unsigned long));
+}
+
+
+void uint_to_char(unsigned int integer, unsigned char **array){
+	int n = sizeof(unsigned int);
+	unsigned char temp[n];
+	memset(temp, 0, n);
+	*array = (unsigned char *)calloc(n, sizeof(unsigned char));
+	n *= 8;
+	n -= 8;
+	for(int i = 0; i < sizeof(unsigned int); i++, n -= 8)
+		temp[i] = (integer >> n) & 0xff;
+    	
+	memcpy(*array, temp, sizeof(unsigned int));
+}
+
+unsigned int char_to_uint(unsigned char *array){
+	int n = sizeof(unsigned int) * 8;
+	n -= 8;
+	unsigned int integer = 0;
+	for(int i = 0; i < sizeof(unsigned int); i++, n -= 8)
+		integer |= (array[i] << n);
+	
+	
+	return integer;	 
+}
+
+unsigned long char_to_ulong(unsigned char *array){
+	int n = sizeof(unsigned long) * 8;
+	n -= 8;
+	unsigned long long_ = 0;
+	for(int i = 0; i < sizeof(unsigned long); i++, n -= 8)
+		long_ |= (array[i] << n);
+
+	return long_;
+}
+
 void func1(clients_open *head){
 	while (head != NULL){
 		printf("%d -> ", head->id);
@@ -112,22 +161,32 @@ static inline unsigned int fnv_hash_function(const void *key, int len) {
 static unsigned int hash_val(const void* key, unsigned int i, unsigned int max_len, unsigned int key_len){
 	return ((hash_pjw(key) + i*fnv_hash_function(key, key_len)) % max_len);
 }
+
+bool get_ack(int com){
+	unsigned char acknowledge = com;
+	// if(safe_read(com, &acknowledge, 1) < 0) return -1;
+	return (acknowledge == 0x01) ? true : false;
+}
 int main(){
 	// char path[] = "README.md";
 	// printf("%d\n", hash_val(path, 0, 100, sizeof(path)));
-	char *string = NULL;
-	string = malloc(10);
-	if(!string){
-		puts("string is null");
-	}
+	// char *string = NULL;
+	// string = malloc(10);
+	// if(!string){
+	// 	puts("string is null");
+	// }
 
-	if(string){
-		puts("string is not null");
-	}
-	free(string);
-	
-	
-	
+	// if(string){
+	// 	puts("string is not null");
+	// }
+	// free(string);
+	// char *temp = NULL;
+	// unsigned long i = 294;
+	// ulong_to_char(i, &temp);
+	// printf("%lu\n", char_to_ulong(temp));
+	// free(temp);
+	printf("Ack %d\n", get_ack(0x01));
+	printf("Ack %d\n", get_ack(0x00));
 
 
 
