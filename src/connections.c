@@ -47,24 +47,22 @@ bool get_ack(int com){
 int respond_to_client(int com, server_response response){
 	int exit_status = -1;
 	unsigned char* serialized_response = NULL;
-	size_t response_size = 0;
-	unsigned char* packet_size_buff = NULL;
+	uint64_t response_size = 0;
+	unsigned char* packet_size_buff[sizeof(unsigned long)];
 	serialize_response(response, &serialized_response, &response_size);
-	ulong_to_char(response_size, &packet_size_buff);
+	ulong_to_char(response_size, packet_size_buff);
 	if (safe_write(com, packet_size_buff, sizeof(unsigned long)) < 0){
 		free(packet_size_buff);
 		return -1;
 	}
-		return -1;
 	if(get_ack(com)) exit_status = safe_write(com, serialized_response, response_size);
 	free(serialized_response);
-	free(packet_size_buff);
 	return exit_status;
 }
 
 int sendback_client(int com, bool done){
 	char* buffer = NULL;
-	buffer = calloc(PIPE_BUF, sizeof(char));
+	buffer = calloc(PIPE_BUF+1, sizeof(char));
 	sprintf(buffer, "%d", com);
 	if(done) write(done_fd_pipe[1], buffer, PIPE_BUF);
 	else write(good_fd_pipe[1], buffer, PIPE_BUF);
@@ -80,7 +78,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 	unsigned char* serialized_response = NULL;
 	size_t response_size = 0;
 	memset(&response, 0, sizeof(response));
-	log_buffer = (char *) calloc(LOG_BUFF, sizeof(char));
+	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
 	printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
@@ -191,15 +189,13 @@ void* worker(void* args){
 	int whoami = *(int*) args;
 	char log_buffer[LOG_BUFF];
 	int request_status = 0;
-	unsigned char* request_buffer;
+	unsigned char* request_buffer = NULL;
 	client_request request;
 	memset(log_buffer, 0, LOG_BUFF);
-	memset(&request, 0, sizeof(request));
+	
 	
 
 	while(true){
-		// fflush(stdout);
-
 		// Thread waits for work to be assigned
 		SAFELOCK(ready_queue_mtx);
 		while(ready_queue[1] == NULL){
@@ -222,12 +218,13 @@ void* worker(void* args){
 			continue;
 		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
 		
-		
+		memset(&request, 0, sizeof request);
 		if(read_all_buffer(com, &request_buffer, &request_buffer_size) < 0){
 			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
 			logger(log_buffer);
 			continue;
 		}
+		
 		deserialize_request(&request, &request_buffer, request_buffer_size);
 		reset_buffer(&request_buffer, &request_buffer_size);
 		// puts("Deserialized request");
@@ -276,11 +273,6 @@ ssize_t safe_read(int fd, void *ptr, size_t n){
 	return exit_status;
 }
 
-
-
-
-
-
 bool send_ack(int com){
 	unsigned char acknowledge = 0x01;
 	if(safe_write(com, &acknowledge, 1) < 0) return false;
@@ -289,18 +281,33 @@ bool send_ack(int com){
 
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
-
-	// *buff_size = 1024;
+	size_t all_read = 0;
+	client_request request;
+	memset(&request, 0, sizeof request);
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	memset(packet_size_buff, 0, sizeof(unsigned long));
-	if (safe_read(com, packet_size_buff, sizeof packet_size_buff) < 0)
+	
+	if (read_bytes = safe_read(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
+
+	printf("Read %ld bytes\n", read_bytes);
+	all_read = 0;
+
 	
 	*buff_size = char_to_ulong(packet_size_buff);
+	
 	printf("\n\nPACKETSIZE = %lu\n\n", *buff_size);
 	if(!send_ack(com)) return -1;
-	*buffer = realloc(*buffer, *buff_size);
+	*buffer = calloc(*buff_size, sizeof(unsigned char));
+	if(!*buffer){
+		puts("Error allocating buffer!");
+		return -1;
+	}
+	
 	read_bytes = safe_read(com, *buffer, *buff_size);
+	// for (size_t i = 0; i < *buff_size; i++)
+	// 	printf("%.2x ", (*buffer)[i]);
+	
 	return read_bytes;
 }
 

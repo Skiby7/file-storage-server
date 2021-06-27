@@ -14,7 +14,7 @@ int parseConfig(FILE *conf, config *configuration) {
 	char *tmpstr, *token;
 	char *buff = (char *) calloc(MAX_BUFFER_LEN, 1);
 	int tokenlen = 0;
-	while(fgets(buff, MAX_BUFFER_LEN, conf) != NULL){
+	while(fgets(buff, MAX_BUFFER_LEN-1, conf) != NULL){
 		token = strtok_r(buff, DELIM, &tmpstr);
 		if(token[0] == '\n' || token[0] == '#') continue;
 

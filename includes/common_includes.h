@@ -40,8 +40,6 @@
 
 
 
-
-
 #define UNIX_MAX_PATH 200
 #define AF_UNIX_MAX_PATH 108
 #define EALLOC "Error while allocating memory!"
@@ -59,7 +57,12 @@
 #define CONF_LINE_TOP "┌────────────────────────────────────┐\n"
 #define CONF_LINE_BOTTOM "└────────────────────────────────────┘\n"
 
-
+#ifdef PIPE_BUF
+	#undef PIPE_BUF
+	#define PIPE_BUF 20
+#else
+	#define PIPE_BUF 20
+#endif
 
 
 					

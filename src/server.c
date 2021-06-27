@@ -94,7 +94,7 @@ int main(int argc, char* argv[]){
 	CHECKEXIT((pipe(done_fd_pipe) == -1), true, "Impossibile inizializzare la pipe");
 	write_to_log("Pipe inzializzata.");
 
-	strncpy(sockaddress.sun_path, SOCKETADDR, AF_UNIX_MAX_PATH);
+	strncpy(sockaddress.sun_path, SOCKETADDR, AF_UNIX_MAX_PATH-1);
 	sockaddress.sun_family = AF_UNIX;
 	socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	unlink(SOCKETADDR);
@@ -345,7 +345,7 @@ void init(char *sockname){
 	fclose(conf);
 	memset(sockname, 0 , UNIX_MAX_PATH);
 	sprintf(sockname, "/tmp/");
-	strncat(sockname, configuration.sockname, strlen(configuration.sockname));
+	strncat(sockname, configuration.sockname, AF_UNIX_MAX_PATH-1);
 	puts(sockname);
 }
 

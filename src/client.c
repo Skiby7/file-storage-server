@@ -124,12 +124,12 @@ int main(int argc, char* argv[]){
 		}
 	}
 	unsigned char* databuffer = NULL;
-	size_t datasize = 512;
-	databuffer = calloc(512, 1);
-	for (size_t i = 0; i < 512; i++)
-	{
-		databuffer[i] = rand()%127;
-	}
+	size_t datasize = 0;
+	// databuffer = calloc(512, 1);
+	// for (size_t i = 0; i < 512; i++)
+	// {
+	// 	databuffer[i] = rand()%127;
+	// }
 	
 	CHECKERRNO(openConnection(config.sockname, 500, abstime) < 0, "Errore connessione");
 	// puts("connesso");
@@ -139,7 +139,11 @@ int main(int argc, char* argv[]){
 	// openFile("input", O_CREATE | O_LOCK);
 	// appendToFile("README.md", databuffer, 512, NULL);
 	writeFile("README.md", NULL);
-	readFile("README.md", (void**)&databuffer, &datasize);
+	readFile("README.md", (void **)&databuffer, &datasize);
+	for(int i = 0; i < datasize; i++){
+		printf("%c", databuffer[i]);
+	}
+	puts("");
 	// readFile("Makefile", (void**)&databuffer, &datasize);
 	// readFile("input", (void**)&databuffer, &datasize);
 	CHECKERRNO(closeConnection(config.sockname) < 0, "Errore disconnessione");

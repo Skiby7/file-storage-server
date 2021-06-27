@@ -16,11 +16,11 @@ int open_log(char *pathname){
 }
 
 int write_to_log(char *msg){
-	char timestamp[80];
+	char timestamp[81];
 	time_t time_;
 	struct tm *lcltime = NULL;
 	if(log_available){
-		memset(timestamp, 0, 80);
+		memset(timestamp, 0, 81);
 		time(&time_);
 		lcltime = localtime(&time_);
 		strftime(timestamp, 80, "%d-%m-%Y %X %Z", lcltime);
