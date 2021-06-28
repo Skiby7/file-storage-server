@@ -22,6 +22,7 @@
 typedef struct work{
 	unsigned char command;
 	char *args;
+	char *working_dir;
 	struct work *next;
 	struct work *prev;
 } work_queue;

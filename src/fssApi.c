@@ -11,11 +11,6 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 void clean_request(client_request* request);
 void clean_response(server_response* response);
 int handle_connection(client_request request, server_response *response);
-/** TODO:
- * - Make requests to the server -> api don't access directly to the storage
- * - Abstime is the time in 24h format
- * - Check #malloc = #frees file_deleted_request 
-*/
 
 static int check_error(unsigned char *code){
 	if(code[1] != 0)
@@ -29,7 +24,14 @@ static int check_error(unsigned char *code){
 	return 0;
 }
 
-
+static int check_path(char* pathname){
+	if(pathname[0] != '/'){
+		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. openFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
+		errno = EINVAL;
+		return -1;
+	}
+	return 0;
+}
 
 
 int openConnection(const char *sockname, int msec, const struct timespec abstime){
@@ -52,7 +54,7 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 	strncpy(open_connection_name, sockname, AF_UNIX_MAX_PATH);
 	sockaddress.sun_family = AF_UNIX;
 	socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	puts(ANSI_COLOR_CYAN "Provo a connettermi...\n" ANSI_COLOR_RESET);
+	puts(ANSI_COLOR_CYAN "\n-> Provo a connettermi...\n" ANSI_COLOR_RESET);
 	while ((connection_status = connect(socket_fd, (struct sockaddr *)&sockaddress, sizeof(sockaddress))) == -1){
 		nanosleep(&wait_reconnect, NULL);
 		if (remaining_until_failure.tv_nsec + wait_reconnect.tv_nsec == 1e+9){
@@ -79,18 +81,15 @@ int closeConnection(const char *sockname){
 		errno = EINVAL;
 		return -1;
 	}
-	close_request.command = QUIT;
-	close_request.client_id = getpid();
-	handle_connection(close_request, &close_response);
+	unsigned char packet_size_buff[sizeof(unsigned long)];
+	ulong_to_char(0, packet_size_buff);
+	writen(socket_fd, packet_size_buff, sizeof packet_size_buff);
 	return close(socket_fd);
 	
 }
 
 int openFile(const char *pathname, int flags){
-	if(pathname[0] != '/'){
-		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. openFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
-		return -1;
-	}
+	if(check_path(pathname) < 0) return -1;
 	client_request open_request;
 	server_response open_response;
 	memset(&open_response, 0, sizeof(server_response));
@@ -104,10 +103,7 @@ int openFile(const char *pathname, int flags){
 }
 
 int closeFile(const char *pathname){
-	if(pathname[0] != '/'){
-		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. closeFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
-		return -1;
-	}
+	if(check_path(pathname) < 0) return -1;
 	client_request close_request;
 	server_response close_response;
 	memset(&close_response, 0, sizeof(server_response));
@@ -121,20 +117,13 @@ int closeFile(const char *pathname){
 }
 
 int readFile(const char *pathname, void **buf, size_t *size){
-	if(pathname[0] != '/'){
-		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. readFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
-		return -1;
-	}
+	if(check_path(pathname) < 0) return -1;
 	client_request read_request;
 	server_response read_response;
 	unsigned char *data = NULL;
-	memset(&read_request, 0, sizeof(client_request));
 	memset(&read_response, 0, sizeof(server_response));
-	read_request.command = READ;
-	memset(read_request.pathname, 0, UNIX_MAX_PATH);
-	strncpy(read_request.pathname, pathname, UNIX_MAX_PATH - 1);
-	
-	read_request.client_id = getpid();
+	init_request(&read_request, getpid(), READ, 0, pathname);
+
 	if(handle_connection(read_request, &read_response) < 0){
 		errno = ECONNABORTED;
 		return -1;
@@ -156,24 +145,52 @@ int readFile(const char *pathname, void **buf, size_t *size){
 	clean_request(&read_request);
 	clean_response(&read_response);
 	return 0;
+}
 
+int readNFile(int N, const char* dirname){
+	client_request read_n_request;
+	server_response read_n_response;
+	int i = 0;
+	unsigned char *data = NULL;
+	unsigned char *buffer = NULL;
+	unsigned long buff_size = 0;
+	unsigned char packet_size_buff[sizeof(unsigned long)];
+	memset(&read_n_response, 0, sizeof(server_response));
+	init_request(&read_n_request, getpid(), READ, 0, "");
+	read_n_request.files_to_read = N;
+	
+	serialize_request(read_n_request, &buffer, &buff_size);
+	ulong_to_char(buff_size, packet_size_buff);
+	writen(socket_fd, packet_size_buff, sizeof packet_size_buff);
+	if(!get_ack(socket_fd)){
+		free(buffer);
+		return -1;
+	}
+	writen(socket_fd, buffer, buff_size);
+	while(i < N){
+		reset_buffer(&buffer, &buff_size);
+		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
+		deserialize_response(&read_n_response, &buffer, buff_size);
+		if(read_n_response.code[0] == FILE_OPERATION_SUCCESS && read_n_response.size == 1 && read_n_response.data[0] == 0x00){
+			return i;
+		}
+		save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
+		clean_response(&read_n_response);
+		memset(&read_n_response, 0, sizeof read_n_response);
+		i++;
+		send_ack(socket_fd);
+	}
+	return i;
 }
 
 
 int appendToFile(const char *pathname, void *buf, size_t size, const char *dirname){
-	if(pathname[0] != '/'){
-		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. appendToFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
-		return -1;
-	}
+	if(check_path(pathname) < 0) return -1;
 	client_request append_request;
 	server_response append_response;
-	memset(&append_request, 0, sizeof(client_request));
 	memset(&append_response, 0, sizeof(server_response));
-	append_request.command = APPEND;
-	strncpy(append_request.pathname, pathname, UNIX_MAX_PATH);
-	CHECKALLOC(append_request.pathname, "Errore di allocazione appendFile");
-	strncpy(append_request.pathname, pathname, strlen(pathname));
-	append_request.client_id = getpid();
+	init_request(&append_request, getpid(), APPEND, 0, pathname);
+	append_request.size = size;
 	append_request.data = (unsigned char *)calloc(size, sizeof(unsigned char));
 	memcpy(append_request.data, buf, size);
 	handle_connection(append_request, &append_response);
@@ -188,16 +205,12 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 }
 
 int writeFile(const char* pathname, const char* dirname){
-	if(pathname[0] != '/'){
-		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. writeFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
-		return -1;
-	}
+	if(check_path(pathname) < 0) return -1;
 	struct stat file_info;
 	int file;
 	size_t size = 0, read_bytes = 0;
 	client_request write_request;
 	server_response write_response;
-	memset(&write_request, 0, sizeof(client_request));
 	memset(&write_response, 0, sizeof(server_response));
 	if((file = open(pathname, O_RDONLY)) == -1){
 		perror("Errore durante l'apertura del file");
@@ -208,14 +221,11 @@ int writeFile(const char* pathname, const char* dirname){
 		return -1;
 	}
 	size = file_info.st_size;
+	init_request(&write_request, getpid(), WRITE, 0, pathname);
 	write_request.data = (unsigned char *) calloc(size, sizeof(unsigned char));
 	CHECKALLOC(write_request.data, "Errore di allocazione writeFile");
 	if((read_bytes = read(file, write_request.data, size)) != size)
 		printf("read %lu, size %lu\n", read_bytes, size);
-
-	write_request.command = WRITE;
-	strncpy(write_request.pathname, pathname, UNIX_MAX_PATH);
-	write_request.client_id = getpid();
 	write_request.size = size;
 	handle_connection(write_request, &write_response);
 	if(write_response.code[0] & FILE_OPERATION_FAILED){
@@ -229,18 +239,11 @@ int writeFile(const char* pathname, const char* dirname){
 }
 
 int removeFile(const char* pathname){
-	if(pathname[0] != '/'){
-		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. removeFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
-		return -1;
-	}
+	if(check_path(pathname) < 0) return -1;
 	client_request remove_request;
 	server_response remove_response;
-	memset(&remove_request, 0, sizeof(client_request));
 	memset(&remove_response, 0, sizeof(server_response));
-	remove_request.command = REMOVE;
-	memset(remove_request.pathname, 0, UNIX_MAX_PATH);
-	strncpy(remove_request.pathname, pathname, UNIX_MAX_PATH);
-	remove_request.client_id = getpid();
+	init_request(&remove_request, getpid(), REMOVE, 0, pathname);
 	handle_connection(remove_request, &remove_response);
 	if(remove_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(remove_response.code);
@@ -251,19 +254,11 @@ int removeFile(const char* pathname){
 
 
 int lockFile(const char* pathname){
-	if(pathname[0] != '/'){
-		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. lockFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
-		return -1;
-	}
+	if(check_path(pathname) < 0) return -1;
 	client_request lock_request;
 	server_response lock_response;
-	memset(&lock_request, 0, sizeof(client_request));
 	memset(&lock_response, 0, sizeof(server_response));
-	lock_request.command = SET_LOCK;
-	lock_request.flags = O_LOCK; // Se il flag e' O_LOCK fa il lock, altrimenti unlock
-	memset(lock_request.pathname, 0, UNIX_MAX_PATH);
-	strncpy(lock_request.pathname, pathname, UNIX_MAX_PATH);
-	lock_request.client_id = getpid();
+	init_request(&lock_request, getpid(), SET_LOCK, O_LOCK, pathname);
 	handle_connection(lock_request, &lock_response);
 	if(lock_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(lock_response.code);
@@ -274,19 +269,11 @@ int lockFile(const char* pathname){
 
 
 int unlockFile(const char* pathname){
-	if(pathname[0] != '/'){
-		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. unlockFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
-		return -1;
-	}
+	if(check_path(pathname) < 0) return -1;
 	client_request unlock_request;
 	server_response unlock_response;
-	memset(&unlock_request, 0, sizeof(client_request));
 	memset(&unlock_response, 0, sizeof(server_response));
-	unlock_request.command = SET_LOCK;
-	unlock_request.flags = 0; // Se il flag e' O_LOCK fa il lock, altrimenti unlock
-	memset(unlock_request.pathname, 0, UNIX_MAX_PATH);
-	strncpy(unlock_request.pathname, pathname, UNIX_MAX_PATH);
-	unlock_request.client_id = getpid();
+	init_request(&unlock_request, getpid(), SET_LOCK, 0, pathname); // Se il flag e' O_LOCK fa il lock, altrimenti unlock
 	handle_connection(unlock_request, &unlock_response);
 	if(unlock_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(unlock_response.code);
@@ -332,17 +319,17 @@ int handle_connection(client_request request, server_response *response){
 		reset_buffer(&buffer, &buff_size);
 		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
 		deserialize_response(response, &buffer, buff_size);
-		free(buffer);
-		
 		return 0;
 	}
 	free(buffer);
 	return -1;
 }
 
-void clean_request(client_request* request){
-	if(request->data == NULL) free(request->data);
-}
-void clean_response(server_response* response){
-	if(response->data == NULL) free(response->data);
+int save_to_file(char* pathname, unsigned char* data, size_t size){
+	int fd = 0;
+	if((fd = open(pathconf, O_CREAT | O_RDWR, 0777)) < 0){
+		return -1;
+	}
+	writen(fd, data, size);
+	close(fd);
 }

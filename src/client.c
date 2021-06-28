@@ -28,7 +28,8 @@ void signal_handler(int signum){
 }
 
 void printconf(){
-	
+	printf(ANSI_CLEAR_SCREEN);
+	printf(ANSI_COLOR_CYAN"-> Connesso <-\n\n"ANSI_COLOR_RESET);
 	printf(ANSI_COLOR_GREEN CONF_LINE_TOP"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20ld"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
@@ -47,18 +48,16 @@ int main(int argc, char* argv[]){
 	job_queue[0] = NULL;
 	job_queue[1] = NULL;
 	DIR* check_dir;
+	char *save_dir = NULL;
 	bool f = false, p = false;
 	char buffer[100];
-	char real_path[PATH_MAX];
-
-	// char pathname_tmp[PATH_MAX];
 	struct timespec abstime = {
 		.tv_nsec = 0,
 		.tv_sec = 3
 	};
 	memset(&config, 0, sizeof config);
 	memset(buffer, 0, 100);
-	memset(realpath, 0, PATH_MAX);
+	
 	
 	struct sigaction sig; 
 	memset(&sig, 0, sizeof(sig));
@@ -102,11 +101,32 @@ int main(int argc, char* argv[]){
 					enqueue_work(READ_N_FILES, optarg, &job_queue[0], &job_queue[1]);
 				break;
 			case 'd':
-					if((check_dir = opendir(realpath(optarg, NULL)))){
-						strncpy(config.dirname, realpath(optarg, NULL), UNIX_MAX_PATH);
-						closedir(check_dir);
+					save_dir = realpath(optarg, NULL);
+					if(save_dir){
+						if(!(check_dir = opendir(save_dir))){
+							puts(ANSI_COLOR_RED"Cartella non valida, non sarà possibile salvare i file letti!"ANSI_COLOR_RESET);
+							free(save_dir);
+							save_dir = NULL;
+						}
+						else{
+							closedir(check_dir);
+							if(job_queue[1]->command == READ_FILES || job_queue[1]->command == READ_N_FILES){
+								job_queue[1]->working_dir = calloc(strlen(save_dir) + 1, sizeof(char));
+								strncpy(job_queue[1]->working_dir, save_dir, strlen(save_dir));
+								free(save_dir);
+								save_dir = NULL;
+							}
+							else{
+								puts(ANSI_COLOR_RED"Errore: -d deve essere preceduto da -r o -R!"ANSI_COLOR_RESET);
+								free(save_dir);
+								save_dir = NULL;
+							}
+						} 
 					}
 					else puts(ANSI_COLOR_RED"Cartella non valida, non sarà possibile salvare i file letti!"ANSI_COLOR_RESET);
+
+
+					
 				break;
 			case 't':
 					errno = 0;
@@ -135,17 +155,14 @@ int main(int argc, char* argv[]){
 			default:;
 		}
 	}
-	unsigned char* databuffer = NULL;
-	size_t datasize = 0;
+	
 	// databuffer = calloc(512, 1);
 	// for (size_t i = 0; i < 512; i++)
 	// {
 	// 	databuffer[i] = rand()%127;
 	// }
-	
-	CHECKERRNO(openConnection(config.sockname, 500, abstime) < 0, "Errore connessione");
+	if(openConnection(config.sockname, 500, abstime) < 0) return -1;
 	printconf();
-	puts("connesso");
 	do_work(&job_queue[0], &job_queue[1]);
 	// openFile("README.md", O_CREATE | O_LOCK);
 	// // openFile("Makefile", O_CREATE | O_LOCK);
@@ -161,7 +178,7 @@ int main(int argc, char* argv[]){
 	// // readFile("input", (void**)&databuffer, &datasize);
 	CHECKERRNO(closeConnection(config.sockname) < 0, "Errore disconnessione");
 	
-	free(databuffer);
+	
 	
 	
 	

@@ -6,21 +6,25 @@ int handle_read_files(char **args){
 	int fd = 0;
 	unsigned char *buffer = NULL;
 	size_t buff_size = 0;
+	char* real_path = 0;
 	if(strlen(config.dirname)) chdir(config.dirname);
 	else puts(ANSI_COLOR_RED"Non è stata specificata la cartella di destinazione, i file non verranno salvati!"ANSI_COLOR_RESET);
 	
 	token = strtok_r(*args, DELIM, &tmpstr);
 	while(token){
-		if(openFile(token, 0) >= 0)
-			readFile(token, (void **)&buffer, &buff_size);
+		real_path = realpath(token, NULL);
+		if(openFile(real_path, 0) >= 0)
+			readFile(real_path, (void **)&buffer, &buff_size);
 		if(config.verbose) printf("Read %lu bytes from %s\n", buff_size, token);
 		if(strlen(config.dirname)){
-			fd = open(basename(token), O_CREAT | O_RDWR, 0777);
+			fd = open(basename(real_path), O_CREAT | O_RDWR, 0777);
 			CHECKSCEXIT(fd, true, "Non sono riuscito ad aprire il file");
 			CHECKSCEXIT(write(fd, buffer, buff_size), true, "Errore scrittura file nella cartella");
 			close(fd);
 		}
 		free(buffer);
+		free(real_path);
+		real_path = NULL;
 		token = strtok_r(NULL, DELIM, &tmpstr);
 	}
 	free(*args);
@@ -31,20 +35,19 @@ int handle_read_files(char **args){
 int handle_simple_request(char **args, unsigned char command){
 	char *tmpstr = NULL;
 	char *token = NULL;
+	char *real_path = NULL;
 	struct stat st;
 	int write_size = 0;
 	token = strtok_r(*args, DELIM, &tmpstr);
-	char real_path[PATH_MAX];
-	memset(real_path, 0, sizeof(char));
+	
 	while(token){
-		realpath(token, real_path);
+		real_path = realpath(token, NULL);
 		if(command & WRITE_FILES){ 
 			if(openFile(real_path, O_CREATE | O_LOCK) >= 0){
 				CHECKERRNO(writeFile(real_path, NULL) < 0, "Errore scrittura file");
 				stat(real_path, &st);
 				if(config.verbose) printf("Written %lu bytes (file: %s)\n", st.st_size, token);
 			}
-				
 		}
 		else if(command & LOCK_FILES){ 
 			CHECKERRNO(lockFile(real_path) < 0, "Errore lock file");
@@ -53,7 +56,7 @@ int handle_simple_request(char **args, unsigned char command){
 		}
 		else if(command & UNLOCK_FILES){ 
 			CHECKERRNO(unlockFile(real_path) < 0, "Errore unlock file");
-			if(config.verbose) printf("Unocked %s\n", token);
+			if(config.verbose) printf("Unlocked %s\n", token);
 
 		}
 		else if(command & DELETE_FILES){ 
@@ -61,6 +64,8 @@ int handle_simple_request(char **args, unsigned char command){
 			stat(real_path, &st);
 			if(config.verbose) printf("Deleted %s, %lu bytes freed\n", token, st.st_size);
 		}
+		free(real_path);
+		real_path = NULL;
 		token = strtok_r(NULL, DELIM, &tmpstr);
 	}
 	free(*args);
@@ -79,6 +84,7 @@ void do_work(work_queue **head, work_queue **tail){
 		else handle_simple_request(&args, command);
 		free(args);
 		args = NULL;
+		usleep(config.interval * 1000);
 	}
 }
 

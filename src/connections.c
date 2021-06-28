@@ -33,11 +33,6 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 void logger(char *log);
 
 
-/** TODO:
- * - Port read_all, serialize_response and deserialize_request here to read/write from/to client in one shot
- * - Insert in done_queue broken coms  
-*/
-
 bool get_ack(int com){
 	unsigned char acknowledge = 0;
 	if(safe_read(com, &acknowledge, 1) < 0) return false;
@@ -147,7 +142,6 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 						sendback_client(lock_com, true);
 						if(pop_lock_file_list(request->pathname, &lock_id, &lock_com) < 0)
 							goto end;
-						
 					}
 					memset(&response, 0, sizeof(response));
 					lock_file(request->pathname, lock_id, &response); // Add errorcheck per write su log
@@ -158,27 +152,20 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 					sendback_client(lock_com, false);
 					snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", lock_id, request->pathname);
 					logger(log_buffer);
-					
 				}
 			}
-			CHECKRW(writen(com, &response, sizeof(response)), sizeof(response), "Writing to client");
-			snprintf(log_buffer, LOG_BUFF, "Client %d failed locking %s with error %s", request->client_id, request->pathname, strerror(response.code[1]));
-			logger(log_buffer);
+			else{
+				safe_write(com, &response, sizeof(response));
+				snprintf(log_buffer, LOG_BUFF, "Client %d failed locking %s with error %s", request->client_id, request->pathname, strerror(response.code[1]));
+				logger(log_buffer);
+			}
 		} 
 	}
-	else if(request->command & QUIT) {
-		puts(ANSI_COLOR_BLUE"QUIT REQUEST"ANSI_COLOR_RESET);
-		response.code[0] = FILE_OPERATION_SUCCESS;
-		if(respond_to_client(com, response) > 0) sendback_client(com, true);
-		snprintf(log_buffer, LOG_BUFF, "Client %d quitted", request->client_id);
-		free(log_buffer);
-		return 0;
-	}
+	
 end:
 	print_storage();
 	sendback_client(com, false);
-	if(response.data != NULL)
-		free(response.data);
+	clean_response(&response);
 	free(log_buffer);
 	return exit_status;
 }
@@ -189,6 +176,7 @@ void* worker(void* args){
 	int whoami = *(int*) args;
 	char log_buffer[LOG_BUFF];
 	int request_status = 0;
+	ssize_t read_status = 0;
 	unsigned char* request_buffer = NULL;
 	client_request request;
 	memset(log_buffer, 0, LOG_BUFF);
@@ -219,9 +207,15 @@ void* worker(void* args){
 		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
 		
 		memset(&request, 0, sizeof request);
-		if(read_all_buffer(com, &request_buffer, &request_buffer_size) < 0){
-			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
-			logger(log_buffer);
+		read_status = read_all_buffer(com, &request_buffer, &request_buffer_size);
+		if(read_status < 0){
+			if(read_status == -1){
+				sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
+				logger(log_buffer);
+			}
+			SAFELOCK(free_threads_mtx);
+			free_threads[whoami] = true;
+			SAFEUNLOCK(free_threads_mtx);
 			continue;
 		}
 		
@@ -233,11 +227,14 @@ void* worker(void* args){
 		request_status = handle_request(com, &request); // Response is set and log is updated
 		printf("REQUEST STATUS: %d\n", request_status);
 
-		if(request.data) free(request.data);
+		clean_request(&request);
 		
 		if(request_status < 0){
 			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
 			logger(log_buffer);
+			SAFELOCK(free_threads_mtx);
+			free_threads[whoami] = true;
+			SAFEUNLOCK(free_threads_mtx);
 			continue;
 		}
 		SAFELOCK(free_threads_mtx);
@@ -283,19 +280,24 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
 	size_t all_read = 0;
 	client_request request;
+	char* log_buffer;
 	memset(&request, 0, sizeof request);
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	memset(packet_size_buff, 0, sizeof(unsigned long));
 	
 	if (read_bytes = safe_read(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
-
-	printf("Read %ld bytes\n", read_bytes);
-	all_read = 0;
-
-	
 	*buff_size = char_to_ulong(packet_size_buff);
-	
+	if(*buff_size == 0) {
+		puts(ANSI_COLOR_BLUE"QUIT REQUEST"ANSI_COLOR_RESET);
+		sendback_client(com, true);
+		log_buffer = (char *) calloc(LOG_BUFF, sizeof(char));
+		snprintf(log_buffer, LOG_BUFF, "Com %d closed", com);
+		logger(log_buffer);
+		free(log_buffer);
+		return -2;
+	}
+	printf("Read %ld bytes\n", read_bytes);
 	printf("\n\nPACKETSIZE = %lu\n\n", *buff_size);
 	if(!send_ack(com)) return -1;
 	*buffer = calloc(*buff_size, sizeof(unsigned char));

@@ -11,7 +11,7 @@ typedef struct client_{
 	// bool isHelp;
 	time_t interval;
 	char sockname[AF_UNIX_MAX_PATH + 1];
-	char dirname[UNIX_MAX_PATH + 1];
+	char dirname[PATH_MAX + 1];
 } client_conf;
 
 
