@@ -87,15 +87,14 @@ int closeConnection(const char *sockname){
 }
 
 int openFile(const char *pathname, int flags){
+	if(pathname[0] != '/'){
+		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. openFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
+		return -1;
+	}
 	client_request open_request;
 	server_response open_response;
-	memset(&open_request, 0, sizeof(client_request));
 	memset(&open_response, 0, sizeof(server_response));
-	open_request.command = OPEN;
-	open_request.flags = flags;
-	memset(open_request.pathname, 0, UNIX_MAX_PATH);
-	strncpy(open_request.pathname, pathname, UNIX_MAX_PATH);
-	open_request.client_id = getpid();
+	init_request(&open_request, getpid(), OPEN, flags, pathname);
 	handle_connection(open_request, &open_response);
 	if(open_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(open_response.code);
@@ -105,14 +104,14 @@ int openFile(const char *pathname, int flags){
 }
 
 int closeFile(const char *pathname){
+	if(pathname[0] != '/'){
+		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. closeFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
+		return -1;
+	}
 	client_request close_request;
 	server_response close_response;
-	memset(&close_request, 0, sizeof(client_request));
 	memset(&close_response, 0, sizeof(server_response));
-	close_request.command = CLOSE;
-	memset(close_request.pathname, 0, UNIX_MAX_PATH);
-	strncpy(close_request.pathname, pathname, UNIX_MAX_PATH);
-	close_request.client_id = getpid();
+	init_request(&close_request, getpid(), CLOSE, 0, pathname);
 	handle_connection(close_request, &close_response);
 	if(close_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(close_response.code);
@@ -122,6 +121,10 @@ int closeFile(const char *pathname){
 }
 
 int readFile(const char *pathname, void **buf, size_t *size){
+	if(pathname[0] != '/'){
+		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. readFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
+		return -1;
+	}
 	client_request read_request;
 	server_response read_response;
 	unsigned char *data = NULL;
@@ -129,8 +132,8 @@ int readFile(const char *pathname, void **buf, size_t *size){
 	memset(&read_response, 0, sizeof(server_response));
 	read_request.command = READ;
 	memset(read_request.pathname, 0, UNIX_MAX_PATH);
-	strncpy(read_request.pathname, pathname, UNIX_MAX_PATH);
-	strncpy(read_request.pathname, pathname, strlen(pathname));
+	strncpy(read_request.pathname, pathname, UNIX_MAX_PATH - 1);
+	
 	read_request.client_id = getpid();
 	if(handle_connection(read_request, &read_response) < 0){
 		errno = ECONNABORTED;
@@ -158,6 +161,10 @@ int readFile(const char *pathname, void **buf, size_t *size){
 
 
 int appendToFile(const char *pathname, void *buf, size_t size, const char *dirname){
+	if(pathname[0] != '/'){
+		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. appendToFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
+		return -1;
+	}
 	client_request append_request;
 	server_response append_response;
 	memset(&append_request, 0, sizeof(client_request));
@@ -181,6 +188,10 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 }
 
 int writeFile(const char* pathname, const char* dirname){
+	if(pathname[0] != '/'){
+		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. writeFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
+		return -1;
+	}
 	struct stat file_info;
 	int file;
 	size_t size = 0, read_bytes = 0;
@@ -206,10 +217,7 @@ int writeFile(const char* pathname, const char* dirname){
 	strncpy(write_request.pathname, pathname, UNIX_MAX_PATH);
 	write_request.client_id = getpid();
 	write_request.size = size;
-	printf("size write_request_file %lu\n", write_request.size);
-	puts("writeFile -> handle");
 	handle_connection(write_request, &write_response);
-	puts("writeFile <- handle");
 	if(write_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(write_response.code);
 		clean_request(&write_request);
@@ -221,6 +229,10 @@ int writeFile(const char* pathname, const char* dirname){
 }
 
 int removeFile(const char* pathname){
+	if(pathname[0] != '/'){
+		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. removeFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
+		return -1;
+	}
 	client_request remove_request;
 	server_response remove_response;
 	memset(&remove_request, 0, sizeof(client_request));
@@ -239,6 +251,10 @@ int removeFile(const char* pathname){
 
 
 int lockFile(const char* pathname){
+	if(pathname[0] != '/'){
+		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. lockFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
+		return -1;
+	}
 	client_request lock_request;
 	server_response lock_response;
 	memset(&lock_request, 0, sizeof(client_request));
@@ -258,6 +274,10 @@ int lockFile(const char* pathname){
 
 
 int unlockFile(const char* pathname){
+	if(pathname[0] != '/'){
+		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. unlockFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
+		return -1;
+	}
 	client_request unlock_request;
 	server_response unlock_response;
 	memset(&unlock_request, 0, sizeof(client_request));
@@ -284,18 +304,12 @@ bool send_ack(int com){
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
 	unsigned char packet_size_buff[sizeof(unsigned long)];
-	uint64_t packet_size = 0;
 	memset(packet_size_buff, 0, sizeof(unsigned long));
-	// if (read(com, &packet_size, sizeof packet_size) < 0)
-	// 	return -1;
 	if (read(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
-	packet_size = char_to_ulong(packet_size_buff);
-	*buff_size = packet_size;
-	// *buff_size = char_to_ulong(packet_size_buff);
-	printf("\n\nPACKETSIZE = %lu\n\n", *buff_size);
+	*buff_size = char_to_ulong(packet_size_buff);
 	if(!send_ack(com)) return -1;
-	*buffer = realloc(*buffer, packet_size);
+	*buffer = realloc(*buffer, *buff_size);
 	read_bytes = read(com, *buffer, *buff_size);
 	return read_bytes;
 }
@@ -312,34 +326,20 @@ int handle_connection(client_request request, server_response *response){
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	serialize_request(request, &buffer, &buff_size);
 	ulong_to_char(buff_size, packet_size_buff);
-	// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
-	// ulong_to_char(buff_size, &packet_size_buff);
-	// for (size_t i = 0; i < buff_size; i++)
-	// {
-	// 	printf("%.2x ", buffer[i]);
-	// }
-	// puts("");
-	
-	// printf("\n\nBUFFSIZE = %lu\n\n", buff_size);
 	writen(socket_fd, packet_size_buff, sizeof packet_size_buff);
-	// printf("Written %lu bytes\n", written);
-	// CHECKRW(write(socket_fd, packet_size_buff, sizeof packet_size_buff), sizeof packet_size_buff, "Errore invio richiesta readFile");
 	if(get_ack(socket_fd)){
 		writen(socket_fd, buffer, buff_size);
 		reset_buffer(&buffer, &buff_size);
-		puts("Request sent, waiting response...");
 		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
 		deserialize_response(response, &buffer, buff_size);
-		// printf("code 0: 0x%.2x\ncode 1: 0x%.2x\npath: %s\nsize: %lu\n", response->code[0], response->code[1], response->filename, response->size);
-
 		free(buffer);
 		
 		return 0;
 	}
-	// puts("Deserialized response");
 	free(buffer);
 	return -1;
 }
+
 void clean_request(client_request* request){
 	if(request->data == NULL) free(request->data);
 }

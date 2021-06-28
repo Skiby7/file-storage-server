@@ -44,10 +44,10 @@ int serialize_request(client_request request, unsigned char** buffer, unsigned l
 	unsigned char tmp_int[sizeof(unsigned int)];
 	unsigned char tmp_long[sizeof(unsigned long)];
 
-	*buffer_len = sizeof(request.client_id) + sizeof(request.command) + sizeof(request.flags) + sizeof(request.pathname) + sizeof(request.size) + request.size;
+	*buffer_len = sizeof(request.client_id) + sizeof(request.command) + sizeof(request.flags) + sizeof(request.pathlen) + request.pathlen + sizeof(request.size) + request.size;
 	(*buffer) = (unsigned char *) calloc(*buffer_len, sizeof(unsigned char));
 	// printf("serialize_request packet_size = %lu\n", *buffer_len);
-	// ulong_to_char(*buffer_len, &tmp);
+	// ulong_to_char(*buffer_len, &tmp_long);
 
 	uint_to_char(request.client_id, tmp_int);
 	memcpy(*buffer, tmp_int, sizeof(request.client_id));
@@ -59,11 +59,14 @@ int serialize_request(client_request request, unsigned char** buffer, unsigned l
 	memcpy(*buffer + increment, &request.flags, sizeof(request.flags));
 	increment += sizeof(request.flags);
 
-	memcpy(*buffer + increment, request.pathname, sizeof(request.pathname));
-	increment += sizeof(request.pathname);
+	uint_to_char(request.pathlen, tmp_int);
+	memcpy(*buffer + increment, tmp_int, sizeof(request.pathlen));
+	increment += sizeof(request.pathlen);
+
+	memcpy(*buffer + increment, request.pathname, request.pathlen);
+	increment += request.pathlen;
 
 	ulong_to_char(request.size, tmp_long);
-
 	memcpy(*buffer + increment, tmp_long, sizeof(request.size));
 	increment += sizeof(request.size);
 
@@ -90,8 +93,14 @@ int deserialize_request(client_request *request, unsigned char** buffer, unsigne
 	memcpy(&request->flags, *buffer + increment, sizeof(request->flags));
 	increment += sizeof(request->flags);
 
-	memcpy(request->pathname, *buffer + increment, sizeof(request->pathname));
-	increment += sizeof(request->pathname);
+	memset(tmp_int, 0, sizeof tmp_int);
+	memcpy(tmp_int, *buffer + increment,  sizeof(request->pathlen));
+	request->pathlen = char_to_uint(tmp_int);
+	increment += sizeof(request->pathlen);
+
+	request->pathname = calloc(request->pathlen, sizeof(char));
+	memcpy(request->pathname, *buffer + increment, request->pathlen);
+	increment += request->pathlen;
 	
 	memcpy(tmp_long, *buffer + increment, sizeof(request->size));
 	
@@ -108,19 +117,15 @@ int deserialize_request(client_request *request, unsigned char** buffer, unsigne
 
 int serialize_response(server_response response, unsigned char** buffer, unsigned long* buffer_len){
 	int increment = 0;
-	unsigned char tmp[sizeof(unsigned long)];
-	*buffer_len = sizeof(response.filename) + sizeof(response.code) + sizeof(response.size) + response.size;
+	unsigned char tmp_long[sizeof(unsigned long)];
+	*buffer_len = sizeof(response.code) + sizeof(response.size) + response.size;
 	*buffer = (unsigned char *) calloc(*buffer_len, sizeof(unsigned char));
 
-	memcpy(*buffer, response.filename, sizeof(response.filename));
-	increment += sizeof(response.filename);
-
-	
-	memcpy(*buffer + increment, response.code, sizeof(response.code));
+	memcpy(*buffer, response.code, sizeof(response.code));
 	increment += sizeof(response.code);
 
-	ulong_to_char(response.size, tmp);
-	memcpy(*buffer + increment, tmp, sizeof(response.size));
+	ulong_to_char(response.size, tmp_long);
+	memcpy(*buffer + increment, tmp_long, sizeof(response.size));
 	increment += sizeof(response.size);
 
 	if(response.size) memcpy(*buffer + increment, response.data, response.size);
@@ -132,17 +137,14 @@ int deserialize_response(server_response *response, unsigned char** buffer, unsi
 
 	// int increment = sizeof(unsigned long);
 	int increment = 0;
-	unsigned char tmp[sizeof(unsigned long)];
-	memset(tmp, 0, sizeof(unsigned long));
+	unsigned char tmp_long[sizeof(unsigned long)];
+	memset(tmp_long, 0, sizeof(unsigned long));
 
-	memcpy(response->filename, *buffer, sizeof(response->filename));
-	increment += sizeof(response->filename);
-
-	memcpy(&response->code, *buffer + increment, sizeof(response->code));
+	memcpy(&response->code, *buffer, sizeof(response->code));
 	increment += sizeof(response->code);
 	
-	memcpy(tmp, *buffer + increment, sizeof(response->size));
-	response->size = char_to_ulong(tmp);
+	memcpy(tmp_long, *buffer + increment, sizeof(response->size));
+	response->size = char_to_ulong(tmp_long);
 	increment += sizeof(response->size);
 	if(response->size){
 		response->data = (unsigned char *)calloc(response->size, sizeof(unsigned char));
@@ -212,4 +214,14 @@ void reset_buffer(unsigned char** buffer, size_t* buff_size){
 		*buffer = NULL;
 	}
 	*buff_size = 0;
+}
+
+void init_request(client_request* request, pid_t pid, unsigned char command, unsigned char flags, char* pathname){
+	memset(request, 0, sizeof(client_request));
+	request->client_id = pid;
+	request->command = command;
+	request->flags = flags;
+	request->pathlen = strlen(pathname) + 1;
+	request->pathname = calloc(request->pathlen, sizeof(char));
+	strncpy(request->pathname, pathname, strlen(pathname));
 }

@@ -67,7 +67,7 @@ int sendback_client(int com, bool done){
 	if(done) write(done_fd_pipe[1], buffer, PIPE_BUF);
 	else write(good_fd_pipe[1], buffer, PIPE_BUF);
 	free(buffer);
-	// printf("SENTBACK %d\n", com);
+	if(done) printf("SENTBACK BROKEN COM %d\n", com);
 	return 0;
 }
 

@@ -34,3 +34,4 @@ int handle_simple_request(char **args, unsigned char command);
 void do_work(work_queue **head, work_queue **tail);
 void enqueue_work(unsigned char command, char *args, work_queue **head, work_queue **tail);
 int dequeue_work(unsigned char* command, char **args, work_queue **head, work_queue **tail);
+void verbose_print(char* msg, unsigned char operation, unsigned long bytes, char* pathname);

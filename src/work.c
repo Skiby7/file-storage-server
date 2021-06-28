@@ -6,15 +6,16 @@ int handle_read_files(char **args){
 	int fd = 0;
 	unsigned char *buffer = NULL;
 	size_t buff_size = 0;
-
-	if(config.dirname) chdir(config.dirname);
+	if(strlen(config.dirname)) chdir(config.dirname);
 	else puts(ANSI_COLOR_RED"Non è stata specificata la cartella di destinazione, i file non verranno salvati!"ANSI_COLOR_RESET);
 	
 	token = strtok_r(*args, DELIM, &tmpstr);
 	while(token){
-		CHECKERRNO(readFile(token, (void **)&buffer, &buff_size), "Errore lettura file");
-		if(config.dirname){
-			fd = open(basename(token), O_CREAT);
+		if(openFile(token, 0) >= 0)
+			readFile(token, (void **)&buffer, &buff_size);
+		if(config.verbose) printf("Read %lu bytes from %s\n", buff_size, token);
+		if(strlen(config.dirname)){
+			fd = open(basename(token), O_CREAT | O_RDWR, 0777);
 			CHECKSCEXIT(fd, true, "Non sono riuscito ad aprire il file");
 			CHECKSCEXIT(write(fd, buffer, buff_size), true, "Errore scrittura file nella cartella");
 			close(fd);
@@ -30,24 +31,35 @@ int handle_read_files(char **args){
 int handle_simple_request(char **args, unsigned char command){
 	char *tmpstr = NULL;
 	char *token = NULL;
+	struct stat st;
+	int write_size = 0;
 	token = strtok_r(*args, DELIM, &tmpstr);
 	char real_path[PATH_MAX];
 	memset(real_path, 0, sizeof(char));
 	while(token){
 		realpath(token, real_path);
 		if(command & WRITE_FILES){ 
-			if(openFile(real_path, O_CREATE | O_LOCK) >= 0)
+			if(openFile(real_path, O_CREATE | O_LOCK) >= 0){
 				CHECKERRNO(writeFile(real_path, NULL) < 0, "Errore scrittura file");
+				stat(real_path, &st);
+				if(config.verbose) printf("Written %lu bytes (file: %s)\n", st.st_size, token);
+			}
+				
 		}
 		else if(command & LOCK_FILES){ 
 			CHECKERRNO(lockFile(real_path) < 0, "Errore lock file");
+			if(config.verbose) printf("Locked %s\n", token);
+
 		}
 		else if(command & UNLOCK_FILES){ 
-			CHECKERRNO(unlockFile(real_path) < 0, "Errore lock file");
+			CHECKERRNO(unlockFile(real_path) < 0, "Errore unlock file");
+			if(config.verbose) printf("Unocked %s\n", token);
+
 		}
 		else if(command & DELETE_FILES){ 
-			if(openFile(real_path, O_CREATE | O_LOCK) >= 0)
-				CHECKERRNO(removeFile(real_path), "Errore lock file");
+			CHECKERRNO(removeFile(real_path), "Errore delete file");
+			stat(real_path, &st);
+			if(config.verbose) printf("Deleted %s, %lu bytes freed\n", token, st.st_size);
 		}
 		token = strtok_r(NULL, DELIM, &tmpstr);
 	}

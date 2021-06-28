@@ -27,6 +27,15 @@ void signal_handler(int signum){
 	exit(EXIT_SUCCESS);
 }
 
+void printconf(){
+	
+	printf(ANSI_COLOR_GREEN CONF_LINE_TOP"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
+			"│ %-12s\t"ANSI_COLOR_YELLOW"%20ld"ANSI_COLOR_GREEN" │\n" CONF_LINE
+			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
+			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, "Save Dir:",
+			strlen(config.dirname) ? basename(config.dirname) : "Not Specified", "Interval:", config.interval, "Sockname:", 
+			config.sockname, "Socket file:", config.verbose ? "Verbose" : "Quiet");
+}
 
 
 
@@ -40,6 +49,7 @@ int main(int argc, char* argv[]){
 	DIR* check_dir;
 	bool f = false, p = false;
 	char buffer[100];
+	char real_path[PATH_MAX];
 
 	// char pathname_tmp[PATH_MAX];
 	struct timespec abstime = {
@@ -48,6 +58,7 @@ int main(int argc, char* argv[]){
 	};
 	memset(&config, 0, sizeof config);
 	memset(buffer, 0, 100);
+	memset(realpath, 0, PATH_MAX);
 	
 	struct sigaction sig; 
 	memset(&sig, 0, sizeof(sig));
@@ -91,7 +102,7 @@ int main(int argc, char* argv[]){
 					enqueue_work(READ_N_FILES, optarg, &job_queue[0], &job_queue[1]);
 				break;
 			case 'd':
-					if((check_dir = opendir(optarg))){
+					if((check_dir = opendir(realpath(optarg, NULL)))){
 						strncpy(config.dirname, realpath(optarg, NULL), UNIX_MAX_PATH);
 						closedir(check_dir);
 					}
@@ -103,6 +114,7 @@ int main(int argc, char* argv[]){
 					if(errno != 0){
 						perror("L'intervallo richiesto non è valido");
 						config.interval = 0;
+						errno = 0;
 					}
 				break;
 			case 'l':
@@ -132,20 +144,21 @@ int main(int argc, char* argv[]){
 	// }
 	
 	CHECKERRNO(openConnection(config.sockname, 500, abstime) < 0, "Errore connessione");
-	// puts("connesso");
-	// do_work(&job_queue[0], &job_queue[1]);
-	openFile("README.md", O_CREATE | O_LOCK);
-	// openFile("Makefile", O_CREATE | O_LOCK);
-	// openFile("input", O_CREATE | O_LOCK);
-	// appendToFile("README.md", databuffer, 512, NULL);
-	writeFile("README.md", NULL);
-	readFile("README.md", (void **)&databuffer, &datasize);
-	for(int i = 0; i < datasize; i++){
-		printf("%c", databuffer[i]);
-	}
-	puts("");
-	// readFile("Makefile", (void**)&databuffer, &datasize);
-	// readFile("input", (void**)&databuffer, &datasize);
+	printconf();
+	puts("connesso");
+	do_work(&job_queue[0], &job_queue[1]);
+	// openFile("README.md", O_CREATE | O_LOCK);
+	// // openFile("Makefile", O_CREATE | O_LOCK);
+	// // openFile("input", O_CREATE | O_LOCK);
+	// // appendToFile("README.md", databuffer, 512, NULL);
+	// writeFile("README.md", NULL);
+	// readFile("README.md", (void **)&databuffer, &datasize);
+	// for(int i = 0; i < datasize; i++){
+	// 	printf("%c", databuffer[i]);
+	// }
+	// puts("");
+	// // readFile("Makefile", (void**)&databuffer, &datasize);
+	// // readFile("input", (void**)&databuffer, &datasize);
 	CHECKERRNO(closeConnection(config.sockname) < 0, "Errore disconnessione");
 	
 	free(databuffer);
