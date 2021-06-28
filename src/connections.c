@@ -42,8 +42,8 @@ bool get_ack(int com){
 int respond_to_client(int com, server_response response){
 	int exit_status = -1;
 	unsigned char* serialized_response = NULL;
-	uint64_t response_size = 0;
-	unsigned char* packet_size_buff[sizeof(unsigned long)];
+	unsigned long response_size = 0;
+	unsigned char packet_size_buff[sizeof(unsigned long)];
 	serialize_response(response, &serialized_response, &response_size);
 	ulong_to_char(response_size, packet_size_buff);
 	if (safe_write(com, packet_size_buff, sizeof(unsigned long)) < 0){
@@ -69,8 +69,10 @@ int sendback_client(int com, bool done){
 static int handle_request(int com, client_request *request){ // -1 error in file operation -2 error responding to client
 	int exit_status = -1, lock_com = 0, lock_id = 0;
 	char *log_buffer = NULL;
+	int read_index = 0;
 	server_response response;
 	unsigned char* serialized_response = NULL;
+	unsigned char packet_size_buff[sizeof(unsigned long)];
 	size_t response_size = 0;
 	memset(&response, 0, sizeof(response));
 	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
@@ -86,11 +88,22 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 			
 	}
 	else if(request->command & READ){
-		exit_status = read_file(request->pathname, request->client_id, &response);
-		if(respond_to_client(com, response) < 0) return -2;
-		if(exit_status == 0){
-			snprintf(log_buffer, LOG_BUFF, "Client %d read %lu bytes", request->client_id, response.size);
-			logger(log_buffer);
+		if(request->files_to_read == 1){
+			exit_status = read_file(request->pathname, request->client_id, &response);
+			if(respond_to_client(com, response) < 0) return -2;
+			if(exit_status == 0){
+				snprintf(log_buffer, LOG_BUFF, "Client %d read %lu bytes", request->client_id, response.size);
+				logger(log_buffer);
+			}
+		}
+		else{
+			if(request->files_to_read <= 0)
+			while(read_n_file(&read_index, request->client_id, &response) != 1){
+				respond_to_client(com, response);
+				get_ack(com);
+				clean_response(&response);
+				memset(&response, 0, sizeof response);
+			}
 		}
 	}
 	else if(request->command & WRITE){
@@ -147,7 +160,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 					lock_file(request->pathname, lock_id, &response); // Add errorcheck per write su log
 					serialize_response(response, &serialized_response, &response_size);
 					safe_write(com, serialized_response, response_size);
-					reset_buffer(&serialized_response, &response_size);
+					reset_buffer(&serialized_response, &response_size); // FIX THIS
 					
 					sendback_client(lock_com, false);
 					snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", lock_id, request->pathname);

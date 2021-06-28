@@ -470,6 +470,46 @@ int read_file(char *filename, int client_id, server_response *response){
 }
 
 /**
+ * Read n files from the server
+ * 
+ * @param last_index last index of the storage table visited
+ * @param client_id id of the client reading the file
+ * @param response pointer to the server_response
+ * 
+ * @returns set the response and returns 0 if successful, -1 if something went wrong
+ *
+ */
+int read_n_file(int *last_index, int client_id, server_response* response){
+	while(*last_index < 2*server_storage.file_limit){
+		start_read(*last_index);
+		if(server_storage.storage_table[*last_index]->whos_locking == -1 || server_storage.storage_table[*last_index]->whos_locking == client_id){
+			response->data = (unsigned char *) calloc(server_storage.storage_table[*last_index]->size, sizeof(unsigned char));
+			CHECKALLOC(response->data, "Errore allocazione memoria read_file");
+			response->size = server_storage.storage_table[*last_index]->size;
+			memcpy(response->data, server_storage.storage_table[*last_index]->data, response->size);
+			response->pathlen = strlen(basename(server_storage.storage_table[*last_index]->name))+1;
+			response->pathname = (char *) calloc(response->pathlen, sizeof(char));
+			strncpy(response->pathname, server_storage.storage_table[*last_index]->name, response->pathlen-1);
+			/* QUI HO FINITO DI LEGGERE ED ESCO */
+			stop_read(*last_index);
+			*last_index += 1;
+			response->code[0] = FILE_OPERATION_SUCCESS;
+			return 0;	
+		}
+		if(server_storage.storage_table[*last_index]->whos_locking != -1 && server_storage.storage_table[*last_index]->whos_locking != client_id){
+			stop_read(*last_index);
+			SAFELOCK(storage_access_mtx);
+			while(*last_index < 2*server_storage.file_limit && server_storage.storage_table[*last_index] == NULL) *last_index += 1;
+			SAFEUNLOCK(storage_access_mtx);
+		}
+	}
+	response->code[0] = FILE_OPERATION_SUCCESS;
+	response->size = 1;
+	response->data = calloc(1, sizeof(unsigned char));
+	return 1;
+}
+
+/**
  * Write data in the file identified by filename. The client identified by client_id must have performed 
  * an open_file with O_CREATE and O_LOCK set, otherwise the operation fails.
  * 

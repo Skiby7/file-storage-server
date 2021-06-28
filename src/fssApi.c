@@ -123,7 +123,7 @@ int readFile(const char *pathname, void **buf, size_t *size){
 	unsigned char *data = NULL;
 	memset(&read_response, 0, sizeof(server_response));
 	init_request(&read_request, getpid(), READ, 0, pathname);
-
+	read_request.files_to_read = 1;
 	if(handle_connection(read_request, &read_response) < 0){
 		errno = ECONNABORTED;
 		return -1;
@@ -151,34 +151,16 @@ int readNFile(int N, const char* dirname){
 	client_request read_n_request;
 	server_response read_n_response;
 	int i = 0;
-	unsigned char *data = NULL;
-	unsigned char *buffer = NULL;
-	unsigned long buff_size = 0;
-	unsigned char packet_size_buff[sizeof(unsigned long)];
 	memset(&read_n_response, 0, sizeof(server_response));
 	init_request(&read_n_request, getpid(), READ, 0, "");
 	read_n_request.files_to_read = N;
-	
-	serialize_request(read_n_request, &buffer, &buff_size);
-	ulong_to_char(buff_size, packet_size_buff);
-	writen(socket_fd, packet_size_buff, sizeof packet_size_buff);
-	if(!get_ack(socket_fd)){
-		free(buffer);
-		return -1;
-	}
-	writen(socket_fd, buffer, buff_size);
 	while(i < N){
-		reset_buffer(&buffer, &buff_size);
-		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
-		deserialize_response(&read_n_response, &buffer, buff_size);
-		if(read_n_response.code[0] == FILE_OPERATION_SUCCESS && read_n_response.size == 1 && read_n_response.data[0] == 0x00){
-			return i;
-		}
+		handle_connection(read_n_request, &read_n_response);
 		save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
 		clean_response(&read_n_response);
 		memset(&read_n_response, 0, sizeof read_n_response);
-		i++;
 		send_ack(socket_fd);
+		i++;
 	}
 	return i;
 }
