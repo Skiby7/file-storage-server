@@ -61,7 +61,6 @@ int serialize_request(client_request request, unsigned char** buffer, unsigned l
 
 	if(request.files_to_read <= 0) memset(tmp_int, 0xff, sizeof tmp_int);
 	else uint_to_char((unsigned int)request.files_to_read, tmp_int);
-	
 	memcpy(*buffer + increment, tmp_int, sizeof(request.files_to_read));
 	increment += sizeof(request.files_to_read);
 
@@ -251,7 +250,7 @@ void reset_buffer(unsigned char** buffer, size_t* buff_size){
 	*buff_size = 0;
 }
 
-void init_request(client_request* request, pid_t pid, unsigned char command, unsigned char flags, char* pathname){
+void init_request(client_request* request, pid_t pid, unsigned char command, unsigned char flags, const char* pathname){
 	memset(request, 0, sizeof(client_request));
 	request->client_id = pid;
 	request->command = command;

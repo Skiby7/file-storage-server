@@ -57,7 +57,7 @@ void clean_storage();
 int open_file(char *filename, int flags, int client_id, server_response *response);
 int close_file(char *filename, int client_id, server_response *response);
 int read_file(char *filename, int client_id, server_response *response);
-int read_n_file(int *last_index, int client_id, server_response* response){
+int read_n_file(int *last_index, int client_id, server_response* response);
 int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response);
 int append_to_file(unsigned char* new_data, int new_data_size, char *filename, int client_id, server_response *response);
 int lock_file(char *filename, int client_id, server_response *response);

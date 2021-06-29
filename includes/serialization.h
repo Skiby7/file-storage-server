@@ -3,7 +3,7 @@
 #define CONNECTIONS_H_
 #include "connections.h"
 #endif
-void init_request(client_request* request, pid_t pid, unsigned char command, unsigned char flags, char* pathname);
+void init_request(client_request* request, pid_t pid, unsigned char command, unsigned char flags, const char* pathname);
 int serialize_request(client_request request, unsigned char** buffer, unsigned long* buffer_len);
 int deserialize_request(client_request *request, unsigned char** buffer, unsigned long buffer_len);
 int serialize_response(server_response response, unsigned char** buffer, unsigned long* buffer_len);

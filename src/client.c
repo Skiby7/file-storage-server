@@ -28,7 +28,7 @@ void signal_handler(int signum){
 }
 
 void printconf(){
-	printf(ANSI_CLEAR_SCREEN);
+	// printf(ANSI_CLEAR_SCREEN);
 	printf(ANSI_COLOR_CYAN"-> Connesso <-\n\n"ANSI_COLOR_RESET);
 	printf(ANSI_COLOR_GREEN CONF_LINE_TOP"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20ld"ANSI_COLOR_GREEN" │\n" CONF_LINE
@@ -67,7 +67,7 @@ int main(int argc, char* argv[]){
 	sigaction(SIGQUIT,&sig,NULL);
 
 	
-	while ((opt = getopt(argc,argv, "hpf:r:W:w:R:d:t:l:u:c:")) != -1) {
+	while ((opt = getopt(argc,argv, "hpf:r:W:w:R:d:t:l:u:c:x")) != -1) {
 		switch(opt) {
 			case 'h': PRINT_HELP;
 			case 'p': 
@@ -110,9 +110,10 @@ int main(int argc, char* argv[]){
 						}
 						else{
 							closedir(check_dir);
-							if(job_queue[1]->command == READ_FILES || job_queue[1]->command == READ_N_FILES){
-								job_queue[1]->working_dir = calloc(strlen(save_dir) + 1, sizeof(char));
-								strncpy(job_queue[1]->working_dir, save_dir, strlen(save_dir));
+							if(job_queue[0] && (job_queue[0]->command == READ_FILES || job_queue[0]->command == READ_N_FILES)){
+								job_queue[0]->working_dir = calloc(strlen(save_dir) + 1, sizeof(char));
+								strncpy(job_queue[0]->working_dir, save_dir, strlen(save_dir));
+								puts("salvata");
 								free(save_dir);
 								save_dir = NULL;
 							}
@@ -124,9 +125,12 @@ int main(int argc, char* argv[]){
 						} 
 					}
 					else puts(ANSI_COLOR_RED"Cartella non valida, non sarà possibile salvare i file letti!"ANSI_COLOR_RESET);
+				break;
+			case 'x':
+					if(job_queue[0] && (job_queue[0]->command == WRITE_DIR || job_queue[0]->command == WRITE_FILES))
+						job_queue[0]->is_locked = false;
+					else puts(ANSI_COLOR_RED"Errore: -x deve essere preceduto da -w o -W!"ANSI_COLOR_RESET);
 
-
-					
 				break;
 			case 't':
 					errno = 0;

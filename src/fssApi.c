@@ -11,6 +11,12 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 void clean_request(client_request* request);
 void clean_response(server_response* response);
 int handle_connection(client_request request, server_response *response);
+int save_to_file(char* pathname, unsigned char* data, size_t size);
+bool send_ack(int com){
+	unsigned char acknowledge = 0x01;
+	if(write(com, &acknowledge, 1) < 0) return false;
+	return true;
+}
 
 static int check_error(unsigned char *code){
 	if(code[1] != 0)
@@ -24,9 +30,14 @@ static int check_error(unsigned char *code){
 	return 0;
 }
 
-static int check_path(char* pathname){
+static int check_path(const char* pathname){
+	if(!pathname){
+		printf(ANSI_COLOR_RED"Errore API: pathname non specificato!\n"ANSI_COLOR_RESET);
+		errno = EINVAL;
+		return -1;
+	}
 	if(pathname[0] != '/'){
-		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. openFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET);
+		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. openFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET, pathname);
 		errno = EINVAL;
 		return -1;
 	}
@@ -75,7 +86,6 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 
 int closeConnection(const char *sockname){
 	client_request close_request;
-	server_response close_response;
 	memset(&close_request, 0, sizeof close_request);
 	if (strncmp(sockname, open_connection_name, AF_UNIX_MAX_PATH) != 0){
 		errno = EINVAL;
@@ -151,12 +161,19 @@ int readNFile(int N, const char* dirname){
 	client_request read_n_request;
 	server_response read_n_response;
 	int i = 0;
+	char current_dir[PATH_MAX];
+	getcwd(current_dir, sizeof current_dir);
 	memset(&read_n_response, 0, sizeof(server_response));
 	init_request(&read_n_request, getpid(), READ, 0, "");
 	read_n_request.files_to_read = N;
+	if(!dirname && dirname[0] != '/') puts(ANSI_COLOR_RED"Il path fornito non è assoluto: impossibile salvare i file!"ANSI_COLOR_RESET);
 	while(i < N){
 		handle_connection(read_n_request, &read_n_response);
-		save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
+		if(dirname && dirname[0] == '/'){
+			chdir(dirname);
+			save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
+			chdir(current_dir);
+		} 
 		clean_response(&read_n_response);
 		memset(&read_n_response, 0, sizeof read_n_response);
 		send_ack(socket_fd);
@@ -264,11 +281,6 @@ int unlockFile(const char* pathname){
 	return 0;
 }
 
-bool send_ack(int com){
-	unsigned char acknowledge = 0x01;
-	if(write(com, &acknowledge, 1) < 0) return false;
-	return true;
-}
 
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
@@ -309,9 +321,10 @@ int handle_connection(client_request request, server_response *response){
 
 int save_to_file(char* pathname, unsigned char* data, size_t size){
 	int fd = 0;
-	if((fd = open(pathconf, O_CREAT | O_RDWR, 0777)) < 0){
+	if((fd = open(pathname, O_CREAT | O_RDWR, 0777)) < 0){
 		return -1;
 	}
 	writen(fd, data, size);
 	close(fd);
+	return 0;
 }

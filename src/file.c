@@ -320,7 +320,7 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 	
 	else if(file_exists){
 		start_write(file_index);
-		if(server_storage.storage_table[file_index]->whos_locking != client_id){
+		if(server_storage.storage_table[file_index]->whos_locking != client_id && server_storage.storage_table[file_index]->whos_locking != -1){
 			stop_write(file_index);
 			response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
 			return -1;
@@ -368,7 +368,7 @@ int close_file(char *filename, int client_id, server_response *response){
 		return -1; 
 	}
 	start_write(file_index);
-	if(server_storage.storage_table[file_index]->whos_locking != client_id || server_storage.storage_table[file_index]->whos_locking != -1){
+	if(server_storage.storage_table[file_index]->whos_locking != client_id && server_storage.storage_table[file_index]->whos_locking != -1){
 		stop_write(file_index);
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
 		response->code[1] = EACCES;
@@ -480,6 +480,9 @@ int read_file(char *filename, int client_id, server_response *response){
  *
  */
 int read_n_file(int *last_index, int client_id, server_response* response){
+	SAFELOCK(storage_access_mtx);
+	while(*last_index < 2*server_storage.file_limit && server_storage.storage_table[*last_index] == NULL) *last_index += 1;
+	SAFEUNLOCK(storage_access_mtx);
 	while(*last_index < 2*server_storage.file_limit){
 		start_read(*last_index);
 		if(server_storage.storage_table[*last_index]->whos_locking == -1 || server_storage.storage_table[*last_index]->whos_locking == client_id){
@@ -489,7 +492,7 @@ int read_n_file(int *last_index, int client_id, server_response* response){
 			memcpy(response->data, server_storage.storage_table[*last_index]->data, response->size);
 			response->pathlen = strlen(basename(server_storage.storage_table[*last_index]->name))+1;
 			response->pathname = (char *) calloc(response->pathlen, sizeof(char));
-			strncpy(response->pathname, server_storage.storage_table[*last_index]->name, response->pathlen-1);
+			strncpy(response->pathname, basename(server_storage.storage_table[*last_index]->name), response->pathlen-1);
 			/* QUI HO FINITO DI LEGGERE ED ESCO */
 			stop_read(*last_index);
 			*last_index += 1;

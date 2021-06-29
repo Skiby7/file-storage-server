@@ -46,10 +46,9 @@ int respond_to_client(int com, server_response response){
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	serialize_response(response, &serialized_response, &response_size);
 	ulong_to_char(response_size, packet_size_buff);
-	if (safe_write(com, packet_size_buff, sizeof(unsigned long)) < 0){
-		free(packet_size_buff);
+	if (safe_write(com, packet_size_buff, sizeof(unsigned long)) < 0)
 		return -1;
-	}
+	
 	if(get_ack(com)) exit_status = safe_write(com, serialized_response, response_size);
 	free(serialized_response);
 	return exit_status;
@@ -69,10 +68,9 @@ int sendback_client(int com, bool done){
 static int handle_request(int com, client_request *request){ // -1 error in file operation -2 error responding to client
 	int exit_status = -1, lock_com = 0, lock_id = 0;
 	char *log_buffer = NULL;
-	int read_index = 0;
+	int read_index = 0, files_read = 0;
 	server_response response;
 	unsigned char* serialized_response = NULL;
-	unsigned char packet_size_buff[sizeof(unsigned long)];
 	size_t response_size = 0;
 	memset(&response, 0, sizeof(response));
 	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
@@ -97,12 +95,30 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 			}
 		}
 		else{
-			if(request->files_to_read <= 0)
-			while(read_n_file(&read_index, request->client_id, &response) != 1){
-				respond_to_client(com, response);
-				get_ack(com);
-				clean_response(&response);
-				memset(&response, 0, sizeof response);
+			if(request->files_to_read <= 0){
+				while(read_n_file(&read_index, request->client_id, &response) != 1){
+					respond_to_client(com, response);
+					puts("post ack");
+					get_ack(com);
+					puts("pre ack");
+					clean_response(&response);
+					memset(&response, 0, sizeof response);
+				}
+				snprintf(log_buffer, LOG_BUFF, "Client %d read all files", request->client_id);
+				logger(log_buffer);
+			}
+			else{
+				while(read_n_file(&read_index, request->client_id, &response) != 1 && files_read < request->files_to_read){
+					respond_to_client(com, response);
+					puts("post ack");
+					get_ack(com);
+					puts("pre ack");
+					clean_response(&response);
+					memset(&response, 0, sizeof response);
+					files_read++;
+				}
+				snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
+				logger(log_buffer);
 			}
 		}
 	}
@@ -194,8 +210,6 @@ void* worker(void* args){
 	client_request request;
 	memset(log_buffer, 0, LOG_BUFF);
 	
-	
-
 	while(true){
 		// Thread waits for work to be assigned
 		SAFELOCK(ready_queue_mtx);
@@ -235,7 +249,7 @@ void* worker(void* args){
 		deserialize_request(&request, &request_buffer, request_buffer_size);
 		reset_buffer(&request_buffer, &request_buffer_size);
 		// puts("Deserialized request");
-		printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
+		printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\nfiles_to_read: %d\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags, request.files_to_read, request.pathname,request.size);
 
 		request_status = handle_request(com, &request); // Response is set and log is updated
 		printf("REQUEST STATUS: %d\n", request_status);
@@ -291,14 +305,13 @@ bool send_ack(int com){
 
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
-	size_t all_read = 0;
 	client_request request;
 	char* log_buffer;
 	memset(&request, 0, sizeof request);
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	memset(packet_size_buff, 0, sizeof(unsigned long));
 	
-	if (read_bytes = safe_read(com, packet_size_buff, sizeof packet_size_buff) < 0)
+	if (safe_read(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
 	*buff_size = char_to_ulong(packet_size_buff);
 	if(*buff_size == 0) {

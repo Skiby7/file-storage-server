@@ -23,6 +23,7 @@ typedef struct work{
 	unsigned char command;
 	char *args;
 	char *working_dir;
+	bool is_locked;
 	struct work *next;
 	struct work *prev;
 } work_queue;
@@ -30,9 +31,9 @@ typedef struct work{
 extern client_conf config;
 
 char *strtok_r(char *str, const char *delim, char **saveptr);
-int handle_read_files(char **args);
-int handle_simple_request(char **args, unsigned char command);
+int handle_read_files(char *args, char* dirname);
+int handle_simple_request(char *args, unsigned char command);
 void do_work(work_queue **head, work_queue **tail);
 void enqueue_work(unsigned char command, char *args, work_queue **head, work_queue **tail);
-int dequeue_work(unsigned char* command, char **args, work_queue **head, work_queue **tail);
+int dequeue_work(unsigned char* command, char **args, char **dirname, bool *is_locked, work_queue **head, work_queue **tail);
 void verbose_print(char* msg, unsigned char operation, unsigned long bytes, char* pathname);
