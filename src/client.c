@@ -30,12 +30,12 @@ void signal_handler(int signum){
 void printconf(){
 	// printf(ANSI_CLEAR_SCREEN);
 	printf(ANSI_COLOR_CYAN"-> Connesso <-\n\n"ANSI_COLOR_RESET);
-	printf(ANSI_COLOR_GREEN CONF_LINE_TOP"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
+	printf(ANSI_COLOR_GREEN CONF_LINE_TOP"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20ld"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, "Save Dir:",
-			strlen(config.dirname) ? basename(config.dirname) : "Not Specified", "Interval:", config.interval, "Sockname:", 
-			config.sockname, "Socket file:", config.verbose ? "Verbose" : "Quiet");
+			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, "Client ID:",
+			getpid(), "Interval:", config.interval, "Sockname:", 
+			config.sockname, "Verbosity:", config.verbose ? "Verbose" : "Quiet");
 }
 
 

@@ -17,7 +17,8 @@ pthread_mutex_t abort_connections_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t can_accept_mtx = PTHREAD_MUTEX_INITIALIZER;
 bool *free_threads;
 clients_list *ready_queue[2];
-
+pthread_mutex_t lines_mtx = PTHREAD_MUTEX_INITIALIZER;
+int lines = 21;
 int good_fd_pipe[2]; // 1 lettura, 0 scrittura
 int done_fd_pipe[2]; // 1 lettura, 0 scrittura
 extern void* worker(void* args);
@@ -44,6 +45,17 @@ void func(clients_list *head){
 	
 }
 
+void print_summary(char* SOCKETADDR){
+	SAFELOCK(lines_mtx);
+	if(lines > 20){
+		lines = 0;
+		printf(ANSI_CLEAR_SCREEN);
+		PRINT_WELCOME;
+		printconf(SOCKETADDR);
+	}
+	SAFEUNLOCK(lines_mtx);
+}
+
 int main(int argc, char* argv[]){
 	
 	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0, poll_print = 0; // i = 0, ready_com = 0
@@ -66,8 +78,7 @@ int main(int argc, char* argv[]){
 	
 	init(SOCKETADDR); // Configuration struct is now initialized
 	open_log(configuration.log);
-	PRINT_WELCOME;
-	printconf(SOCKETADDR);
+	
 	// Signal handler
 	CHECKSCEXIT(sigfillset(&signal_mask), true, "Errore durante il settaggio di signal_mask");
 	CHECKSCEXIT(sigdelset(&signal_mask, SIGSEGV), true, "Errore durante il settaggio di signal_mask");
@@ -115,8 +126,11 @@ int main(int argc, char* argv[]){
 	for (int i = 0; i < configuration.workers; i++){
 		CHECKEXIT(pthread_create(&workers[i], NULL, &worker, &i), false, "Errore di creazione dei worker");
 	}
-	puts(ANSI_COLOR_RESET);
+
 	while(true){
+		if(configuration.summary) print_summary(SOCKETADDR);
+		
+		
 		poll_val = poll(com_fd, com_count, -1);
 		CHECKERRNO(poll_val < 0, "Errore durante il polling");
 		// PRINT_POLLING(poll_print);
@@ -322,7 +336,8 @@ int main(int argc, char* argv[]){
 }
 
 void printconf(const char* socketaddr){
-	printf(ANSI_COLOR_GREEN CONF_LINE_TOP
+	// if(!configuration.summary){
+		printf(ANSI_COLOR_GREEN CONF_LINE_TOP
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
@@ -330,6 +345,16 @@ void printconf(const char* socketaddr){
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, 
 			"Workers:",	configuration.workers, "Mem:", configuration.mem, "Files:", 
 			configuration.files, "Socket file:", socketaddr, "Log:", configuration.log);
+			return;
+	// }
+	// printf(ANSI_COLOR_GREEN CONF_LINE_TOP
+	// 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE, "Workers:",	configuration.workers);
+	// 		// "│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
+	// 		// "│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
+	// print_storage_info();
+	// printf("│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
+	// 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, 
+	// 		"Socket file:", socketaddr, "Log:", configuration.log);
 }
 	
 void init(char *sockname){

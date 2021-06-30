@@ -12,6 +12,7 @@ typedef struct _config{
 	int files;
 	char *sockname;
 	char *log;
+	bool summary;
 } config;
 
 

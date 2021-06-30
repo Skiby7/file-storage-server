@@ -148,6 +148,19 @@ void print_storage(){
 	}
 }
 
+void print_storage_info(){
+	char memory[20];
+	char files[20];
+	SAFELOCK(storage_access_mtx);
+	snprintf(memory, 20, "%lu/%lu", server_storage.size, server_storage.size_limit); 
+	snprintf(files, 20, "%u/%u", server_storage.file_count, server_storage.file_limit); 
+	SAFEUNLOCK(storage_access_mtx);
+	printf(ANSI_COLOR_CYAN"»»» %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_CYAN" \n"
+			"»»» %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" \n" ANSI_COLOR_RESET, "Memory:",
+			memory, "Files:", files);
+}
+
+
 static int check_client_id(open_file_client_list *head, int id){
 	while(head != NULL){
 		if(head->id == id) return -1;
@@ -203,6 +216,9 @@ static int insert_client_file_list(open_file_client_list **head, int id){
  */
 int insert_lock_file_list(char *filename, int id, int com){
 	int file_index = search_file(filename);
+	if(file_index < 0){
+		return -1;
+	}
 	start_write(file_index);
 
 	if(check_client_id_lock(server_storage.storage_table[file_index]->lock_waiters, id) == -1){
@@ -404,6 +420,10 @@ int remove_file(char *filename, int client_id,  server_response *response){
 	}
 
 	start_write(file_index);
+	SAFELOCK(storage_access_mtx);
+	server_storage.size -= server_storage.storage_table[file_index]->size;
+	server_storage.file_count -= 1;
+	SAFEUNLOCK(storage_access_mtx);
 	if(server_storage.storage_table[file_index]->whos_locking != client_id){
 		stop_write(file_index);
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
@@ -412,12 +432,9 @@ int remove_file(char *filename, int client_id,  server_response *response){
 	}
 	server_storage.storage_table[file_index]->deleted = true;
 	free(server_storage.storage_table[file_index]->data);
+	server_storage.storage_table[file_index]->data = NULL;
 	server_storage.storage_table[file_index]->size = 0;
 	stop_write(file_index);
-	SAFELOCK(storage_access_mtx);
-	server_storage.size -= server_storage.storage_table[file_index]->size;
-	server_storage.file_count -= 1;
-	SAFEUNLOCK(storage_access_mtx);
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	return 0;
 }

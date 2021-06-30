@@ -18,7 +18,6 @@ extern bool *free_threads;
 extern pthread_mutex_t free_threads_mtx;
 
 extern pthread_mutex_t ready_queue_mtx;
-pthread_mutex_t lock_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
 extern pthread_cond_t client_is_ready;
 
 
@@ -31,7 +30,10 @@ ssize_t safe_read(int fd, void *ptr, size_t n);
 ssize_t safe_write(int fd, void *ptr, size_t n);
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 void logger(char *log);
+void add_line();
 
+extern pthread_mutex_t lines_mtx;
+extern int lines;
 
 bool get_ack(int com){
 	unsigned char acknowledge = 0;
@@ -61,7 +63,7 @@ int sendback_client(int com, bool done){
 	if(done) write(done_fd_pipe[1], buffer, PIPE_BUF);
 	else write(good_fd_pipe[1], buffer, PIPE_BUF);
 	free(buffer);
-	if(done) printf("SENTBACK BROKEN COM %d\n", com);
+	// if(done) printf("SENTBACK BROKEN COM %d\n", com);
 	return 0;
 }
 
@@ -74,7 +76,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 	size_t response_size = 0;
 	memset(&response, 0, sizeof(response));
 	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
-	printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
+	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
 		if(respond_to_client(com, response) < 0) return -2;
@@ -97,9 +99,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 		else{
 			while(read_n_file(&read_index, request->client_id, &response) != 1 && (!request->files_to_read || files_read < request->files_to_read)){
 					respond_to_client(com, response);
-					puts("post ack");
 					get_ack(com);
-					puts("pre ack");
 					clean_response(&response);
 					memset(&response, 0, sizeof response);
 					files_read++;
@@ -108,6 +108,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 				clean_response(&response);
 				snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
 				logger(log_buffer);
+				exit_status = 0;
 		}
 	}
 	else if(request->command & WRITE){
@@ -126,7 +127,16 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 			logger(log_buffer);
 		} 
 	}
+	else if(request->command & REMOVE){
+		exit_status = remove_file(request->pathname, request->client_id, &response);
+		if(respond_to_client(com, response) < 0) return -2;
+		if(exit_status == 0){
+			snprintf(log_buffer, LOG_BUFF, "Client %d deleted %s", request->client_id, request->pathname);
+			logger(log_buffer);
+		} 
+	}
 	else if(request->command & SET_LOCK){ // TEST THIS
+		// printf("REQUEST COMMAND: 0x%.2x\nREQUEST FLAGS: 0x%.2x\n", request->command, request->flags);
 		if(request->flags & O_LOCK){
 			exit_status = lock_file(request->pathname, request->client_id, &response);
 			if(exit_status == 0){
@@ -134,7 +144,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 				snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", request->client_id, request->pathname);
 				logger(log_buffer);
 			}
-			else if(response.code[0] | FILE_LOCKED_BY_OTHERS){
+			else if(response.code[0] & FILE_LOCKED_BY_OTHERS){
 				insert_lock_file_list(request->pathname, request->client_id, com);
 				snprintf(log_buffer, LOG_BUFF, "Client %d waiting on %s", request->client_id, request->pathname);
 				logger(log_buffer);
@@ -180,7 +190,9 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 	}
 	
 end:
-	print_storage();
+	// print_storage();
+	print_storage_info();
+	add_line();
 	sendback_client(com, false);
 	clean_response(&response);
 	free(log_buffer);
@@ -220,6 +232,7 @@ void* worker(void* args){
 		if(com == -1) // Falso allarme
 			continue;
 		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
+		add_line();
 		
 		memset(&request, 0, sizeof request);
 		read_status = read_all_buffer(com, &request_buffer, &request_buffer_size);
@@ -237,10 +250,10 @@ void* worker(void* args){
 		deserialize_request(&request, &request_buffer, request_buffer_size);
 		reset_buffer(&request_buffer, &request_buffer_size);
 		// puts("Deserialized request");
-		printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\nfiles_to_read: %d\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags, request.files_to_read, request.pathname,request.size);
+		// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\nfiles_to_read: %d\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags, request.files_to_read, request.pathname,request.size);
 
 		request_status = handle_request(com, &request); // Response is set and log is updated
-		printf("REQUEST STATUS: %d\n", request_status);
+		// printf("REQUEST COMMAND: 0x%.2x\nREQUEST STATUS: %d\n",request.command, request_status);
 
 		clean_request(&request);
 		
@@ -303,7 +316,7 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 		return -1;
 	*buff_size = char_to_ulong(packet_size_buff);
 	if(*buff_size == 0) {
-		puts(ANSI_COLOR_BLUE"QUIT REQUEST"ANSI_COLOR_RESET);
+		// puts(ANSI_COLOR_BLUE"QUIT REQUEST"ANSI_COLOR_RESET);
 		sendback_client(com, true);
 		log_buffer = (char *) calloc(LOG_BUFF, sizeof(char));
 		snprintf(log_buffer, LOG_BUFF, "Com %d closed", com);
@@ -311,8 +324,6 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 		free(log_buffer);
 		return -2;
 	}
-	printf("Read %ld bytes\n", read_bytes);
-	printf("\n\nPACKETSIZE = %lu\n\n", *buff_size);
 	if(!send_ack(com)) return -1;
 	*buffer = calloc(*buff_size, sizeof(unsigned char));
 	if(!*buffer){
@@ -331,4 +342,10 @@ void logger(char *log){
 	SAFELOCK(log_access_mtx);
 	write_to_log(log);
 	SAFEUNLOCK(log_access_mtx);
+}
+
+void add_line(){
+	SAFELOCK(lines_mtx);
+	lines++;
+	SAFEUNLOCK(lines_mtx);
 }
