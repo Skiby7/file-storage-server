@@ -101,7 +101,7 @@ int deserialize_request(client_request *request, unsigned char** buffer, unsigne
 
 	memset(tmp_int, 0, sizeof tmp_int);
 	memcpy(tmp_int, *buffer + increment,  sizeof(request->files_to_read));
-	if(tmp_int[0] == 0xff && tmp_int[1] == 0xff && tmp_int[2] == 0xff && tmp_int[3] == 0xff) request->files_to_read = -1;
+	if(tmp_int[0] == 0xff && tmp_int[1] == 0xff && tmp_int[2] == 0xff && tmp_int[3] == 0xff) request->files_to_read = 0;
 	else request->files_to_read = (int) char_to_uint(tmp_int);
 	increment += sizeof(request->files_to_read);
 
@@ -261,10 +261,22 @@ void init_request(client_request* request, pid_t pid, unsigned char command, uns
 }
 
 void clean_request(client_request* request){
-	if(request->data) free(request->data);
-	if(request->pathname) free(request->pathname);
+	if(request->data){
+		free(request->data);
+		request->data = NULL;
+	} 
+	if(request->pathname){
+		free(request->pathname);
+		request->pathname = NULL;
+	}
 }
 void clean_response(server_response* response){
-	if(response->data) free(response->data);
-	if(response->pathname) free(response->pathname);
+	if(response->data){
+		free(response->data);
+		response->data = NULL;
+	} 
+	if(response->pathname){
+		free(response->pathname);
+		response->pathname = NULL;
+	} 
 }

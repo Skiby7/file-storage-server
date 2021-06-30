@@ -42,10 +42,11 @@ static int check_memory(unsigned int new_size, int caller){
 		for(int i = 0; i < table_size; i++){
 			if(server_storage.storage_table[i] != NULL && i != caller){
 				start_write(i);
-				if(server_storage.storage_table[i]->use_stat == clean_level && server_storage.storage_table[i]->whos_locking == -1){
+				if(server_storage.storage_table[i]->use_stat == clean_level && server_storage.storage_table[i]->whos_locking == -1 && !server_storage.storage_table[i]->deleted){
 					server_storage.storage_table[i]->deleted = true;
 					server_storage.storage_table[i]->size = 0;
 					free(server_storage.storage_table[i]->data);
+					server_storage.storage_table[i]->data = NULL;
 					server_storage.file_count -= 1;
 					server_storage.size -= server_storage.storage_table[i]->size;
 				}
@@ -256,6 +257,7 @@ int pop_lock_file_list(char *filename, int *id, int *com){
 static int remove_client_file_list(open_file_client_list **head, int id){
 	open_file_client_list *scanner = (* head);
 	open_file_client_list *befree = NULL;
+	if((*head) == NULL) return -1;
 	if((* head)->id == id){
 		befree = (* head);
 		(* head) = (*head)->next;
@@ -289,7 +291,6 @@ static int remove_client_file_list(open_file_client_list **head, int id){
 int open_file(char *filename, int flags, int client_id, server_response *response){
 
 	int file_index = search_file(filename);
-
 	bool file_exists = false;
 	bool create_file = false;
 	bool lock_file = false;
@@ -297,9 +298,8 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 	if(flags & O_CREATE) create_file = true;
 	if(flags & O_LOCK) lock_file = true;
 
-	
 	if(file_exists && create_file){
-		response->code[0] = FILE_EXISTS;
+		response->code[0] = FILE_OPERATION_FAILED | FILE_EXISTS;
 		return -1;
 	}
 	
@@ -509,6 +509,7 @@ int read_n_file(int *last_index, int client_id, server_response* response){
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	response->size = 1;
 	response->data = calloc(1, sizeof(unsigned char));
+	response->data[0] = 0;
 	return 1;
 }
 
@@ -617,7 +618,7 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *filename, i
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		return 0;
 	}
-	if(server_storage.storage_table[file_index]->whos_locking != -1 && server_storage.storage_table[file_index]->whos_locking != client_id){
+	if(server_storage.storage_table[file_index]->whos_locking == -1 || server_storage.storage_table[file_index]->whos_locking == client_id){
 		stop_write(file_index);
 		response->code[1] = EACCES;
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;

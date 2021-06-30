@@ -22,11 +22,14 @@ static int check_error(unsigned char *code){
 	if(code[1] != 0)
 		return code[1];
 	if(code[0] & FILE_ALREADY_LOCKED)
-		return FILE_ALREADY_LOCKED;
+		return EPERM;
+	if(code[0] & FILE_LOCKED_BY_OTHERS)
+		return EBUSY;
 	if(code[0] & FILE_EXISTS)
-		return FILE_EXISTS;
+		return EEXIST;
 	if(code[0] & FILE_NOT_EXISTS)
 		return ENOENT;
+	
 	return 0;
 }
 
@@ -160,15 +163,27 @@ int readFile(const char *pathname, void **buf, size_t *size){
 int readNFile(int N, const char* dirname){
 	client_request read_n_request;
 	server_response read_n_response;
-	int i = 0;
+	int i = 1; // First file is read outside the loop
+	unsigned char* buffer = NULL;
+	size_t buff_size = 0;
 	char current_dir[PATH_MAX];
 	getcwd(current_dir, sizeof current_dir);
 	memset(&read_n_response, 0, sizeof(server_response));
 	init_request(&read_n_request, getpid(), READ, 0, "");
 	read_n_request.files_to_read = N;
+	if(N <= 0) N = 0;
 	if(!dirname && dirname[0] != '/') puts(ANSI_COLOR_RED"Il path fornito non è assoluto: impossibile salvare i file!"ANSI_COLOR_RESET);
-	while(i < N){
-		handle_connection(read_n_request, &read_n_response);
+	handle_connection(read_n_request, &read_n_response);
+	if(dirname && dirname[0] == '/'){
+		chdir(dirname);
+		save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
+		chdir(current_dir);
+	} 
+	while(!N || i < N){
+		send_ack(socket_fd);
+		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
+		deserialize_response(&read_n_response, &buffer, buff_size);
+		if(read_n_response.size == 1 && read_n_response.code[0] == FILE_OPERATION_SUCCESS && read_n_response.data[0] == 0) break;
 		if(dirname && dirname[0] == '/'){
 			chdir(dirname);
 			save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
@@ -176,7 +191,6 @@ int readNFile(int N, const char* dirname){
 		} 
 		clean_response(&read_n_response);
 		memset(&read_n_response, 0, sizeof read_n_response);
-		send_ack(socket_fd);
 		i++;
 	}
 	return i;

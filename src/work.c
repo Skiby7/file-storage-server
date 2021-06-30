@@ -44,17 +44,49 @@ int handle_simple_request(char *args, unsigned char command){
 	char *tmpstr = NULL;
 	char *token = NULL;
 	char *real_path = NULL;
+	int open_file_val = 0, file = 0;
+	size_t size = 0;
 	struct stat st;
+	unsigned char *buffer = NULL;
 	token = strtok_r(args, DELIM, &tmpstr);
 	
 	while(token){
 		real_path = realpath(token, NULL);
+		errno = 0;
 		if(command & WRITE_FILES){ 
-			if(openFile(real_path, O_CREATE | O_LOCK) >= 0){
+			open_file_val = openFile(real_path, O_CREATE | O_LOCK);
+			if(open_file_val >= 0){
 				CHECKERRNO(writeFile(real_path, NULL) < 0, "Errore scrittura file");
-				CHECKERRNO(closeFile(real_path) < 0, "Errore scrittura file");
+				CHECKERRNO(closeFile(real_path) < 0, "Errore chiusura file");
 				stat(real_path, &st);
 				if(config.verbose) printf("Written %lu bytes (file: %s)\n", st.st_size, token);
+			}
+			else if(open_file_val <= 0 && errno == EEXIST){
+				errno = 0;
+				if(openFile(real_path, 0) < 0){
+					perror("Errore apertura file!");
+					continue;
+				}
+				if((file = open(real_path, O_RDONLY)) == -1){
+					perror("Errore durante l'apertura del file");
+					continue;
+				}
+				if(fstat(file, &st) < 0){
+					perror("Errore fstat");
+					continue;
+				}
+				size = st.st_size;
+				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
+				read(file, buffer, size);
+				CHECKERRNO(appendToFile(real_path, buffer, size, NULL) < 0, "Errore scrittura file");
+				CHECKERRNO(closeFile(real_path) < 0, "Errore chiusura file");
+				if(config.verbose) printf("Appended %lu bytes (file: %s)\n", st.st_size, token);
+				free(buffer);
+				buffer = NULL;
+			}
+			else{
+				perror("Errore apertura file!");
+				continue;
 			}
 		}
 		else if(command & LOCK_FILES){ 
@@ -81,10 +113,13 @@ int handle_simple_request(char *args, unsigned char command){
 
 int recursive_visit(char *start_dir, int files_to_write, bool locked){
 	DIR* target_dir = NULL;
-	struct stat dirent_info;
+	struct stat dirent_info, st;
     struct dirent* current_file;
 	char *real_path = NULL;
-	int files_written = 0, rec_visit = 0;
+	int files_written = 0, rec_visit = 0, open_file_val = 0, file = 0;
+	size_t size = 0;
+	unsigned char *buffer = NULL;
+
 	if((target_dir = opendir(start_dir)) == NULL){
 		return -1;
 	}
@@ -103,26 +138,44 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked){
 			files_written += rec_visit;
 		}
 		else{
-			if(openFile(real_path, O_CREATE | O_LOCK) < 0){
-				// Error handling
-				return -1;
+			errno = 0;
+			open_file_val = openFile(real_path, O_CREATE | O_LOCK);
+			if(open_file_val >= 0){
+				CHECKERRNO(writeFile(real_path, NULL) < 0, "Errore scrittura file");
+				if(!locked) CHECKERRNO(unlockFile(real_path), "Errore unlock file");
+				CHECKERRNO(closeFile(real_path) < 0, "Errore chiusura file");
+				stat(real_path, &st);
+				if(config.verbose) printf("Written %lu bytes (file: %s)\n", st.st_size, real_path);
 			}
-			if(writeFile(real_path, NULL) < 0){
-				// Error Handling
-				return -1;
+			else if(open_file_val <= 0 && errno == EEXIST){
+				errno = 0;
+				if(openFile(real_path, 0) < 0){
+					perror("Errore apertura file!");
+					continue;
+				}
+				if((file = open(real_path, O_RDONLY)) == -1){
+					perror("Errore durante l'apertura del file");
+					continue;
+				}
+				if(fstat(file, &st) < 0){
+					perror("Errore fstat");
+					continue;
+				}
+				size = st.st_size;
+				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
+				read(file, buffer, size);
+				CHECKERRNO(appendToFile(real_path, buffer, size, NULL) < 0, "Errore scrittura file");
+				CHECKERRNO(closeFile(real_path) < 0, "Errore chiusura file");
+				if(config.verbose) printf("Appended %lu bytes (file: %s)\n", st.st_size, real_path);
+				free(buffer);
+				buffer = NULL;
 			}
-			if(!locked){
-				if(unlockFile(real_path) < 0){
-				// Error handling
-				return -1;
-			}
-			}
-			if(closeFile(real_path) < 0){
-				// Error handling
-				return -1;
+			else{
+				perror("Errore apertura file!");
+				continue;
 			}
 			files_written++;
-			free(real_path); // check ig=f this is the correct line to free real_path
+			free(real_path);
 		}
 		puts(ANSI_COLOR_MAGENTA"WRITING FILE"ANSI_COLOR_RESET);
 		printf("to_write: %d\nwritten: %d\n", files_to_write, files_written);

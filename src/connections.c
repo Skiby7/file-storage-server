@@ -95,20 +95,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 			}
 		}
 		else{
-			if(request->files_to_read <= 0){
-				while(read_n_file(&read_index, request->client_id, &response) != 1){
-					respond_to_client(com, response);
-					puts("post ack");
-					get_ack(com);
-					puts("pre ack");
-					clean_response(&response);
-					memset(&response, 0, sizeof response);
-				}
-				snprintf(log_buffer, LOG_BUFF, "Client %d read all files", request->client_id);
-				logger(log_buffer);
-			}
-			else{
-				while(read_n_file(&read_index, request->client_id, &response) != 1 && files_read < request->files_to_read){
+			while(read_n_file(&read_index, request->client_id, &response) != 1 && (!request->files_to_read || files_read < request->files_to_read)){
 					respond_to_client(com, response);
 					puts("post ack");
 					get_ack(com);
@@ -117,9 +104,10 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 					memset(&response, 0, sizeof response);
 					files_read++;
 				}
+				respond_to_client(com, response);
+				clean_response(&response);
 				snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
 				logger(log_buffer);
-			}
 		}
 	}
 	else if(request->command & WRITE){
