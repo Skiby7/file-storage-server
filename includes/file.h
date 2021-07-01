@@ -49,7 +49,15 @@ typedef struct storage_{
 	unsigned int file_count;
 	unsigned int file_limit;
 	unsigned int max_file_num_reached;
+	unsigned int total_evictions;
 } storage;
+
+typedef struct victim_{
+	unsigned int index;
+	unsigned short use_stat;
+	time_t create_time;
+	time_t last_modified;
+} victim;
 
 
 int init_storage(int max_file_num, int max_size);
@@ -67,4 +75,5 @@ int insert_lock_file_list(char *filename, int id, int com);
 int pop_lock_file_list(char *filename, int *id, int *com);
 void print_storage();
 void print_storage_info();
+void print_summary();
 void* use_stat_update(void *args);

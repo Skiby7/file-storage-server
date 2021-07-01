@@ -45,7 +45,7 @@ void func(clients_list *head){
 	
 }
 
-void print_summary(char* SOCKETADDR){
+void print_textual_ui(char* SOCKETADDR){
 	SAFELOCK(lines_mtx);
 	if(lines > 20){
 		lines = 0;
@@ -57,6 +57,10 @@ void print_summary(char* SOCKETADDR){
 }
 
 int main(int argc, char* argv[]){
+	if(argc != 2){
+		fprintf(stderr, "Usare %s path/to/config\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
 	
 	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0, poll_print = 0; // i = 0, ready_com = 0
 	char buffer[PIPE_BUF]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
@@ -76,7 +80,7 @@ int main(int argc, char* argv[]){
 	sigset_t signal_mask;
 	struct sockaddr_un sockaddress; // Socket init
 	
-	init(SOCKETADDR); // Configuration struct is now initialized
+	init(SOCKETADDR, argv[1]); // Configuration struct is now initialized
 	open_log(configuration.log);
 	
 	// Signal handler
@@ -128,7 +132,7 @@ int main(int argc, char* argv[]){
 	}
 
 	while(true){
-		if(configuration.summary) print_summary(SOCKETADDR);
+		if(configuration.tui) print_textual_ui(SOCKETADDR);
 		
 		
 		poll_val = poll(com_fd, com_count, -1);
@@ -322,6 +326,7 @@ int main(int argc, char* argv[]){
 	close(done_fd_pipe[0]);
 	close(done_fd_pipe[1]);
 	puts("socket closed");
+	print_summary();
 	freeConfig(&configuration);
 	clean_storage();
 	clean_ready_list(&ready_queue[0]);
@@ -357,10 +362,10 @@ void printconf(const char* socketaddr){
 	// 		"Socket file:", socketaddr, "Log:", configuration.log);
 }
 	
-void init(char *sockname){
+void init(char *sockname, char *config_file){
 	
 	FILE *conf = NULL;
-	if((conf = fopen("bin/config.txt", "r")) == NULL){
+	if((conf = fopen(config_file, "r")) == NULL){
 		perror("Error while opening config file");
 		exit(EXIT_FAILURE);
 	}
@@ -372,7 +377,6 @@ void init(char *sockname){
 	memset(sockname, 0 , UNIX_MAX_PATH);
 	sprintf(sockname, "/tmp/");
 	strncat(sockname, configuration.sockname, AF_UNIX_MAX_PATH-1);
-	puts(sockname);
 }
 
 void insert_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){

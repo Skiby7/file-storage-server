@@ -19,6 +19,7 @@ void start_write(int file_index);
 void stop_read(int file_index);
 void stop_write(int file_index);
 
+
 /**
  * Check whether there's enough space in memory or not
  * 
@@ -28,40 +29,14 @@ void stop_write(int file_index);
  * @returns 0 if the operation is successful, -1 if the file is too big or there are no locked files to remove
  *
  */
-static int check_memory(unsigned int new_size, int caller){
-	int max_capacity = 0, actual_capacity = 0, table_size = 0, clean_level = 0;
-	SAFELOCK(storage_access_mtx);
-	max_capacity = server_storage.size_limit;
-	actual_capacity = server_storage.size;
-	table_size = 2*server_storage.file_limit;
-	if(new_size > max_capacity){
-		SAFEUNLOCK(storage_access_mtx);
-		return -1;
-	}
-	while(new_size + actual_capacity > max_capacity){
-		for(int i = 0; i < table_size; i++){
-			if(server_storage.storage_table[i] != NULL && i != caller){
-				start_write(i);
-				if(server_storage.storage_table[i]->use_stat == clean_level && server_storage.storage_table[i]->whos_locking == -1 && !server_storage.storage_table[i]->deleted){
-					server_storage.storage_table[i]->deleted = true;
-					server_storage.storage_table[i]->size = 0;
-					free(server_storage.storage_table[i]->data);
-					server_storage.storage_table[i]->data = NULL;
-					server_storage.file_count -= 1;
-					server_storage.size -= server_storage.storage_table[i]->size;
-				}
-				stop_write(i);
-				if(new_size + actual_capacity > max_capacity) break;
-			}
-		}
-		if(clean_level == 32){
-			SAFEUNLOCK(storage_access_mtx);
-			return -1;
-		}
-		clean_level++;
-	}
-	SAFEUNLOCK(storage_access_mtx);
-	return 0;
+
+static int compare(const void *a, const void *b) {
+	victim a1 = *(victim *)a, b1 = *(victim *)b; 
+	time_t now = time(NULL);
+	if((a1.use_stat - b1.use_stat) != 0)
+		return a1.use_stat - b1.use_stat; // sort by use stat
+
+	else return (now - a1.last_modified) - (now - b1.last_modified); // if use stat is the same, sort by age
 }
 
 void clean_attibutes(int index){
@@ -83,36 +58,82 @@ void clean_attibutes(int index){
 	}
 }
 
+static int evict_victim(int index){
+	unsigned long memory_freed = 0;
+	start_write(index);
+	memory_freed = server_storage.storage_table[index]->size;
+	SAFELOCK(storage_access_mtx);
+	server_storage.size -= server_storage.storage_table[index]->size;
+	server_storage.file_count -= 1; 
+	SAFEUNLOCK(storage_access_mtx);
+	free(server_storage.storage_table[index]->data);
+	server_storage.storage_table[index]->data = NULL;
+	server_storage.storage_table[index]->deleted = true;
+	clean_attibutes(index);
+	stop_write(index);
+	return memory_freed;
+}
+
+static int select_victim(int caller, int files_to_delete, unsigned long memory_to_free) {
+	victim* victims = (victim *) calloc(server_storage.file_limit, sizeof(victim));
+	int counter = 0, j = 0;
+	unsigned long memory_freed = 0;
+	SAFELOCK(storage_access_mtx);
+	server_storage.total_evictions += 1;
+	for (size_t i = 0; i < 2*server_storage.file_limit; i++){
+		if(server_storage.storage_table[i] != NULL && (i == -1 || i != caller)){
+			start_read(i);
+			if(!server_storage.storage_table[i]->deleted){
+				victims[counter].index = i;
+				victims[counter].create_time = server_storage.storage_table[i]->create_time;
+				victims[counter].last_modified = server_storage.storage_table[i]->last_modified;
+				victims[counter].use_stat = server_storage.storage_table[i]->use_stat;
+				counter++;
+			}
+			stop_read(i);
+		}
+	}
+	SAFEUNLOCK(storage_access_mtx);
+	victims = (victim *) realloc(victims, counter);
+	qsort(victims, counter, sizeof(victim), compare);
+	if(files_to_delete){
+		evict_victim(victims[0].index);
+		return 0;
+	}
+	while(j < counter && memory_freed < memory_to_free){
+		memory_freed = evict_victim(victims[j].index);
+		j++;
+	}
+	return 0;
+}
+
+static int check_memory(unsigned long new_size, int caller){
+	unsigned long max_capacity = 0, actual_capacity = 0;
+	SAFELOCK(storage_access_mtx);
+	max_capacity = server_storage.size_limit;
+	actual_capacity = server_storage.size;
+	if(new_size > max_capacity){
+		SAFEUNLOCK(storage_access_mtx);
+		return -1;
+	}
+	SAFEUNLOCK(storage_access_mtx);
+	if(actual_capacity + new_size <= max_capacity) return 0;
+	return select_victim(caller, 0, (new_size + actual_capacity) - max_capacity);
+}
+
+
+
 static int check_count(){
-	int file_count = 0, file_limit = 0, clean_level, table_size = 0;
+	int file_count = 0, file_limit = 0;
+	file_limit = server_storage.file_limit;
 	SAFELOCK(storage_access_mtx);
 	file_count = server_storage.file_count;
-	file_limit = server_storage.file_limit;
-	table_size = 2*file_limit;
 	if(file_count + 1 < file_limit){
 		SAFEUNLOCK(storage_access_mtx);
 		return 0;
 	}
-	while(clean_level < 33){
-		for(int i = 0; i < table_size; i++){
-			if(server_storage.storage_table[i] != NULL){
-				start_write(i);
-				if(server_storage.storage_table[i]->use_stat == clean_level && server_storage.storage_table[i]->whos_locking == -1){
-					server_storage.storage_table[i]->deleted = true;
-					server_storage.storage_table[i]->size = 0;
-					free(server_storage.storage_table[i]->data);
-					server_storage.file_count -= 1;
-					server_storage.size -= server_storage.storage_table[i]->size;
-					stop_write(i);
-					SAFEUNLOCK(storage_access_mtx);
-					return 0;
-				}
-			}
-		}
-		clean_level++;
-	}
 	SAFEUNLOCK(storage_access_mtx);
-	return -1;
+	return select_victim(-1, 1, 0);
 }
 
 int init_storage(int max_file_num, int max_size){
@@ -124,6 +145,7 @@ int init_storage(int max_file_num, int max_size){
 	server_storage.max_size_reached = 0;
 	server_storage.max_file_num_reached = 0;
 	server_storage.file_count = 0;
+	server_storage.total_evictions = 0;
 	return 0;
 }
 
@@ -434,6 +456,7 @@ int remove_file(char *filename, int client_id,  server_response *response){
 	free(server_storage.storage_table[file_index]->data);
 	server_storage.storage_table[file_index]->data = NULL;
 	server_storage.storage_table[file_index]->size = 0;
+	clean_attibutes(file_index);
 	stop_write(file_index);
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	return 0;
@@ -573,6 +596,7 @@ int write_to_file(unsigned char *data, int length, char *filename, int client_id
 		stop_write(file_index);
 		SAFELOCK(storage_access_mtx);
 		server_storage.size += length;
+		if(server_storage.size > server_storage.max_size_reached)  server_storage.max_size_reached = server_storage.size;
 		pthread_cond_signal(&start_LFU_selector);
 		SAFEUNLOCK(storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
@@ -625,11 +649,12 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *filename, i
 
 		server_storage.storage_table[file_index]->size = new_data_size + old_size;
 		server_storage.storage_table[file_index]->use_stat += 1;
-		server_storage.storage_table[file_index]->last_modified = time(NULL);
+		server_storage.storage_table[file_index]->last_modified= time(NULL);
 
 		stop_write(file_index);
 		SAFELOCK(storage_access_mtx);
 		server_storage.size += new_data_size;
+		if(server_storage.size > server_storage.max_size_reached)  server_storage.max_size_reached = server_storage.size;
 		pthread_cond_signal(&start_LFU_selector);
 		SAFEUNLOCK(storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
@@ -722,6 +747,26 @@ int unlock_file(char *filename, int client_id, server_response *response){
 	return -1;
 }
 
+void print_summary(){
+	char memory[20];
+	char files[20];
+	snprintf(memory, 20, "%lu/%lu", server_storage.max_size_reached, server_storage.size_limit); 
+	snprintf(files, 20, "%u/%u", server_storage.max_file_num_reached, server_storage.file_limit); 
+	printf(ANSI_COLOR_GREEN CONF_LINE_TOP
+		"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
+		"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
+		"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, 
+		"Max Files:",	files, "Max Size:", memory, "Evictions:", 
+		server_storage.total_evictions);
+		printf("\n\n\x1b[36mFiles stored:"ANSI_COLOR_RESET);
+		puts("");
+		for (size_t i = 0; i < 2*server_storage.file_limit; i++){
+			if(server_storage.storage_table[i] != NULL && !server_storage.storage_table[i]->deleted)
+				printf(">> %s\n", server_storage.storage_table[i]->name);
+		}
+		
+}
+
 /**
  * Clean all the heap allocated memory of the storage
  * 
@@ -807,10 +852,27 @@ static unsigned int get_free_index(const char* pathname){
 	}
 }
 
-static void init_file(int id, char *filename, bool locked){
+static void init_file(int id, char *filename, bool locked){ // return 0, -1 on success or error
 	int index = get_free_index(filename);
 	SAFELOCK(storage_access_mtx);
 	server_storage.file_count += 1;
+	if(server_storage.storage_table[index] != NULL){
+		if(server_storage.storage_table[index]->name){
+			free(server_storage.storage_table[index]->name);
+			server_storage.storage_table[index]->name = NULL;
+		} 
+		server_storage.storage_table[index]->name = (char *)calloc(strlen(filename) + 1, sizeof(char));
+		CHECKALLOC(server_storage.storage_table[index]->name, "Errore inserimento nuovo file");
+		strncpy(server_storage.storage_table[index]->name, filename, strlen(filename));
+		server_storage.storage_table[index]->deleted = false;
+		if(locked) server_storage.storage_table[index]->whos_locking = id;
+		else server_storage.storage_table[index]->whos_locking = -1;
+		insert_client_file_list(&server_storage.storage_table[index]->clients_open, id);
+		server_storage.storage_table[index]->use_stat = 10;
+		server_storage.storage_table[index]->readers = 0;
+		server_storage.storage_table[index]->writers = 0;
+		return;
+	}
 	if(server_storage.file_count > server_storage.max_file_num_reached)
 		server_storage.max_file_num_reached += 1;
 	server_storage.storage_table[index] = (fssFile *) malloc(sizeof(fssFile));
@@ -863,8 +925,9 @@ void* use_stat_update(void *args){
 			SAFEUNLOCK(storage_access_mtx);
 
 			start_write(i);
-			if(server_storage.storage_table[i]->use_stat != 0 && !server_storage.storage_table[i]->deleted)
+			if(!server_storage.storage_table[i]->deleted && server_storage.storage_table[i]->use_stat != 0)
 				server_storage.storage_table[i]->use_stat -= 1;
+			if(!server_storage.storage_table[i]->deleted && server_storage.storage_table[i]->use_stat == 0 && (server_storage.storage_table[i]->last_modified - time(NULL)) > 120) server_storage.storage_table[i]->whos_locking = -1; // Automatic unlock if the file is not used for a while
 			stop_write(i);
 		}
 	}

@@ -6,7 +6,7 @@
 
 
 void printconf();
-void init(char* sockname);
+void init(char* sockname, char* config_file);
 void* connection_handler(void* com);
 void* wait_workers(void* args);
 void* refuse_connection(void* args);

@@ -1,0 +1,6 @@
+WORKERS: 1
+MAXMEM: 134217728 # 128 MBs = 134217728 bytes
+MAXFILES: 10000
+SOCKNAME: socket.sk
+LOGFILE: bin/server.log
+TUI: y

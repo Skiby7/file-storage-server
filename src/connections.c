@@ -191,8 +191,10 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 	
 end:
 	// print_storage();
-	print_storage_info();
-	add_line();
+	if(configuration.tui){
+		print_storage_info();
+		add_line();
+	} 
 	sendback_client(com, false);
 	clean_response(&response);
 	free(log_buffer);
@@ -231,14 +233,13 @@ void* worker(void* args){
 		SAFEUNLOCK(ready_queue_mtx);
 		if(com == -1) // Falso allarme
 			continue;
-		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, com);
-		add_line();
+		
 		
 		memset(&request, 0, sizeof request);
 		read_status = read_all_buffer(com, &request_buffer, &request_buffer_size);
 		if(read_status < 0){
 			if(read_status == -1){
-				sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
+				sprintf(log_buffer,"[Thread %d] Error handling client with fd %d request", whoami, com);
 				logger(log_buffer);
 			}
 			SAFELOCK(free_threads_mtx);
@@ -249,6 +250,8 @@ void* worker(void* args){
 		
 		deserialize_request(&request, &request_buffer, request_buffer_size);
 		reset_buffer(&request_buffer, &request_buffer_size);
+		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, request.client_id);
+		if(configuration.tui) add_line();
 		// puts("Deserialized request");
 		// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\nfiles_to_read: %d\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags, request.files_to_read, request.pathname,request.size);
 

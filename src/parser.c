@@ -55,11 +55,11 @@ int parseConfig(FILE *conf, config *configuration) {
 			strncpy(configuration->log, token, tokenlen);
 		}
 
-		else if(strcmp(token, "SUMMARY") == 0){
+		else if(strcmp(token, "TUI") == 0){
 			token = strtok_r(NULL, " ", &tmpstr);
 			removeChar(token);
-			if(token[0] == 'y') configuration->summary = true;
-			else configuration->summary = false;
+			if(token[0] == 'y') configuration->tui = true;
+			else configuration->tui = false;
 			
 		}
 
