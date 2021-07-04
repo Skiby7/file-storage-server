@@ -35,6 +35,7 @@ void add_line();
 extern pthread_mutex_t lines_mtx;
 extern int lines;
 
+
 bool get_ack(int com){
 	unsigned char acknowledge = 0;
 	if(safe_read(com, &acknowledge, 1) < 0) return false;
@@ -67,15 +68,44 @@ int sendback_client(int com, bool done){
 	return 0;
 }
 
+void lock_next(char* pathname, bool mutex_write){
+	int lock_com = 0, lock_id = 0;
+	server_response response;
+	char *log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
+	unsigned char* serialized_response = NULL;
+	size_t response_size = 0;
+	memset(&response, 0, sizeof(response));
+	if(pop_lock_file_list(pathname, &lock_id, &lock_com) == 0){
+					while (fcntl(lock_com, F_GETFD) != 0 ){
+						sendback_client(lock_com, true);
+						if(pop_lock_file_list(pathname, &lock_id, &lock_com) < 0)
+							free(log_buffer);
+							return;
+					}
+					
+					lock_file(pathname, lock_id, mutex_write, &response); // Add errorcheck per write su log
+					serialize_response(response, &serialized_response, &response_size);
+					safe_write(lock_com, serialized_response, response_size);
+					reset_buffer(&serialized_response, &response_size); // FIX THIS
+					
+					sendback_client(lock_com, false);
+					snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", lock_id, pathname);
+					logger(log_buffer);
+	}
+	free(log_buffer);
+	free(serialized_response);
+}
+
+
 static int handle_request(int com, client_request *request){ // -1 error in file operation -2 error responding to client
 	int exit_status = -1, lock_com = 0, lock_id = 0;
-	char *log_buffer = NULL;
+	char *log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
 	int read_index = 0, files_read = 0;
 	server_response response;
 	unsigned char* serialized_response = NULL;
 	size_t response_size = 0;
 	memset(&response, 0, sizeof(response));
-	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
+
 	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
@@ -138,7 +168,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 	else if(request->command & SET_LOCK){ // TEST THIS
 		// printf("REQUEST COMMAND: 0x%.2x\nREQUEST FLAGS: 0x%.2x\n", request->command, request->flags);
 		if(request->flags & O_LOCK){
-			exit_status = lock_file(request->pathname, request->client_id, &response);
+			exit_status = lock_file(request->pathname, request->client_id, true, &response);
 			if(exit_status == 0){
 				if(respond_to_client(com, response) < 0) return -2;
 				snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", request->client_id, request->pathname);
@@ -163,23 +193,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 			if(exit_status == 0){
 				snprintf(log_buffer, LOG_BUFF, "Client %d unlocked %s", request->client_id, request->pathname);
 				logger(log_buffer);
-				
-				if(pop_lock_file_list(request->pathname, &lock_id, &lock_com) == 0){
-					while (fcntl(lock_com, F_GETFD) != 0 ){
-						sendback_client(lock_com, true);
-						if(pop_lock_file_list(request->pathname, &lock_id, &lock_com) < 0)
-							goto end;
-					}
-					memset(&response, 0, sizeof(response));
-					lock_file(request->pathname, lock_id, &response); // Add errorcheck per write su log
-					serialize_response(response, &serialized_response, &response_size);
-					safe_write(com, serialized_response, response_size);
-					reset_buffer(&serialized_response, &response_size); // FIX THIS
-					
-					sendback_client(lock_com, false);
-					snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", lock_id, request->pathname);
-					logger(log_buffer);
-				}
+				lock_next(request->pathname, true);
 			}
 			else{
 				safe_write(com, &response, sizeof(response));

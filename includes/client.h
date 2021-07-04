@@ -3,9 +3,6 @@
 #include "common_includes.h"
 #endif
 
-
-
-
 typedef struct client_{
 	bool verbose;
 	// bool isHelp;
@@ -13,9 +10,6 @@ typedef struct client_{
 	char sockname[AF_UNIX_MAX_PATH + 1];
 	char dirname[PATH_MAX + 1];
 } client_conf;
-
-
-
 
 #define PRINT_HELP printf(ANSI_CLEAR_SCREEN"-h\t\tMostra questo messaggio\n\n" \
 			"-p\t\tAbilita le stampe di ogni operazione sullo standard output\n\n" \
@@ -31,6 +25,6 @@ typedef struct client_{
 			"-u file1[,file2]\tFile su cui rilasciare la mutex\n\n" \
 			"-c file1[,file2]\tFile da rimuovere dal server" \
 			"\n"); \
-	exit(EXIT_SUCCESS)
+		exit(EXIT_SUCCESS)
 
 

@@ -69,7 +69,7 @@ int read_n_file(int *last_index, int client_id, server_response* response);
 int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response);
 int append_to_file(unsigned char* new_data, int new_data_size, char *filename, int client_id, server_response *response);
 int remove_file(char *filename, int client_id,  server_response *response);
-int lock_file(char *filename, int client_id, server_response *response);
+int lock_file(char *filename, int client_id, bool mutex_write, server_response *response);
 int unlock_file(char *filename, int client_id, server_response *response);
 int insert_lock_file_list(char *filename, int id, int com);
 int pop_lock_file_list(char *filename, int *id, int *com);

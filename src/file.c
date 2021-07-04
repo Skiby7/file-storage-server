@@ -1,12 +1,6 @@
 #include "file.h"
 
 
-
-/** TODO:
- * - Controllare il numero di malloc e free
- * - Check del filecount in get_free_index
-*/
-
 storage server_storage;
 pthread_mutex_t storage_access_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t start_LFU_selector = PTHREAD_COND_INITIALIZER;
@@ -18,17 +12,9 @@ void start_read(int file_index);
 void start_write(int file_index);
 void stop_read(int file_index);
 void stop_write(int file_index);
-
-
-/**
- * Check whether there's enough space in memory or not
- * 
- * @param new_size size of the file to be inserted
- * @param old_size size of the file to be replaced. 0 if the new file does not overwrite anything
- * 
- * @returns 0 if the operation is successful, -1 if the file is too big or there are no locked files to remove
- *
- */
+extern int respond_to_client(int com, server_response response);
+extern int sendback_client(int com, bool done);
+extern void lock_next(char* pathname, bool mutex_write);
 
 static int compare(const void *a, const void *b) {
 	victim a1 = *(victim *)a, b1 = *(victim *)b; 
@@ -51,11 +37,33 @@ void clean_attibutes(int index){
 	}
 	if(server_storage.storage_table[index]->lock_waiters != NULL){
 		while (server_storage.storage_table[index]->lock_waiters != NULL){
+			close(server_storage.storage_table[index]->lock_waiters->com);
 			befree1 = server_storage.storage_table[index]->lock_waiters;
 			server_storage.storage_table[index]->lock_waiters = server_storage.storage_table[index]->lock_waiters->next;
 			free(befree1);
 		}
 	}
+}
+
+void empty_lock_queue(index){
+	lock_file_queue *befree = NULL;
+	server_response response;
+	memset(&response, 0, sizeof response);
+	response.code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
+	response.code[1] = ENOENT;
+	response.pathlen = strlen(server_storage.storage_table[index]->name) + 1;
+	response.pathname = (char *) calloc(response.pathlen, sizeof(char));
+	strcpy(response.pathname, server_storage.storage_table[index]->name);
+	if(server_storage.storage_table[index]->lock_waiters != NULL){
+		while (server_storage.storage_table[index]->lock_waiters != NULL){
+			respond_to_client(server_storage.storage_table[index]->lock_waiters->com, response);
+			sendback_client(server_storage.storage_table[index]->lock_waiters->com, false);
+			befree = server_storage.storage_table[index]->lock_waiters;
+			server_storage.storage_table[index]->lock_waiters = server_storage.storage_table[index]->lock_waiters->next;
+			free(befree);
+		}
+	}
+	free(response.pathname);
 }
 
 static int evict_victim(int index){
@@ -69,7 +77,7 @@ static int evict_victim(int index){
 	free(server_storage.storage_table[index]->data);
 	server_storage.storage_table[index]->data = NULL;
 	server_storage.storage_table[index]->deleted = true;
-	clean_attibutes(index);
+	empty_lock_queue(index);
 	stop_write(index);
 	return memory_freed;
 }
@@ -106,7 +114,15 @@ static int select_victim(int caller, int files_to_delete, unsigned long memory_t
 	}
 	return 0;
 }
-
+/**
+ * Check whether there's enough space in memory or not
+ * 
+ * @param new_size size of the file to be inserted
+ * @param old_size size of the file to be replaced. 0 if the new file does not overwrite anything
+ * 
+ * @returns 0 if the operation is successful, -1 if the file is too big or there are no locked files to remove
+ *
+ */
 static int check_memory(unsigned long new_size, int caller){
 	unsigned long max_capacity = 0, actual_capacity = 0;
 	SAFELOCK(storage_access_mtx);
@@ -456,7 +472,7 @@ int remove_file(char *filename, int client_id,  server_response *response){
 	free(server_storage.storage_table[file_index]->data);
 	server_storage.storage_table[file_index]->data = NULL;
 	server_storage.storage_table[file_index]->size = 0;
-	clean_attibutes(file_index);
+	empty_lock_queue(file_index);
 	stop_write(file_index);
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	return 0;
@@ -683,7 +699,7 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *filename, i
  * @returns set the response and returns 0 if successful, -1 if something went wrong
  *
  */
-int lock_file(char *filename, int client_id, server_response *response){
+int lock_file(char *filename, int client_id, bool mutex_write, server_response *response){
 	int file_index = search_file(filename);
 	if(file_index == -1){
 		response->code[0] = FILE_NOT_EXISTS | FILE_OPERATION_FAILED;
@@ -691,7 +707,7 @@ int lock_file(char *filename, int client_id, server_response *response){
 		return -1;
 	}
 	/* QUI INIZIA LO SCRITTORE */
-	start_write(file_index);
+	if(mutex_write) start_write(file_index);
 	if(server_storage.storage_table[file_index]->whos_locking == -1){
 		server_storage.storage_table[file_index]->whos_locking = client_id;
 		server_storage.storage_table[file_index]->use_stat += 1;
@@ -705,7 +721,7 @@ int lock_file(char *filename, int client_id, server_response *response){
 		response->code[1] = EINVAL;
 		return -1;
 	}
-	stop_write(file_index);
+	if(mutex_write) stop_write(file_index);
 	response->code[0] = FILE_LOCKED_BY_OTHERS | FILE_OPERATION_FAILED;
 	response->code[1] = EBUSY;
 	return -1;
@@ -927,7 +943,10 @@ void* use_stat_update(void *args){
 			start_write(i);
 			if(!server_storage.storage_table[i]->deleted && server_storage.storage_table[i]->use_stat != 0)
 				server_storage.storage_table[i]->use_stat -= 1;
-			if(!server_storage.storage_table[i]->deleted && server_storage.storage_table[i]->use_stat == 0 && (server_storage.storage_table[i]->last_modified - time(NULL)) > 120) server_storage.storage_table[i]->whos_locking = -1; // Automatic unlock if the file is not used for a while
+			if(!server_storage.storage_table[i]->deleted && server_storage.storage_table[i]->use_stat == 0 && (server_storage.storage_table[i]->last_modified - time(NULL)) > 120){
+				server_storage.storage_table[i]->whos_locking = -1; // Automatic unlock if the file is not used for a while
+				lock_next(server_storage.storage_table[i]->name, false);
+			} 
 			stop_write(i);
 		}
 	}
