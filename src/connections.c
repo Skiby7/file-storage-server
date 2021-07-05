@@ -78,9 +78,11 @@ void lock_next(char* pathname, bool mutex_write){
 	if(pop_lock_file_list(pathname, &lock_id, &lock_com) == 0){
 					while (fcntl(lock_com, F_GETFD) != 0 ){
 						sendback_client(lock_com, true);
-						if(pop_lock_file_list(pathname, &lock_id, &lock_com) < 0)
+						if(pop_lock_file_list(pathname, &lock_id, &lock_com) < 0){
 							free(log_buffer);
 							return;
+						}
+							
 					}
 					
 					lock_file(pathname, lock_id, mutex_write, &response); // Add errorcheck per write su log
@@ -98,12 +100,10 @@ void lock_next(char* pathname, bool mutex_write){
 
 
 static int handle_request(int com, client_request *request){ // -1 error in file operation -2 error responding to client
-	int exit_status = -1, lock_com = 0, lock_id = 0;
+	int exit_status = -1;
 	char *log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
 	int read_index = 0, files_read = 0;
 	server_response response;
-	unsigned char* serialized_response = NULL;
-	size_t response_size = 0;
 	memset(&response, 0, sizeof(response));
 
 	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
@@ -202,9 +202,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 			}
 		} 
 	}
-	
-end:
-	// print_storage();
+
 	if(configuration.tui){
 		print_storage_info();
 		add_line();

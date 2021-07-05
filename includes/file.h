@@ -7,57 +7,7 @@
 #define CONNECTIONS_H_
 #include "connections.h"
 #endif
-#define BITS_IN_int     ( sizeof(int) * CHAR_BIT )
-#define THREE_QUARTERS  ((int) ((BITS_IN_int * 3) / 4))
-#define ONE_EIGHTH      ((int) (BITS_IN_int / 8))
-#define HIGH_BITS       ( ~((unsigned int)(~0) >> ONE_EIGHTH ))
-
-typedef struct clients_{
-	int id;
-	struct clients_ *next;
-} open_file_client_list;
-
-typedef struct lockers_{
-	int id;
-	int com;
-	struct lockers_ *next;
-} lock_file_queue;
-
-typedef struct fssFile_{
-	char *name;
-	unsigned char *data;
-	bool deleted;
-	unsigned short use_stat;
-	open_file_client_list *clients_open;
-	lock_file_queue *lock_waiters;
-	unsigned int whos_locking;
-	unsigned long size;
-	unsigned short writers;
-	unsigned int readers;
-	time_t create_time;
-	time_t last_modified;
-	pthread_mutex_t order_mutex;
-	pthread_mutex_t access_mutex;
-	pthread_cond_t go_cond;
-} fssFile;
-
-typedef struct storage_{
-	fssFile **storage_table;
-	unsigned long size;
-	unsigned long size_limit;
-	unsigned long max_size_reached;
-	unsigned int file_count;
-	unsigned int file_limit;
-	unsigned int max_file_num_reached;
-	unsigned int total_evictions;
-} storage;
-
-typedef struct victim_{
-	unsigned int index;
-	unsigned short use_stat;
-	time_t create_time;
-	time_t last_modified;
-} victim;
+#include "storage_table.h"
 
 
 int init_storage(int max_file_num, int max_size);

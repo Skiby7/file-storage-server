@@ -62,7 +62,7 @@ int main(int argc, char* argv[]){
 		exit(EXIT_FAILURE);
 	}
 	
-	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0, poll_print = 0; // i = 0, ready_com = 0
+	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0; // i = 0, ready_com = 0
 	char buffer[PIPE_BUF]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
 	char SOCKETADDR[AF_UNIX_MAX_PATH]; // Indirizzo del socket
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));

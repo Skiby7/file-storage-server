@@ -7,7 +7,7 @@ int open_log(char *pathname){
 	logfile = NULL;
 	if((logfile = fopen(pathname, "w")) == NULL){
 		log_available = false;
-		fprintf(stderr, ANSI_COLOR_RED"Impossibile %s! La sessione non verrà registrata.\n", pathname);
+		fprintf(stderr, ANSI_COLOR_RED"Impossibile aprire %s! La sessione non verrà registrata.\n", pathname);
 		return -1;
 	}
 	log_available = true;
