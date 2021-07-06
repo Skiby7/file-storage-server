@@ -78,6 +78,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 	for (size_t i = 0; i < server_storage.file_limit; i++){
 		entry = server_storage.storage_table[i];
 		while(entry){
+			if(caller && strncmp(entry->name, caller, sizeof(entry->name)) == 0) continue;
 			start_read(entry);
 			victims[counter].pathname = (char*) calloc(strlen(entry->name)+1, sizeof(char));
 			CHECKALLOC(victims[counter].pathname, "Errore allocazione pathname select_victim");
@@ -117,26 +118,25 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
  * Check whether there's enough space in memory or not
  * 
  * @param new_size size of the file to be inserted
- * @param old_size size of the file to be replaced. 0 if the new file does not overwrite anything
  * 
  * @returns 0 if the operation is successful, -1 if the file is too big or there are no locked files to remove
  *
  */
-static int check_memory(unsigned long new_size, int caller){
-	unsigned long max_capacity = server_storage.size_limit, actual_capacity = 0;
-	if(new_size > max_capacity)
+int check_memory(unsigned long new_size, unsigned long old_size, char* caller){
+	unsigned long max_capacity = server_storage.size_limit, size_used = 0;
+	if(new_size + old_size > server_storage.size_limit)
 		return -1;
 
 	SAFELOCK(server_storage.storage_access_mtx);
-	actual_capacity = server_storage.size;
+	size_used = server_storage.size;
 	SAFEUNLOCK(server_storage.storage_access_mtx);
-	if(actual_capacity + new_size <= max_capacity) return 0;
-	return select_victim(caller, 0, (new_size + actual_capacity) - max_capacity);
+	if(size_used + new_size <= server_storage.size_limit) return 0;
+	return select_victim(caller, 0, (new_size + size_used) - server_storage.size_limit);
 }
 
 
 
-static int check_count(){
+int check_count(){
 	int file_count = 0, file_limit = 0;
 	file_limit = server_storage.file_limit;
 	SAFELOCK(server_storage.storage_access_mtx);
@@ -146,7 +146,7 @@ static int check_count(){
 		return 0;
 	}
 	SAFEUNLOCK(server_storage.storage_access_mtx);
-	return select_victim(-1, 1, 0);
+	return select_victim(NULL, 1, 0);
 }
 
 static int check_client_id(open_file_client_list *head, int id){
@@ -181,13 +181,13 @@ int create_new_entry(int id, char *filename, bool locked){
 	SAFELOCK(server_storage.storage_access_mtx);
 	new_entry = server_storage.storage_table[index];
 	
-	for (new_entry = server_storage.storage_table[index]; new_entry; new_entry = new_entry->next)
-		if(strncmp(filename, new_entry->name, strlen(filename) == 0)){
-			SAFEUNLOCK(server_storage.storage_access_mtx);
-			return -1; // Aready in
-		}
+	// for (new_entry = server_storage.storage_table[index]; new_entry; new_entry = new_entry->next)
+	// 	if(strncmp(filename, new_entry->name, strlen(filename) == 0)){
+	// 		SAFEUNLOCK(server_storage.storage_access_mtx);
+	// 		return -1; // Aready in
+	// 	}
 			
-
+	check_count();
 	// Update server_storage info
 	server_storage.file_count += 1;
 	if(server_storage.file_count > server_storage.max_file_num_reached)
@@ -218,7 +218,7 @@ int create_new_entry(int id, char *filename, bool locked){
 	new_entry->name = (char *)calloc(strlen(filename) + 1, sizeof(char));
 	CHECKALLOC(new_entry->name, "Errore inserimento nuovo file");
 	strncpy(new_entry->name, filename, strlen(filename));
-	new_entry->use_stat = 10;
+	new_entry->use_stat = 16;
 	new_entry->readers = 0;
 	new_entry->writers = 0;
 	new_entry->next = server_storage.storage_table[index];
@@ -227,16 +227,19 @@ int create_new_entry(int id, char *filename, bool locked){
 	return 0;
 }
 
-int edit_entry(int id, char *filename, unsigned char *data, size_t data_len, unsigned char op){
-	fssFile* entry = search_file(filename);
-	if(!entry){
+int write_entry(int id, char *pathname, unsigned char *data, size_t data_len, unsigned char op){
+	fssFile* entry = search_file(pathname);
+	if(!entry)
 		return -1; // ENOENT
-	}
+	
+	if(check_memory(data_len, pathname) < 2)
+		return -2; // EFBIG
+	
 	start_write(&entry);
 	if(op == WRITE){
 		if(entry->whos_locking != id || check_client_id(entry->clients_open, id) < 0 || entry->data){ // check if clients open is needed
 			stop_write(&entry);
-			return -2; // EACCESS
+			return -3; // EACCESS
 		}
 		// check storage size and evict
 		entry->data = (unsigned char *) calloc(data_len, sizeof(unsigned char));
@@ -247,9 +250,9 @@ int edit_entry(int id, char *filename, unsigned char *data, size_t data_len, uns
 		entry->use_stat += 1;
 	}
 	else if(op == APPEND){
-		if(heck_client_id(entry->clients_open, id) < 0){ // check if clients open is needed
+		if(check_client_id(entry->clients_open, id) < 0){ // check if clients open is needed
 			stop_write(&entry);
-			return -2; // EBUSY
+			return -4; // EBUSY
 		}
 		// check storage size and evict
 		entry->data = (unsigned char *) realloc(entry->data, entry->data + data_len);
@@ -267,6 +270,24 @@ int edit_entry(int id, char *filename, unsigned char *data, size_t data_len, uns
 
 	stop_write(&entry);
 	return 0;
+}
+
+int save_entry_to_buffer(int id, char *pathname, unsigned char* buffer, size_t *buffer_size){
+	fssFile* entry = search_file(pathname);
+	if(!entry)
+		return -1; // ENOENT
+	
+	start_read(&entry);
+	if(check_client_id(entry->clients_open, id) < 0){
+		stop_read(&entry);
+		return -2; // EACCESS
+	}
+		
+	if(entry->whos_locking != ){
+		start_read(&entry);
+		return -3; // 
+	}
+
 }
 
 int delete_entry(int id, char *pathname){

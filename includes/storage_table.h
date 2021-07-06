@@ -60,6 +60,10 @@ typedef struct victim_{
 	time_t last_modified;
 } victim;
 
-
-
 storage server_storage;
+
+void init_table(int max_file_num, int max_size);
+int check_memory(unsigned long new_size, char* caller);
+int check_count();
+int create_new_entry(int id, char *filename, bool locked);
+int write_entry(fssFile entry, unsigned char op);
