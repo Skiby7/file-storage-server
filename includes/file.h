@@ -7,12 +7,12 @@
 #define CONNECTIONS_H_
 #include "connections.h"
 #endif
-#include "storage_table.h"
-
 #define BITS_IN_int     ( sizeof(int) * CHAR_BIT )
 #define THREE_QUARTERS  ((int) ((BITS_IN_int * 3) / 4))
 #define ONE_EIGHTH      ((int) (BITS_IN_int / 8))
 #define HIGH_BITS       ( ~((unsigned int)(~0) >> ONE_EIGHTH ))
+
+
 
 typedef struct clients_{
 	int id;
@@ -31,7 +31,7 @@ typedef struct fssFile_{
 	unsigned short use_stat;
 	open_file_client_list *clients_open;
 	lock_file_queue *lock_waiters;
-	unsigned int whos_locking;
+	int whos_locking;
 	unsigned long size;
 	unsigned short writers;
 	unsigned int readers;
@@ -63,9 +63,7 @@ typedef struct victim_{
 	time_t last_modified;
 } victim;
 
-storage server_storage;
-
-int init_storage(int max_file_num, int max_size);
+void init_table(int max_file_num, int max_size);
 void clean_storage();
 int open_file(char *filename, int flags, int client_id, server_response *response);
 int close_file(char *filename, int client_id, server_response *response);

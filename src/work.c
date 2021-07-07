@@ -21,7 +21,7 @@ int handle_read_files(char *args, char *dirname){
 		if(retval>= 0){
 			retval = readFile(real_path, (void **)&buffer, &buff_size);
 			CHECKERRNO(retval < 0, "Errore readFile!");
-			if(config.verbose && retval >= 0) printf("Read %lu bytes from %s\n", buff_size, token);
+			if(config.verbose && retval >= 0) printf("Letti %lu bytes da %s\n", buff_size, token);
 		}
 		
 		if(dirname){
@@ -59,7 +59,7 @@ int handle_simple_request(char *args, unsigned char command){
 				CHECKERRNO(writeFile(real_path, NULL) < 0, "Errore scrittura file");
 				CHECKERRNO(closeFile(real_path) < 0, "Errore chiusura file");
 				stat(real_path, &st);
-				if(config.verbose) printf("Written %lu bytes (file: %s)\n", st.st_size, token);
+				if(config.verbose) printf("Scritti %lu bytes (file: %s)\n", st.st_size, token);
 			}
 			else if(open_file_val <= 0 && errno == EEXIST){
 				errno = 0;
@@ -102,7 +102,7 @@ int handle_simple_request(char *args, unsigned char command){
 		else if(command & DELETE_FILES){ 
 			CHECKERRNO(removeFile(real_path), "Errore delete file");
 			stat(real_path, &st);
-			if(config.verbose) printf("Deleted %s, %lu bytes freed\n", token, st.st_size);
+			if(config.verbose) printf("Rimosso %s, liberati %lu bytes\n", token, st.st_size);
 		}
 		free(real_path);
 		real_path = NULL;
@@ -145,7 +145,7 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked){
 				if(!locked) CHECKERRNO(unlockFile(real_path), "Errore unlock file");
 				CHECKERRNO(closeFile(real_path) < 0, "Errore chiusura file");
 				stat(real_path, &st);
-				if(config.verbose) printf("Written %lu bytes (file: %s)\n", st.st_size, real_path);
+				if(config.verbose) printf("Scritti %lu bytes (file: %s)\n", st.st_size, real_path);
 			}
 			else if(open_file_val <= 0 && errno == EEXIST){
 				errno = 0;
@@ -177,8 +177,6 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked){
 			files_written++;
 			free(real_path);
 		}
-		puts(ANSI_COLOR_MAGENTA"WRITING FILE"ANSI_COLOR_RESET);
-		printf("to_write: %d\nwritten: %d\n", files_to_write, files_written);
 	}
 	if (closedir(target_dir) == -1) {
 		perror("Errore chiusura cartella!");
@@ -217,7 +215,7 @@ void do_work(work_queue **head, work_queue **tail){
 	unsigned char command = 0;
 	char* args = NULL;
 	char* dirname = NULL;
-	int N = 0;
+	int N = 0, files_read = 0;
 	bool is_locked = true;
 	while((*tail)){
 		dequeue_work(&command, &args, &dirname, &is_locked, head, tail);
@@ -231,7 +229,8 @@ void do_work(work_queue **head, work_queue **tail){
 				errno = 0;
 				continue;
 			}
-			readNFile(N, dirname);
+			files_read = readNFile(N, dirname);
+			printf("Letti %d files\n", files_read);
 		}
 		else handle_simple_request(args, command);
 		free(args);

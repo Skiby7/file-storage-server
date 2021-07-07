@@ -100,9 +100,9 @@ void lock_next(char* pathname, bool mutex_write){
 
 
 static int handle_request(int com, client_request *request){ // -1 error in file operation -2 error responding to client
-	int exit_status = -1;
+	int exit_status = -1, files_read = 0;
 	char *log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
-	int read_index = 0, files_read = 0;
+	char* last_file = NULL;
 	server_response response;
 	memset(&response, 0, sizeof(response));
 
@@ -127,7 +127,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 			}
 		}
 		else{
-			while(read_n_file(&read_index, request->client_id, &response) != 1 && (!request->files_to_read || files_read < request->files_to_read)){
+			while(read_n_file(&last_file, request->client_id, &response) != 1 && (!request->files_to_read || files_read < request->files_to_read)){
 					respond_to_client(com, response);
 					get_ack(com);
 					clean_response(&response);
@@ -207,6 +207,7 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 		print_storage_info();
 		add_line();
 	} 
+	// print_storage();
 	sendback_client(com, false);
 	clean_response(&response);
 	free(log_buffer);
