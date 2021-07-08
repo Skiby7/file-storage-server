@@ -169,7 +169,7 @@ int readNFile(int N, const char* dirname){
 	char current_dir[PATH_MAX];
 	getcwd(current_dir, sizeof current_dir);
 	memset(&read_n_response, 0, sizeof(server_response));
-	init_request(&read_n_request, getpid(), READ, 0, "");
+	init_request(&read_n_request, getpid(), READ, 0, NULL);
 	read_n_request.files_to_read = N;
 	if(N <= 0) N = 0;
 	if(!dirname && dirname[0] != '/') puts(ANSI_COLOR_RED"Il path fornito non è assoluto: impossibile salvare i file!"ANSI_COLOR_RESET);

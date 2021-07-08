@@ -42,7 +42,7 @@ void printconf(){
 
 
 int main(int argc, char* argv[]){
-	printf(ANSI_CLEAR_SCREEN);
+	
 	int opt;
 	work_queue *job_queue[2];
 	job_queue[0] = NULL;
@@ -67,7 +67,7 @@ int main(int argc, char* argv[]){
 	sigaction(SIGQUIT,&sig,NULL);
 
 	
-	while ((opt = getopt(argc,argv, "hpf:r:W:w:R:d:t:l:u:c:x")) != -1) {
+	while ((opt = getopt(argc,argv, "hpf:r:W:w:R:d:t:l:u:c:xg")) != -1) {
 		switch(opt) {
 			case 'h': PRINT_HELP;
 			case 'p': 
@@ -150,12 +150,15 @@ int main(int argc, char* argv[]){
 			case 'c':
 					enqueue_work(DELETE_FILES, optarg, &job_queue[0], &job_queue[1]);
 				break;
-			case ':': {
-			printf("l'opzione '-%c' richiede un argomento\n", optopt);
-			} break;
-			case '?': {  // restituito se getopt trova una opzione non riconosciuta
-			printf("l'opzione '-%c' non e' gestita\n", optopt);
-			} break;
+			case ':': 
+				printf("l'opzione '-%c' richiede un argomento\n", optopt);
+				break;
+			case '?':  // restituito se getopt trova una opzione non riconosciuta
+				printf("l'opzione '-%c' non e' gestita\n", optopt);
+				break;
+			case 'g':
+				config.tui = true;
+				break;
 			default:;
 		}
 	}
@@ -166,7 +169,10 @@ int main(int argc, char* argv[]){
 	// 	databuffer[i] = rand()%127;
 	// }
 	if(openConnection(config.sockname, 500, abstime) < 0) return -1;
-	printconf();
+	if(config.tui){
+		printf(ANSI_CLEAR_SCREEN);
+		printconf();
+	}
 	do_work(&job_queue[0], &job_queue[1]);
 	// openFile("README.md", O_CREATE | O_LOCK);
 	// // openFile("Makefile", O_CREATE | O_LOCK);

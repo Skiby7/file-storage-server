@@ -5,10 +5,11 @@
 
 typedef struct client_{
 	bool verbose;
-	// bool isHelp;
+	bool tui;
 	time_t interval;
 	char sockname[AF_UNIX_MAX_PATH + 1];
 	char dirname[PATH_MAX + 1];
+
 } client_conf;
 
 #define PRINT_HELP printf(ANSI_CLEAR_SCREEN"-h\t\tMostra questo messaggio\n\n" \

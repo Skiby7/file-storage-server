@@ -133,12 +133,12 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 					clean_response(&response);
 					memset(&response, 0, sizeof response);
 					files_read++;
-				}
-				respond_to_client(com, response);
-				clean_response(&response);
-				snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
-				logger(log_buffer);
-				exit_status = 0;
+			}
+			respond_to_client(com, response);
+			clean_response(&response);
+			snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
+			logger(log_buffer);
+			exit_status = 0;
 		}
 	}
 	else if(request->command & WRITE){
@@ -260,9 +260,15 @@ void* worker(void* args){
 			SAFEUNLOCK(free_threads_mtx);
 			continue;
 		}
-		
+		// for (size_t i = 0; i < request_buffer_size; i++)
+		// 	printf("%.2x ", request_buffer[i]);
+		// puts("");
 		deserialize_request(&request, &request_buffer, request_buffer_size);
-		reset_buffer(&request_buffer, &request_buffer_size);
+		
+		
+
+		
+		// reset_buffer(&request_buffer, &request_buffer_size);
 		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, request.client_id);
 		if(configuration.tui) add_line();
 		// puts("Deserialized request");
