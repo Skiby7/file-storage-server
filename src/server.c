@@ -155,21 +155,6 @@ int main(int argc, char* argv[]){
 			else{
 				SAFEUNLOCK(can_accept_mtx);
 				client_accepted++;
-				// for (size_t i = 0; i < configuration.workers; i++){
-					// SAFELOCK(free_threads_mtx);
-					// if(free_threads[i]){ // Se ho un thread libero gli assegno subito il lavoro e continuo il ciclo
-					// 	SAFEUNLOCK(free_threads_mtx);
-					// 	SAFELOCK(ready_queue_mtx);
-					// 	insert_client_list(com, &ready_queue[0], &ready_queue[1]);
-					// 	pthread_cond_signal(&client_is_ready);
-					// 	SAFEUNLOCK(ready_queue_mtx);	
-					// 	break;
-					// }
-					// SAFEUNLOCK(free_threads_mtx);
-				// 	SAFELOCK(ready_queue_mtx);
-				// 	insert_client_list(com, &ready_queue[0], &ready_queue[1]);
-				// 	SAFEUNLOCK(ready_queue_mtx);	
-				// }
 				if (com_size - com_count < 3){
 						com_size = realloc_com_fd(&com_fd, com_size);
 						for (size_t i = com_count; i < com_size; i++){
@@ -322,6 +307,12 @@ int main(int argc, char* argv[]){
 	free(com_fd);
 	free(free_threads);
 	puts("comfd closed");
+	pthread_mutex_destroy(&lines_mtx);
+	pthread_mutex_destroy(&ready_queue_mtx);
+	pthread_mutex_destroy(&can_accept_mtx);
+	pthread_mutex_destroy(&log_access_mtx);
+	pthread_mutex_destroy(&free_threads_mtx);
+	pthread_cond_destroy(&client_is_ready);
 
 	return 0;
 }

@@ -260,9 +260,11 @@ void init_request(client_request* request, pid_t pid, unsigned char command, uns
 	request->client_id = pid;
 	request->command = command;
 	request->flags = flags;
-	request->pathlen = strlen(pathname) + 1;
-	request->pathname = calloc(request->pathlen, sizeof(char));
-	strncpy(request->pathname, pathname, strlen(pathname));
+	request->pathlen = pathname ? strlen(pathname) + 1 : 0;
+	if(request->pathlen){
+		request->pathname = calloc(request->pathlen, sizeof(char));
+		strncpy(request->pathname, pathname, strlen(pathname));
+	}
 }
 
 void clean_request(client_request* request){

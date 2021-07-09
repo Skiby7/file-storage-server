@@ -68,7 +68,6 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 	strncpy(open_connection_name, sockname, AF_UNIX_MAX_PATH);
 	sockaddress.sun_family = AF_UNIX;
 	socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	puts(ANSI_COLOR_CYAN "\n-> Provo a connettermi...\n" ANSI_COLOR_RESET);
 	while ((connection_status = connect(socket_fd, (struct sockaddr *)&sockaddress, sizeof(sockaddress))) == -1){
 		nanosleep(&wait_reconnect, NULL);
 		if (remaining_until_failure.tv_nsec + wait_reconnect.tv_nsec == 1e+9){
@@ -163,18 +162,21 @@ int readFile(const char *pathname, void **buf, size_t *size){
 int readNFile(int N, const char* dirname){
 	client_request read_n_request;
 	server_response read_n_response;
-	int i = 1; // First file is read outside the loop
+	bool good_path = (check_path(dirname) == 0) ? true : false;
+	int i = 0; // First file is read outside the loop
 	unsigned char* buffer = NULL;
 	size_t buff_size = 0;
 	char current_dir[PATH_MAX];
-	getcwd(current_dir, sizeof current_dir);
+	if(good_path) getcwd(current_dir, sizeof current_dir);
 	memset(&read_n_response, 0, sizeof(server_response));
 	init_request(&read_n_request, getpid(), READ, 0, NULL);
 	read_n_request.files_to_read = N;
 	if(N <= 0) N = 0;
-	if(!dirname && dirname[0] != '/') puts(ANSI_COLOR_RED"Il path fornito non è assoluto: impossibile salvare i file!"ANSI_COLOR_RESET);
+	if(!good_path) puts(ANSI_COLOR_RED"Il path fornito non è assoluto: impossibile salvare i file!"ANSI_COLOR_RESET);
 	handle_connection(read_n_request, &read_n_response);
-	if(dirname && dirname[0] == '/'){
+	if(read_n_response.size == 1 && read_n_response.code[0] == FILE_OPERATION_SUCCESS && read_n_response.data[0] == 0) return i;
+	i++;
+	if(good_path){
 		chdir(dirname);
 		save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
 		chdir(current_dir);
@@ -184,7 +186,7 @@ int readNFile(int N, const char* dirname){
 		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
 		deserialize_response(&read_n_response, &buffer, buff_size);
 		if(read_n_response.size == 1 && read_n_response.code[0] == FILE_OPERATION_SUCCESS && read_n_response.data[0] == 0) break;
-		if(dirname && dirname[0] == '/'){
+		if(good_path){
 			chdir(dirname);
 			save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
 			chdir(current_dir);

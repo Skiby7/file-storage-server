@@ -3,4 +3,4 @@ MAXMEM: 1048576 # 1 MB = 1048576 bytes
 MAXFILES: 10
 SOCKNAME: socket.sk
 LOGFILE: bin/server.log
-TUI: y
+TUI: n

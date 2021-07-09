@@ -52,8 +52,22 @@ int handle_simple_request(char *args, unsigned char command){
 	
 	while(token){
 		real_path = realpath(token, NULL);
+		if(!real_path){
+			fprintf(stderr, ANSI_COLOR_RED"Pathname %s non valido!"ANSI_COLOR_RESET_N, token);
+			token = strtok_r(NULL, DELIM, &tmpstr);
+
+			continue;
+		} 
 		errno = 0;
 		if(command & WRITE_FILES){ 
+			if((file = open(real_path, O_RDONLY)) == -1){
+				perror("Errore durante l'apertura del file");
+				free(real_path);
+				real_path = NULL;
+				token = strtok_r(NULL, DELIM, &tmpstr);
+				continue;
+			}
+			close(file);
 			open_file_val = openFile(real_path, O_CREATE | O_LOCK);
 			if(open_file_val >= 0){
 				CHECKERRNO(writeFile(real_path, NULL) < 0, "Errore scrittura file");
@@ -64,15 +78,24 @@ int handle_simple_request(char *args, unsigned char command){
 			else if(open_file_val <= 0 && errno == EEXIST){
 				errno = 0;
 				if(openFile(real_path, 0) < 0){
-					perror("Errore apertura file!");
+					perror("Errore apertura file");
+					free(real_path);
+					real_path = NULL;
+					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
 				if((file = open(real_path, O_RDONLY)) == -1){
 					perror("Errore durante l'apertura del file");
+					free(real_path);
+					real_path = NULL;
+					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
 				if(fstat(file, &st) < 0){
 					perror("Errore fstat");
+					free(real_path);
+					real_path = NULL;	
+					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
 				size = st.st_size;
@@ -85,7 +108,10 @@ int handle_simple_request(char *args, unsigned char command){
 				buffer = NULL;
 			}
 			else{
-				perror("Errore apertura file!");
+				perror("Errore apertura file");
+				free(real_path);
+				real_path = NULL;
+				token = strtok_r(NULL, DELIM, &tmpstr);
 				continue;
 			}
 		}
@@ -114,7 +140,8 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked){
 	DIR* target_dir = NULL;
 	struct stat dirent_info, st;
     struct dirent* current_file;
-	char *real_path = NULL;
+	char real_path[PATH_MAX] = {0};
+	char filePath[PATH_MAX] = {0};
 	int files_written = 0, rec_visit = 0, open_file_val = 0, file = 0;
 	size_t size = 0;
 	unsigned char *buffer = NULL;
@@ -124,15 +151,18 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked){
 	}
 	errno = 0;
 	while((current_file = readdir(target_dir)) && (!files_to_write || files_written < files_to_write)){
+		memset(filePath, 0, sizeof filePath);
+		memset(real_path, 0, sizeof real_path);
 		if(errno && !current_file) return -1; 
 		if(strcmp(current_file->d_name, ".") == 0 || strcmp(current_file->d_name, "..") == 0) continue;
-		real_path = realpath(current_file->d_name, NULL);
+		snprintf(filePath, PATH_MAX-1, "%s/%s", start_dir, current_file->d_name);
+		realpath(filePath, real_path);
 	 	if (stat(real_path, &dirent_info) == -1) {
             perror("Errore recupero informazioni del file!");
 			continue;
         }
 		if(S_ISDIR(dirent_info.st_mode)){
-			rec_visit = recursive_visit(start_dir, files_to_write - files_written, locked);
+			rec_visit = recursive_visit(real_path, files_to_write - files_written, locked);
 			if(rec_visit < 0) return -1;
 			files_written += rec_visit;
 		}
@@ -174,7 +204,6 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked){
 				continue;
 			}
 			files_written++;
-			free(real_path);
 		}
 	}
 	if (closedir(target_dir) == -1) {

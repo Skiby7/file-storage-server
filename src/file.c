@@ -325,15 +325,15 @@ int close_file(char *filename, int client_id, server_response *response){
 	return 0;
 }
 
-int delete_entry(int id, char *pathname){
+int delete_entry(int id, char *pathname, bool server_mutex_lock){
 	unsigned int index = hash_pjw(pathname);
 	fssFile* entry = NULL;
 	fssFile* prev = NULL;
-	SAFELOCK(server_storage.storage_access_mtx);
+	if(server_mutex_lock) SAFELOCK(server_storage.storage_access_mtx);
 	for (entry = server_storage.storage_table[index]; entry; prev = entry, entry = entry->next){
 		start_write(entry);
 		if(strncmp(pathname, entry->name, strlen(pathname)) == 0){
-			if(entry->whos_locking == id){
+			if(entry->whos_locking == id || entry->whos_locking == -2){
 				entry->name = (char *) realloc(entry->name, 11);
 				strncpy(entry->name, "deleted", 10);
 				server_storage.file_count -= 1;
@@ -348,12 +348,12 @@ int delete_entry(int id, char *pathname){
 				break;
 			}
 			stop_write(entry);
-			SAFEUNLOCK(server_storage.storage_access_mtx);
+			if(server_mutex_lock) SAFEUNLOCK(server_storage.storage_access_mtx);
 			return -1; // EACCESS
 		}
 		stop_write(entry);
 	}
-	SAFEUNLOCK(server_storage.storage_access_mtx);
+	if(server_mutex_lock) SAFEUNLOCK(server_storage.storage_access_mtx);
 	if(!entry){
 		return -2; // ENOENT
 	}
@@ -379,7 +379,7 @@ int delete_entry(int id, char *pathname){
  */
 int remove_file(char *filename, int client_id,  server_response *response){
 	fssFile* file = search_file(filename);
-	int exit_status = delete_entry(client_id, filename);
+	int exit_status = delete_entry(client_id, filename, true);
 	if(exit_status == -1){
 		stop_write(file);
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
@@ -757,27 +757,34 @@ void print_storage(){
 	SAFEUNLOCK(server_storage.storage_access_mtx);
 }
 
+void destroy_table_entry(fssFile* entry){
+	if(!entry) return;
+	puts(entry->name);
+	destroy_table_entry(entry->next);
+	clean_attributes(entry, true);
+	if(entry->data) free(entry->data);
+	free(entry->name);
+	pthread_mutex_destroy(&entry->access_mutex);
+	pthread_mutex_destroy(&entry->order_mutex);
+	pthread_cond_destroy(&entry->go_cond);
+	if(entry->next) free(entry->next);
+}
+
 /**
  * Clean all the heap allocated memory of the storage
  * 
  */
 void clean_storage(){
-	fssFile* entry = NULL;
-	fssFile* befree = NULL;
+	
 	for(int i = 0; i < server_storage.file_limit; i++){
-		if(server_storage.storage_table[i] != NULL){
-			entry = server_storage.storage_table[i];
-			while(entry){
-				clean_attributes(entry, true);
-				free(entry->data);
-				free(entry->name);
-				befree = entry;
-				free(befree);
-				entry = entry->next;
-			}
-			
+		if(server_storage.storage_table[i]){
+			puts(server_storage.storage_table[i]->name);
+			destroy_table_entry(server_storage.storage_table[i]);
+			free(server_storage.storage_table[i]);
 		}
 	}
+	pthread_mutex_destroy(&server_storage.storage_access_mtx);
+	pthread_cond_destroy(&start_LFU_selector);
 	free(server_storage.storage_table);
 }
 
@@ -907,6 +914,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 			victims[counter].size = entry->size;
 			stop_read(entry);
 			counter++;
+			entry = entry->next;
 		}
 	}
 	if(server_mutex_lock) SAFEUNLOCK(server_storage.storage_access_mtx);
@@ -914,7 +922,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 	
 	qsort(victims, counter, sizeof(victim), compare);
 	if(files_to_delete){
-		delete_entry(-1, victims[0].pathname);
+		delete_entry(-2, victims[0].pathname, false);
 		for (int i = 0; i < counter; i++)
 			free(victims->pathname);
 		
@@ -922,7 +930,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 		return 0;
 	}
 	while(j < counter && memory_freed < memory_to_free){
-		delete_entry(-1, victims[0].pathname);
+		delete_entry(-2, victims[0].pathname, false);
 		memory_freed = victims[j].size;
 		j++;
 	}
