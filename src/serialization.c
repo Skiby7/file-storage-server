@@ -43,11 +43,9 @@ int serialize_request(client_request request, unsigned char** buffer, unsigned l
 	int increment = 0;
 	unsigned char tmp_int[sizeof(unsigned int)];
 	unsigned char tmp_long[sizeof(unsigned long)];
-
+	// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
 	*buffer_len = sizeof(request.client_id) + sizeof(request.command) + sizeof(request.flags) + sizeof(request.files_to_read) + sizeof(request.pathlen) + request.pathlen + sizeof(request.size) + request.size;
 	(*buffer) = (unsigned char *) calloc(*buffer_len, sizeof(unsigned char));
-	// printf("serialize_request packet_size = %lu\n", *buffer_len);
-	// ulong_to_char(*buffer_len, &tmp_long);
 
 	uint_to_char(request.client_id, tmp_int);
 	memcpy(*buffer, tmp_int, sizeof(request.client_id));
@@ -65,8 +63,10 @@ int serialize_request(client_request request, unsigned char** buffer, unsigned l
 	increment += sizeof(request.files_to_read);
 
 	uint_to_char(request.pathlen, tmp_int);
+
 	memcpy(*buffer + increment, tmp_int, sizeof(request.pathlen));
 	increment += sizeof(request.pathlen);
+	
 	if(request.pathlen){
 		memcpy(*buffer + increment, request.pathname, request.pathlen);
 		increment += request.pathlen;

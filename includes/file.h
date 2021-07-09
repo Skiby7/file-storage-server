@@ -63,6 +63,10 @@ typedef struct victim_{
 	time_t last_modified;
 } victim;
 
+
+
+
+
 void init_table(int max_file_num, int max_size);
 void clean_storage();
 int open_file(char *filename, int flags, int client_id, server_response *response);

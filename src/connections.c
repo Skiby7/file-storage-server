@@ -72,30 +72,22 @@ void lock_next(char* pathname, bool mutex_write){
 	int lock_com = 0, lock_id = 0;
 	server_response response;
 	char *log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
-	unsigned char* serialized_response = NULL;
-	size_t response_size = 0;
-	memset(&response, 0, sizeof(response));
+	memset(&response, 0, sizeof response);
 	if(pop_lock_file_list(pathname, &lock_id, &lock_com) == 0){
-					while (fcntl(lock_com, F_GETFD) != 0 ){
-						sendback_client(lock_com, true);
-						if(pop_lock_file_list(pathname, &lock_id, &lock_com) < 0){
-							free(log_buffer);
-							return;
-						}
-							
-					}
-					
-					lock_file(pathname, lock_id, mutex_write, &response); // Add errorcheck per write su log
-					serialize_response(response, &serialized_response, &response_size);
-					safe_write(lock_com, serialized_response, response_size);
-					reset_buffer(&serialized_response, &response_size); // FIX THIS
-					
-					sendback_client(lock_com, false);
-					snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", lock_id, pathname);
-					logger(log_buffer);
+		while (fcntl(lock_com, F_GETFD) != 0 ){
+			sendback_client(lock_com, true);
+			if(pop_lock_file_list(pathname, &lock_id, &lock_com) < 0){
+				free(log_buffer);
+				return;
+			}
+		}
+		
+		lock_file(pathname, lock_id, mutex_write, &response); // Add errorcheck per write su log
+		respond_to_client(lock_com, response);
+		sendback_client(lock_com, false);
+		snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", lock_id, pathname);
 	}
 	free(log_buffer);
-	free(serialized_response);
 }
 
 
@@ -196,8 +188,9 @@ static int handle_request(int com, client_request *request){ // -1 error in file
 				lock_next(request->pathname, true);
 			}
 			else{
-				safe_write(com, &response, sizeof(response));
-				snprintf(log_buffer, LOG_BUFF, "Client %d failed locking %s with error %s", request->client_id, request->pathname, strerror(response.code[1]));
+				respond_to_client(com, response);
+				safe_write(com, &response, sizeof response);
+				snprintf(log_buffer, LOG_BUFF, "Client %d failed unlocking %s with error %s", request->client_id, request->pathname, strerror(response.code[1]));
 				logger(log_buffer);
 			}
 		} 
@@ -264,12 +257,10 @@ void* worker(void* args){
 		// 	printf("%.2x ", request_buffer[i]);
 		// puts("");
 		deserialize_request(&request, &request_buffer, request_buffer_size);
-		
-		
 
 		
 		// reset_buffer(&request_buffer, &request_buffer_size);
-		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d\n"ANSI_COLOR_RESET, whoami, request.client_id);
+		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d"ANSI_COLOR_RESET_N, whoami, request.client_id);
 		if(configuration.tui) add_line();
 		// puts("Deserialized request");
 		// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\nfiles_to_read: %d\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags, request.files_to_read, request.pathname,request.size);

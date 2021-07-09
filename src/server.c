@@ -24,16 +24,11 @@ int done_fd_pipe[2]; // 1 lettura, 0 scrittura
 extern void* worker(void* args);
 pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-/** TODO:
- * - Riguardare pthread join per far terminare i thread
- * - Implementare il protocollo richiesta risposta in modo che un thread non si blocchi sulla read indefinitamente, altrimenti a seguito di una cancellazione non termina
- * - Done client list
- * 
- * 
- * 
- * 
- *
-*/
+extern storage server_storage;
+extern pthread_cond_t start_LFU_selector;
+
+
+
 
 void func(clients_list *head){
 	while (head != NULL){
@@ -297,23 +292,14 @@ int main(int argc, char* argv[]){
 	pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
 	SAFEUNLOCK(ready_queue_mtx);
 	
-	// for (int i = 0; i < configuration.workers; i++){
-	// 	SAFELOCK(free_threads_mtx);
-	// 	if(!free_threads[i]){
-	// 		SAFEUNLOCK(free_threads_mtx);
-	// 		// printf("Dentro cancel\n");
-	// 		// CHECKEXIT(pthread_cancel(workers[i]) != 0, false, "Errore durante la cancellazione dei workers attivi");
-	// 		printf("%d\n", pthread_cancel(workers[i]));
-	// 		puts("Cancelling");
-	// 	}
-	// 	SAFEUNLOCK(free_threads_mtx);
-	// }
 	
 	for (int i = 0; i < configuration.workers; i++){
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
 	}
 	CHECKEXIT(pthread_join(signal_handler_thread, NULL) != 0, false, "Errore durante il join dei workers");
-	CHECKEXIT(pthread_cancel(use_stat_thread) != 0, false, "Errore durante la cancellazione dei workers attivi");
+	SAFELOCK(server_storage.storage_access_mtx);
+	pthread_cond_broadcast(&start_LFU_selector); // sveglio tutti i thread
+	SAFEUNLOCK(server_storage.storage_access_mtx);
 	CHECKEXIT(pthread_join(use_stat_thread, NULL) != 0, false, "Errore durante la cancellazione dei workers attivi");
 	for (size_t i = 0; i < com_size; i++){
 			if(com_fd[i].fd != 0)

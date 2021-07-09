@@ -1,6 +1,5 @@
 #include "file.h"
 
-pthread_cond_t start_LFU_selector = PTHREAD_COND_INITIALIZER;
 static int create_new_entry(int id, char *pathname, int flags);
 static fssFile* search_file(const char* pathname);
 static unsigned int hash_pjw(const void* key);
@@ -14,7 +13,10 @@ void stop_write(fssFile* entry);
 extern int respond_to_client(int com, server_response response);
 extern int sendback_client(int com, bool done);
 extern void lock_next(char* pathname, bool mutex_write);
+extern pthread_mutex_t abort_connections_mtx;
+extern bool abort_connections;
 storage server_storage;
+pthread_cond_t start_LFU_selector = PTHREAD_COND_INITIALIZER;
 
 
 
@@ -117,9 +119,10 @@ int insert_lock_file_list(char *pathname, int id, int com){
  */
 int pop_lock_file_list(char *pathname, int *id, int *com){
 	fssFile* file = search_file(pathname);
+	lock_file_queue *scanner = NULL;
 	if(!file) return -1;
 	start_write(file);
-	lock_file_queue *scanner = file->lock_waiters;
+	scanner = file->lock_waiters;
 	if(scanner == NULL){
 		stop_write(file);
 		return -1;
@@ -329,12 +332,19 @@ int delete_entry(int id, char *pathname){
 	SAFELOCK(server_storage.storage_access_mtx);
 	for (entry = server_storage.storage_table[index]; entry; prev = entry, entry = entry->next){
 		start_write(entry);
-		if(strncmp(pathname, entry->name, strlen(pathname) == 0)){
+		if(strncmp(pathname, entry->name, strlen(pathname)) == 0){
 			if(entry->whos_locking == id){
 				entry->name = (char *) realloc(entry->name, 11);
 				strncpy(entry->name, "deleted", 10);
+				server_storage.file_count -= 1;
+				server_storage.size -= entry->size;
 				stop_write(entry);
-				SAFEUNLOCK(server_storage.storage_access_mtx);
+				if(!prev) server_storage.storage_table[index] = entry->next;
+				else{
+					start_write(prev);
+					prev->next = entry->next;
+					stop_write(prev);
+				}
 				break;
 			}
 			stop_write(entry);
@@ -347,16 +357,6 @@ int delete_entry(int id, char *pathname){
 	if(!entry){
 		return -2; // ENOENT
 	}
-	if(!prev){
-		SAFELOCK(server_storage.storage_access_mtx);
-		server_storage.storage_table[index] = entry->next;
-		SAFEUNLOCK(server_storage.storage_access_mtx);
-	}
-	else prev->next = entry->next;
-	SAFELOCK(server_storage.storage_access_mtx);
-	server_storage.file_count -= 1;
-	server_storage.size -= entry->size;
-	SAFEUNLOCK(server_storage.storage_access_mtx);
 	free(entry->name);
 	if(entry->data) free(entry->data);
 	CHECKSCEXIT(pthread_mutex_destroy(&entry->access_mutex), false, "Errore pthread_mutex_destroy");
@@ -689,7 +689,7 @@ int unlock_file(char *pathname, int client_id, server_response *response){
 	}
 	else if(file->whos_locking != client_id){
 		stop_write(file);
-		response->code[0] = FILE_LOCKED_BY_OTHERS;
+		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
 		response->code[1] = EBUSY;
 		return -1;
 	}
@@ -971,6 +971,13 @@ void* use_stat_update(void *args){
 	while(true){
 		SAFELOCK(server_storage.storage_access_mtx);
 		pthread_cond_wait(&start_LFU_selector, &server_storage.storage_access_mtx);
+		SAFELOCK(abort_connections_mtx);
+		if(abort_connections){
+			SAFEUNLOCK(abort_connections_mtx);
+			SAFEUNLOCK(server_storage.storage_access_mtx);
+			return (void *) 0;
+		}
+		SAFEUNLOCK(abort_connections_mtx);
 		for(int i = 0; i < server_storage.file_limit; i++){
 			if(server_storage.storage_table[i] == NULL) continue;
 

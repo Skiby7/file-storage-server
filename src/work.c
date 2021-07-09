@@ -100,9 +100,8 @@ int handle_simple_request(char *args, unsigned char command){
 
 		}
 		else if(command & DELETE_FILES){ 
-			CHECKERRNO(removeFile(real_path), "Errore delete file");
-			stat(real_path, &st);
-			if(config.verbose) printf("Rimosso %s, liberati %lu bytes\n", token, st.st_size);
+			CHECKERRNO(removeFile(real_path) < 0, "Errore remove file");
+			if(config.verbose) printf("Rimosso %s\n", token);
 		}
 		free(real_path);
 		real_path = NULL;

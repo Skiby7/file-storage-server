@@ -51,6 +51,7 @@
 #define ANSI_COLOR_MAGENTA "\x1b[35m"
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
+#define ANSI_COLOR_RESET_N   "\x1b[0m\n"
 #define ANSI_CLEAR_SCREEN "\033[2J\033[H"
 
 #define CONF_LINE "├────────────────────────────────────┤\n"
