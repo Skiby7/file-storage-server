@@ -22,6 +22,8 @@ int handle_read_files(char *args, char *dirname){
 			retval = readFile(real_path, (void **)&buffer, &buff_size);
 			CHECKERRNO(retval < 0, "Errore readFile!");
 			if(config.verbose && retval >= 0) printf("Letti %lu bytes da %s\n", buff_size, token);
+			retval = closeFile(real_path);
+			CHECKERRNO(retval < 0, "Errore closeFile!");
 		}
 		
 		if(dirname){

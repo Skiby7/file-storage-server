@@ -57,7 +57,7 @@ int main(int argc, char* argv[]){
 		exit(EXIT_FAILURE);
 	}
 	
-	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0; // i = 0, ready_com = 0
+	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, clients_active = 0, max_clients_active = 0; // i = 0, ready_com = 0
 	char buffer[PIPE_BUF]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
 	char SOCKETADDR[AF_UNIX_MAX_PATH]; // Indirizzo del socket
 	char log_buffer[200] = {0};
@@ -155,7 +155,8 @@ int main(int argc, char* argv[]){
 			}
 			else{
 				SAFEUNLOCK(can_accept_mtx);
-				client_accepted++;
+				clients_active++;
+				if (clients_active > max_clients_active) max_clients_active = clients_active;
 				if (com_size - com_count < 3){
 						com_size = realloc_com_fd(&com_fd, com_size);
 						for (size_t i = com_count; i < com_size; i++){
@@ -205,7 +206,7 @@ int main(int argc, char* argv[]){
 				// printf("ARRIVED %d in done_pipe\n", tmp);
 
 				CHECKERRNO(close(tmp) < 0, "Errore chiusura done queue pipe");
-				client_closed++;
+				clients_active--;
 				continue;
 			}
 		}
@@ -241,7 +242,7 @@ int main(int argc, char* argv[]){
 		}
 		
 		SAFELOCK(can_accept_mtx);
-		if(!can_accept && client_accepted == client_closed){
+		if(!can_accept && !clients_active){
 			puts("waiting");
 			SAFEUNLOCK(can_accept_mtx);
 			while (!thread_finished){
@@ -292,7 +293,13 @@ int main(int argc, char* argv[]){
 			if(com_fd[i].fd != 0)
 				close(com_fd[i].fd);
 	}
+	sprintf(log_buffer, "Max size reached: %lu", server_storage.max_size_reached);
+	write_to_log(log_buffer);
+	sprintf(log_buffer, "Max file num reached: %d", server_storage.max_file_num_reached);
+	write_to_log(log_buffer);
 	sprintf(log_buffer, "Total evictions: %d", server_storage.total_evictions);
+	write_to_log(log_buffer);
+	sprintf(log_buffer, "Max clients active at same time: %d", max_clients_active);
 	write_to_log(log_buffer);
 	close_log();
 	close(socket_fd);

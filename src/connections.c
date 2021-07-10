@@ -82,31 +82,51 @@ void lock_next(char* pathname, bool mutex_write){
 			}
 		}
 		
-		lock_file(pathname, lock_id, mutex_write, &response); // Add errorcheck per write su log
+		if(lock_file(pathname, lock_id, mutex_write, &response) < 0){
+			snprintf(log_buffer, LOG_BUFF, "Client %d, error locking %s", lock_id, pathname);
+			logger(log_buffer);
+		}
+		else{
+			snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", lock_id, pathname);
+			logger(log_buffer);
+		} 	
 		respond_to_client(lock_com, response);
 		sendback_client(lock_com, false);
-		snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", lock_id, pathname);
+	
 	}
 	free(log_buffer);
 }
 
 
-static int handle_request(int com, client_request *request){ // -1 error in file operation -2 error responding to client
+static int handle_request(int com, int thread, client_request *request){ // -1 error in file operation -2 error responding to client
 	int exit_status = -1, files_read = 0;
 	char *log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
 	char* last_file = NULL;
 	server_response response;
 	memset(&response, 0, sizeof(response));
-
+	sprintf(log_buffer, "[ Thread %d ] Serving client %d", thread, request->client_id);
+	logger(log_buffer);
 	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
 		if(respond_to_client(com, response) < 0) return -2;
+		
+		if(request->flags & O_LOCK){
+			snprintf(log_buffer, LOG_BUFF, "Client %d open-locked %s",request->client_id, request->pathname);
+			logger(log_buffer);
+
+		} 
+		else{
+			snprintf(log_buffer, LOG_BUFF, "Client %d opened %s",request->client_id, request->pathname);
+			logger(log_buffer);
+		}
 			
 	}
 	else if(request->command & CLOSE){
 		exit_status = close_file(request->pathname, request->client_id, &response); 
 		if(respond_to_client(com, response) < 0) return -2;
+		snprintf(log_buffer, LOG_BUFF, "Client %d closed %s",request->client_id, request->pathname);
+		logger(log_buffer);
 			
 	}
 	else if(request->command & READ){
@@ -265,9 +285,8 @@ void* worker(void* args){
 		// puts("Deserialized request");
 		// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\nfiles_to_read: %d\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags, request.files_to_read, request.pathname,request.size);
 
-		request_status = handle_request(com, &request); // Response is set and log is updated
+		request_status = handle_request(com, whoami, &request); // Response is set and log is updated
 		// printf("REQUEST COMMAND: 0x%.2x\nREQUEST STATUS: %d\n",request.command, request_status);
-
 		clean_request(&request);
 		
 		if(request_status < 0){
@@ -320,7 +339,6 @@ bool send_ack(int com){
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
 	client_request request;
-	char* log_buffer;
 	memset(&request, 0, sizeof request);
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	memset(packet_size_buff, 0, sizeof(unsigned long));
@@ -331,10 +349,6 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	if(*buff_size == 0) {
 		// puts(ANSI_COLOR_BLUE"QUIT REQUEST"ANSI_COLOR_RESET);
 		sendback_client(com, true);
-		log_buffer = (char *) calloc(LOG_BUFF, sizeof(char));
-		snprintf(log_buffer, LOG_BUFF, "Com %d closed", com);
-		logger(log_buffer);
-		free(log_buffer);
 		return -2;
 	}
 	if(!send_ack(com)) return -1;
