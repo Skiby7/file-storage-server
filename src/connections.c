@@ -260,8 +260,8 @@ void* worker(void* args){
 
 		
 		// reset_buffer(&request_buffer, &request_buffer_size);
-		printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d"ANSI_COLOR_RESET_N, whoami, request.client_id);
-		if(configuration.tui) add_line();
+		// printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d"ANSI_COLOR_RESET_N, whoami, request.client_id);
+		// if(configuration.tui) add_line();
 		// puts("Deserialized request");
 		// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\nfiles_to_read: %d\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags, request.files_to_read, request.pathname,request.size);
 

@@ -60,6 +60,7 @@ int main(int argc, char* argv[]){
 	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, client_accepted = 0, client_closed = 0; // i = 0, ready_com = 0
 	char buffer[PIPE_BUF]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
 	char SOCKETADDR[AF_UNIX_MAX_PATH]; // Indirizzo del socket
+	char log_buffer[200] = {0};
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));
 	nfds_t com_count = 0;
 	nfds_t com_size = DEFAULTFDS;
@@ -264,7 +265,8 @@ int main(int argc, char* argv[]){
 	SAFELOCK(log_access_mtx);
 	write_to_log("Server stopped");
 	SAFEUNLOCK(log_access_mtx);
-	close_log();
+	
+	
 	
 	SAFELOCK(abort_connections_mtx);
 	if(!abort_connections){
@@ -290,7 +292,9 @@ int main(int argc, char* argv[]){
 			if(com_fd[i].fd != 0)
 				close(com_fd[i].fd);
 	}
-	
+	sprintf(log_buffer, "Total evictions: %d", server_storage.total_evictions);
+	write_to_log(log_buffer);
+	close_log();
 	close(socket_fd);
 	close(good_fd_pipe[0]);
 	close(good_fd_pipe[1]);

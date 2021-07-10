@@ -59,3 +59,11 @@ work.o:
 
 clean: 
 		$(RM) build/* src/*.h.gch bin/client bin/server
+
+test1: client server
+	./test/test1.sh
+	./statistiche.sh bin/server.log
+
+test2: client server
+	./test/test2.sh
+	./statistiche.sh bin/server.log

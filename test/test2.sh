@@ -1,6 +1,6 @@
 #!/bin/bash
 
-bin/server bin/config1.txt &
+bin/server bin/config2.txt &
 
 export SERVER=$!
 
@@ -11,11 +11,11 @@ bash -c "sleep 5 && kill -1 ${SERVER}" &
 STOP_SERVER=$!
 sleep 1
 # Write some files
-bin/client -f /tmp/socket.sk -W test/large_files/large_0.txt -u test/large_files/large_0.txt -p
+bin/client -f /tmp/socket.sk -W test/test_2/initial_file_0.txt -u test/test_2/initial_file_0.txt  -p  
 
-bin/client -f /tmp/socket.sk -r /home/leonardo/Documents/SO/Project/file-storage-server/test/large_files/large_0.txt -p 
-
-
+bin/client -f /tmp/socket.sk -r /home/leonardo/Documents/SO/Project/file-storage-server/test/test_2/initial_file_0.txt -p 
+sleep 2
+bin/client -f /tmp/socket.sk -w test/small_files, 10 -x -p
 
 
 

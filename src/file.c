@@ -333,12 +333,13 @@ int delete_entry(int id, char *pathname, bool server_mutex_lock){
 	for (entry = server_storage.storage_table[index]; entry; prev = entry, entry = entry->next){
 		start_write(entry);
 		if(strncmp(pathname, entry->name, strlen(pathname)) == 0){
-			if(entry->whos_locking == id || entry->whos_locking == -2){
+			if(entry->whos_locking == id || id == -2 || entry->whos_locking == -1){
 				entry->name = (char *) realloc(entry->name, 11);
 				strncpy(entry->name, "deleted", 10);
+				stop_write(entry);
 				server_storage.file_count -= 1;
 				server_storage.size -= entry->size;
-				stop_write(entry);
+				
 				if(!prev) server_storage.storage_table[index] = entry->next;
 				else{
 					start_write(prev);
@@ -723,8 +724,7 @@ void print_summary(){
 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, 
 		"Max Files:",	files, "Max Size:", memory, "Evictions:", 
 		server_storage.total_evictions);
-		printf("\n\n\x1b[36mFiles stored:"ANSI_COLOR_RESET);
-		puts("");
+		printf("\n\x1b[36mFile rimasti in memoria :"ANSI_COLOR_RESET_N);
 		for (size_t i = 0; i < server_storage.file_limit; i++){
 			if(server_storage.storage_table[i] != NULL){
 				file = server_storage.storage_table[i];
@@ -759,7 +759,6 @@ void print_storage(){
 
 void destroy_table_entry(fssFile* entry){
 	if(!entry) return;
-	puts(entry->name);
 	destroy_table_entry(entry->next);
 	clean_attributes(entry, true);
 	if(entry->data) free(entry->data);
@@ -778,7 +777,6 @@ void clean_storage(){
 	
 	for(int i = 0; i < server_storage.file_limit; i++){
 		if(server_storage.storage_table[i]){
-			puts(server_storage.storage_table[i]->name);
 			destroy_table_entry(server_storage.storage_table[i]);
 			free(server_storage.storage_table[i]);
 		}
@@ -899,7 +897,6 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 	if(server_mutex_lock) SAFELOCK(server_storage.storage_access_mtx);
 	victims = (victim *) calloc(server_storage.file_count, sizeof(victim));
 	server_storage.total_evictions += 1;
-	printf("SIZE: %d\n", server_storage.file_limit);
 	for (size_t i = 0; i < server_storage.file_limit; i++){
 		entry = server_storage.storage_table[i];
 		while(entry){
@@ -924,7 +921,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 	if(files_to_delete){
 		delete_entry(-2, victims[0].pathname, false);
 		for (int i = 0; i < counter; i++)
-			free(victims->pathname);
+			free(victims[i].pathname);
 		
 		free(victims);
 		return 0;
