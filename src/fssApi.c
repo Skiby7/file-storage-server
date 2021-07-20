@@ -76,7 +76,7 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 		}
 		else
 			remaining_until_failure.tv_nsec += wait_reconnect.tv_nsec;
-		printf(ANSI_COLOR_RED "\033[ATentativo %d fallito...\n" ANSI_COLOR_RESET, i++);
+		printf(ANSI_COLOR_RED "\033[ATentativo %d fallito..." ANSI_COLOR_RESET_N, i++);
 		if (remaining_until_failure.tv_nsec == abstime.tv_nsec && remaining_until_failure.tv_sec == abstime.tv_sec){
 			printf(ANSI_COLOR_RED "Connection timeout\n" ANSI_COLOR_RESET);
 			errno = ETIMEDOUT;
@@ -94,7 +94,7 @@ int closeConnection(const char *sockname){
 		return -1;
 	}
 	unsigned char packet_size_buff[sizeof(unsigned long)];
-	ulong_to_char(0, packet_size_buff);
+	ulong_to_char(0, packet_size_buff);	
 	writen(socket_fd, packet_size_buff, sizeof packet_size_buff);
 	return close(socket_fd);
 	
@@ -302,12 +302,12 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	memset(packet_size_buff, 0, sizeof(unsigned long));
-	if (read(com, packet_size_buff, sizeof packet_size_buff) < 0)
+	if (readn(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
 	*buff_size = char_to_ulong(packet_size_buff);
 	if(!send_ack(com)) return -1;
 	*buffer = realloc(*buffer, *buff_size);
-	read_bytes = read(com, *buffer, *buff_size);
+	read_bytes = readn(com, *buffer, *buff_size);
 	return read_bytes;
 }
 

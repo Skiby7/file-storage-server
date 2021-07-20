@@ -39,9 +39,6 @@ void printconf(){
 			config.sockname, "Verbosity:", config.verbose ? "Verbose" : "Quiet");
 }
 
-
-
-
 int main(int argc, char* argv[]){
 	
 	int opt;
@@ -113,7 +110,6 @@ int main(int argc, char* argv[]){
 							if(job_queue[0] && (job_queue[0]->command == READ_FILES || job_queue[0]->command == READ_N_FILES)){
 								job_queue[0]->working_dir = calloc(strlen(save_dir) + 1, sizeof(char));
 								strncpy(job_queue[0]->working_dir, save_dir, strlen(save_dir));
-								puts("salvata");
 								free(save_dir);
 								save_dir = NULL;
 							}
@@ -162,40 +158,14 @@ int main(int argc, char* argv[]){
 			default:;
 		}
 	}
-	
-	// databuffer = calloc(512, 1);
-	// for (size_t i = 0; i < 512; i++)
-	// {
-	// 	databuffer[i] = rand()%127;
-	// }
+
 	if(openConnection(config.sockname, 500, abstime) < 0) return -1;
 	if(config.tui){
 		printf(ANSI_CLEAR_SCREEN);
 		printconf();
 	}
 	do_work(&job_queue[0], &job_queue[1]);
-	// openFile("README.md", O_CREATE | O_LOCK);
-	// // openFile("Makefile", O_CREATE | O_LOCK);
-	// // openFile("input", O_CREATE | O_LOCK);
-	// // appendToFile("README.md", databuffer, 512, NULL);
-	// writeFile("README.md", NULL);
-	// readFile("README.md", (void **)&databuffer, &datasize);
-	// for(int i = 0; i < datasize; i++){
-	// 	printf("%c", databuffer[i]);
-	// }
-	// puts("");
-	// // readFile("Makefile", (void**)&databuffer, &datasize);
-	// // readFile("input", (void**)&databuffer, &datasize);
 	CHECKERRNO(closeConnection(config.sockname) < 0, "Errore disconnessione");
-	
-	
-	
-	
 	
 	return 0;
 }
-
-
-
-
-

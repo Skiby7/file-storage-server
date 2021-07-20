@@ -150,6 +150,10 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			clean_response(&response);
 			snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
 			logger(log_buffer);
+			if(last_file){
+				free(last_file);
+				last_file = NULL;
+			} 
 			exit_status = 0;
 		}
 	}
@@ -313,7 +317,7 @@ void* worker(void* args){
 
 ssize_t safe_write(int fd, void *ptr, size_t n){
 	int exit_status = 0;
-	if((exit_status = write(fd, ptr, n)) < 0){
+	if((exit_status = writen(fd, ptr, n)) < 0){
 		sendback_client(fd, true);
 		// printf("Sentback %d from safe_write\n", fd);
 		return -1;
@@ -323,7 +327,7 @@ ssize_t safe_write(int fd, void *ptr, size_t n){
 
 ssize_t safe_read(int fd, void *ptr, size_t n){
 	int exit_status = 0;
-	if((exit_status = read(fd, ptr, n)) < 0){
+	if((exit_status = readn(fd, ptr, n)) < 0){
 		sendback_client(fd, true);
 		return -1;
 	}
@@ -338,8 +342,6 @@ bool send_ack(int com){
 
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
-	client_request request;
-	memset(&request, 0, sizeof request);
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	memset(packet_size_buff, 0, sizeof(unsigned long));
 	
@@ -353,10 +355,8 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	}
 	if(!send_ack(com)) return -1;
 	*buffer = calloc(*buff_size, sizeof(unsigned char));
-	if(!*buffer){
-		puts("Error allocating buffer!");
-		return -1;
-	}
+	CHECKALLOC(*buffer, "Errore allocazione buffer read");
+	
 	
 	read_bytes = safe_read(com, *buffer, *buff_size);
 	// for (size_t i = 0; i < *buff_size; i++)

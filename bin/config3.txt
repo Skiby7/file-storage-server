@@ -1,0 +1,6 @@
+WORKERS: 8
+MAXMEM: 32000000 
+MAXFILES: 100
+SOCKNAME: socket.sk
+LOGFILE: bin/server.log
+TUI: n

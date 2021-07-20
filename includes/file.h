@@ -52,6 +52,7 @@ typedef struct storage_{
 	unsigned int file_limit;
 	unsigned int max_file_num_reached;
 	unsigned int total_evictions;
+	unsigned int table_size;
 	pthread_mutex_t storage_access_mtx;
 } storage;
 

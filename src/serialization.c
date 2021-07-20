@@ -64,7 +64,7 @@ int serialize_request(client_request request, unsigned char** buffer, unsigned l
 
 	uint_to_char(request.pathlen, tmp_int);
 
-	memcpy(*buffer + increment, tmp_int, sizeof(request.pathlen));
+	memcpy(*buffer + increment, tmp_int, sizeof(request.pathlen)); // request.pathlen = strlen(request.pathname) + 1
 	increment += sizeof(request.pathlen);
 	
 	if(request.pathlen){
@@ -78,6 +78,8 @@ int serialize_request(client_request request, unsigned char** buffer, unsigned l
 	increment += sizeof(request.size);
 
 	if(request.size) memcpy(*buffer + increment, request.data, request.size);
+	// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
+	
 	
 	return 0;
 }
@@ -88,7 +90,14 @@ int deserialize_request(client_request *request, unsigned char** buffer, unsigne
 	int increment = 0;
 	unsigned char tmp_int[sizeof(unsigned int)];
 	unsigned char tmp_long[sizeof(unsigned long)];
-
+	// if(buffer_len > 10000000){
+	// 	for (size_t i = 0; i < buffer_len - 10000000; i++){
+	// 		printf("%.2x ", (*buffer)[i]);
+	// 	}
+	// 	puts("");
+	// 	exit(0);
+	// }
+		
 	memset(tmp_int, 0, sizeof(unsigned int));
 	
 	memcpy(tmp_int, *buffer,  sizeof(request->client_id));

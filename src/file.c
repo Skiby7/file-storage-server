@@ -16,13 +16,11 @@ extern void lock_next(char* pathname, bool mutex_write);
 extern pthread_mutex_t abort_connections_mtx;
 extern bool abort_connections;
 storage server_storage;
-pthread_cond_t start_LFU_selector = PTHREAD_COND_INITIALIZER;
+pthread_cond_t start_victim_selector = PTHREAD_COND_INITIALIZER;
 
 
 
 void init_table(int max_file_num, int max_size){
-	server_storage.storage_table = (fssFile **) malloc(max_file_num*sizeof(fssFile *));
-	memset(server_storage.storage_table, 0, max_file_num*sizeof(fssFile *));
 	server_storage.file_limit = max_file_num; // nbuckets
 	server_storage.size_limit = max_size;
 	server_storage.size = 0;
@@ -30,6 +28,8 @@ void init_table(int max_file_num, int max_size){
 	server_storage.max_file_num_reached = 0;
 	server_storage.file_count = 0; // nentries
 	server_storage.total_evictions = 0;
+	server_storage.table_size = server_storage.file_limit * 1.33;
+	server_storage.storage_table = (fssFile **) calloc(server_storage.table_size, sizeof(fssFile *));
 	pthread_mutex_init(&server_storage.storage_access_mtx, NULL);
 }
 
@@ -456,7 +456,7 @@ int read_n_file(char **last_file, int client_id, server_response* response){
 	fssFile* entry = search_file(*last_file);
 	SAFELOCK(server_storage.storage_access_mtx);
 	if(!entry){
-		while(index < server_storage.file_limit && server_storage.storage_table[index] == NULL) index++;
+		while(index < server_storage.table_size && server_storage.storage_table[index] == NULL) index++;
 		if(!server_storage.storage_table[index]) goto no_more_files;
 		entry = server_storage.storage_table[index];
 	}
@@ -464,7 +464,7 @@ int read_n_file(char **last_file, int client_id, server_response* response){
 		index = hash_pjw(*last_file) + 1;
 		entry = entry->next;
 		if(!entry){
-			while(index < server_storage.file_limit && server_storage.storage_table[index] == NULL) index++;
+			while(index < server_storage.table_size && server_storage.storage_table[index] == NULL) index++;
 			if(!server_storage.storage_table[index]) goto no_more_files;
 			entry = server_storage.storage_table[index];
 		}
@@ -491,7 +491,7 @@ int read_n_file(char **last_file, int client_id, server_response* response){
 		entry = entry->next;
 		if(!entry){
 			index++;
-			while(index < server_storage.file_limit && server_storage.storage_table[index] == NULL) index++;
+			while(index < server_storage.table_size && server_storage.storage_table[index] == NULL) index++;
 			if(!server_storage.storage_table[index]) goto no_more_files;
 			entry = server_storage.storage_table[index];
 		}
@@ -550,7 +550,7 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		SAFELOCK(server_storage.storage_access_mtx);
 		server_storage.size += length;
 		if(server_storage.size > server_storage.max_size_reached)  server_storage.max_size_reached = server_storage.size;
-		pthread_cond_signal(&start_LFU_selector);
+		pthread_cond_signal(&start_victim_selector);
 		SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		return 0;
@@ -607,7 +607,7 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 		SAFELOCK(server_storage.storage_access_mtx);
 		server_storage.size += new_data_size;
 		if(server_storage.size > server_storage.max_size_reached)  server_storage.max_size_reached = server_storage.size;
-		pthread_cond_signal(&start_LFU_selector);
+		pthread_cond_signal(&start_victim_selector);
 		SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		return 0;
@@ -725,7 +725,7 @@ void print_summary(){
 		"Max Files:",	files, "Max Size:", memory, "Evictions:", 
 		server_storage.total_evictions);
 		printf("\n\x1b[36mFile rimasti in memoria :"ANSI_COLOR_RESET_N);
-		for (size_t i = 0; i < server_storage.file_limit; i++){
+		for (size_t i = 0; i < server_storage.table_size; i++){
 			if(server_storage.storage_table[i] != NULL){
 				file = server_storage.storage_table[i];
 				while(file){
@@ -740,7 +740,7 @@ void print_summary(){
 void print_storage(){
 	fssFile* file = NULL;
 	SAFELOCK(server_storage.storage_access_mtx);
-	for(int i = 0; i < server_storage.file_limit; i++){
+	for(int i = 0; i < server_storage.table_size; i++){
 		if(server_storage.storage_table[i] == NULL) continue;
 				
 			
@@ -775,14 +775,14 @@ void destroy_table_entry(fssFile* entry){
  */
 void clean_storage(){
 	
-	for(int i = 0; i < server_storage.file_limit; i++){
+	for(int i = 0; i < server_storage.table_size; i++){
 		if(server_storage.storage_table[i]){
 			destroy_table_entry(server_storage.storage_table[i]);
 			free(server_storage.storage_table[i]);
 		}
 	}
 	pthread_mutex_destroy(&server_storage.storage_access_mtx);
-	pthread_cond_destroy(&start_LFU_selector);
+	pthread_cond_destroy(&start_victim_selector);
 	free(server_storage.storage_table);
 }
 
@@ -825,7 +825,7 @@ static unsigned int hash_pjw(const void* key){
         if ((i = hash_value & HIGH_BITS) != 0)
             hash_value = (hash_value ^ (i >> THREE_QUARTERS)) & ~HIGH_BITS;
     }
-    return (hash_value) % server_storage.file_limit;
+    return (hash_value) % server_storage.table_size;
 }
 
 void start_read(fssFile* entry){
@@ -897,7 +897,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 	if(server_mutex_lock) SAFELOCK(server_storage.storage_access_mtx);
 	victims = (victim *) calloc(server_storage.file_count, sizeof(victim));
 	server_storage.total_evictions += 1;
-	for (size_t i = 0; i < server_storage.file_limit; i++){
+	for (size_t i = 0; i < server_storage.table_size; i++){
 		entry = server_storage.storage_table[i];
 		while(entry){
 			if(caller && strncmp(entry->name, caller, strlen(entry->name)) == 0) continue;
@@ -959,11 +959,8 @@ static int check_memory(unsigned long new_size, unsigned long old_size, char* ca
 }
 
 static int check_count(bool server_mutex_lock){
-	int file_count = 0, file_limit = 0;
-	file_limit = server_storage.file_limit;
 	if(server_mutex_lock) SAFELOCK(server_storage.storage_access_mtx);
-	file_count = server_storage.file_count;
-	if(file_count + 1 <= file_limit){
+	if(server_storage.file_count + 1 <= server_storage.file_limit){
 		if(server_mutex_lock) SAFEUNLOCK(server_storage.storage_access_mtx);
 		return 0;
 	}
@@ -975,7 +972,7 @@ void* use_stat_update(void *args){
 	fssFile* file = NULL;
 	while(true){
 		SAFELOCK(server_storage.storage_access_mtx);
-		pthread_cond_wait(&start_LFU_selector, &server_storage.storage_access_mtx);
+		pthread_cond_wait(&start_victim_selector, &server_storage.storage_access_mtx);
 		SAFELOCK(abort_connections_mtx);
 		if(abort_connections){
 			SAFEUNLOCK(abort_connections_mtx);
@@ -983,7 +980,7 @@ void* use_stat_update(void *args){
 			return (void *) 0;
 		}
 		SAFEUNLOCK(abort_connections_mtx);
-		for(int i = 0; i < server_storage.file_limit; i++){
+		for(int i = 0; i < server_storage.table_size; i++){
 			if(server_storage.storage_table[i] == NULL) continue;
 
 			file = server_storage.storage_table[i];

@@ -25,7 +25,7 @@ extern void* worker(void* args);
 pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 extern storage server_storage;
-extern pthread_cond_t start_LFU_selector;
+extern pthread_cond_t start_victim_selector;
 
 
 
@@ -286,7 +286,7 @@ int main(int argc, char* argv[]){
 	}
 	CHECKEXIT(pthread_join(signal_handler_thread, NULL) != 0, false, "Errore durante il join dei workers");
 	SAFELOCK(server_storage.storage_access_mtx);
-	pthread_cond_broadcast(&start_LFU_selector); // sveglio tutti i thread
+	pthread_cond_broadcast(&start_victim_selector); // sveglio tutti i thread
 	SAFEUNLOCK(server_storage.storage_access_mtx);
 	CHECKEXIT(pthread_join(use_stat_thread, NULL) != 0, false, "Errore durante la cancellazione dei workers attivi");
 	for (size_t i = 0; i < com_size; i++){

@@ -25,7 +25,6 @@ int handle_read_files(char *args, char *dirname){
 			retval = closeFile(real_path);
 			CHECKERRNO(retval < 0, "Errore closeFile!");
 		}
-		
 		if(dirname){
 			chdir(dirname);
 			fd = open(basename(real_path), O_CREAT | O_RDWR, 0777);
