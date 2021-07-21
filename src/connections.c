@@ -112,12 +112,12 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		if(respond_to_client(com, response) < 0) return -2;
 		
 		if(request->flags & O_LOCK){
-			snprintf(log_buffer, LOG_BUFF, "Client %d open-locked %s",request->client_id, request->pathname);
+			snprintf(log_buffer, LOG_BUFF, "Client %d Open-locked %s",request->client_id, request->pathname);
 			logger(log_buffer);
 
 		} 
 		else{
-			snprintf(log_buffer, LOG_BUFF, "Client %d opened %s",request->client_id, request->pathname);
+			snprintf(log_buffer, LOG_BUFF, "Client %d Opened %s",request->client_id, request->pathname);
 			logger(log_buffer);
 		}
 			
@@ -125,7 +125,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	else if(request->command & CLOSE){
 		exit_status = close_file(request->pathname, request->client_id, &response); 
 		if(respond_to_client(com, response) < 0) return -2;
-		snprintf(log_buffer, LOG_BUFF, "Client %d closed %s",request->client_id, request->pathname);
+		snprintf(log_buffer, LOG_BUFF, "Client %d Closed %s",request->client_id, request->pathname);
 		logger(log_buffer);
 			
 	}
@@ -134,13 +134,15 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			exit_status = read_file(request->pathname, request->client_id, &response);
 			if(respond_to_client(com, response) < 0) return -2;
 			if(exit_status == 0){
-				snprintf(log_buffer, LOG_BUFF, "Client %d read %lu bytes", request->client_id, response.size);
+				snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
 				logger(log_buffer);
 			}
 		}
 		else{
 			while(read_n_file(&last_file, request->client_id, &response) != 1 && (!request->files_to_read || files_read < request->files_to_read)){
-					respond_to_client(com, response);
+					respond_to_client(com, response); // Add errorcheck
+					snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
+					logger(log_buffer);
 					get_ack(com);
 					clean_response(&response);
 					memset(&response, 0, sizeof response);
@@ -148,8 +150,8 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			}
 			respond_to_client(com, response);
 			clean_response(&response);
-			snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
-			logger(log_buffer);
+			// snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
+			// logger(log_buffer);
 			if(last_file){
 				free(last_file);
 				last_file = NULL;
@@ -161,7 +163,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		exit_status = write_to_file(request->data, request->size, request->pathname, request->client_id, &response);
 		if(respond_to_client(com, response) < 0) return -2;
 		if(exit_status == 0){
-			snprintf(log_buffer, LOG_BUFF, "Client %d wrote %lu bytes", request->client_id, request->size);
+			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes", request->client_id, request->size);
 			logger(log_buffer);		
 		} 
 	}
@@ -169,7 +171,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		exit_status = append_to_file(request->data, request->size, request->pathname, request->client_id, &response);
 		if(respond_to_client(com, response) < 0) return -2;
 		if(exit_status == 0){
-			snprintf(log_buffer, LOG_BUFF, "Client %d wrote %lu bytes", request->client_id, request->size);
+			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes", request->client_id, request->size);
 			logger(log_buffer);
 		} 
 	}
@@ -177,7 +179,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		exit_status = remove_file(request->pathname, request->client_id, &response);
 		if(respond_to_client(com, response) < 0) return -2;
 		if(exit_status == 0){
-			snprintf(log_buffer, LOG_BUFF, "Client %d deleted %s", request->client_id, request->pathname);
+			snprintf(log_buffer, LOG_BUFF, "Client %d Deleted %s", request->client_id, request->pathname);
 			logger(log_buffer);
 		} 
 	}
@@ -187,7 +189,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			exit_status = lock_file(request->pathname, request->client_id, true, &response);
 			if(exit_status == 0){
 				if(respond_to_client(com, response) < 0) return -2;
-				snprintf(log_buffer, LOG_BUFF, "Client %d locked %s", request->client_id, request->pathname);
+				snprintf(log_buffer, LOG_BUFF, "Client %d Locked %s", request->client_id, request->pathname);
 				logger(log_buffer);
 			}
 			else if(response.code[0] & FILE_LOCKED_BY_OTHERS){
@@ -207,7 +209,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			exit_status = unlock_file(request->pathname, request->client_id, &response);
 			if(respond_to_client(com, response) < 0) return -2;
 			if(exit_status == 0){
-				snprintf(log_buffer, LOG_BUFF, "Client %d unlocked %s", request->client_id, request->pathname);
+				snprintf(log_buffer, LOG_BUFF, "Client %d Unlocked %s", request->client_id, request->pathname);
 				logger(log_buffer);
 				lock_next(request->pathname, true);
 			}

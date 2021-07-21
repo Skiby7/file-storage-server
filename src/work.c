@@ -6,7 +6,6 @@ int handle_read_files(char *args, char *dirname){
 	int fd = 0;
 	unsigned char *buffer = NULL;
 	size_t buff_size = 0;
-	char* real_path = 0;
 	int retval = 0;
 	char current_dir[PATH_MAX];
 	getcwd(current_dir, sizeof current_dir);
@@ -15,27 +14,24 @@ int handle_read_files(char *args, char *dirname){
 	
 	token = strtok_r(args, DELIM, &tmpstr);
 	while(token){
-		real_path = realpath(token, NULL);
-		retval = openFile(real_path, 0);
+		retval = openFile(token, 0);
 		CHECKERRNO(retval < 0, "Errore openFile!");
 		if(retval>= 0){
-			retval = readFile(real_path, (void **)&buffer, &buff_size);
+			retval = readFile(token, (void **)&buffer, &buff_size);
 			CHECKERRNO(retval < 0, "Errore readFile!");
 			if(config.verbose && retval >= 0) printf("Letti %lu bytes da %s\n", buff_size, token);
-			retval = closeFile(real_path);
+			retval = closeFile(token);
 			CHECKERRNO(retval < 0, "Errore closeFile!");
 		}
 		if(dirname){
 			chdir(dirname);
-			fd = open(basename(real_path), O_CREAT | O_RDWR, 0777);
+			fd = open(basename(token), O_CREAT | O_RDWR, 0777);
 			CHECKSCEXIT(fd, true, "Non sono riuscito ad aprire il file");
 			CHECKSCEXIT(write(fd, buffer, buff_size), true, "Errore scrittura file nella cartella");
 			close(fd);
 			chdir(current_dir);
 		}
 		free(buffer);
-		free(real_path);
-		real_path = NULL;
 		token = strtok_r(NULL, DELIM, &tmpstr);
 	}
 	return 0;
@@ -52,15 +48,16 @@ int handle_simple_request(char *args, unsigned char command){
 	token = strtok_r(args, DELIM, &tmpstr);
 	
 	while(token){
-		real_path = realpath(token, NULL);
-		if(!real_path){
-			fprintf(stderr, ANSI_COLOR_RED"Pathname %s non valido!"ANSI_COLOR_RESET_N, token);
-			token = strtok_r(NULL, DELIM, &tmpstr);
-
-			continue;
-		} 
+		
 		errno = 0;
 		if(command & WRITE_FILES){ 
+			real_path = realpath(token, NULL);
+			if(!real_path){
+				fprintf(stderr, ANSI_COLOR_RED"Pathname %s non valido!"ANSI_COLOR_RESET_N, token);
+				token = strtok_r(NULL, DELIM, &tmpstr);
+
+				continue;
+			} 
 			if((file = open(real_path, O_RDONLY)) == -1){
 				perror("Errore durante l'apertura del file");
 				free(real_path);
@@ -117,21 +114,23 @@ int handle_simple_request(char *args, unsigned char command){
 			}
 		}
 		else if(command & LOCK_FILES){ 
-			CHECKERRNO(lockFile(real_path) < 0, "Errore lock file");
+			CHECKERRNO(lockFile(token) < 0, "Errore lock file");
 			if(config.verbose) printf("Locked %s\n", token);
 
 		}
 		else if(command & UNLOCK_FILES){ 
-			CHECKERRNO(unlockFile(real_path) < 0, "Errore unlock file");
+			CHECKERRNO(unlockFile(token) < 0, "Errore unlock file");
 			if(config.verbose) printf("Unlocked %s\n", token);
 
 		}
 		else if(command & DELETE_FILES){ 
-			CHECKERRNO(removeFile(real_path) < 0, "Errore remove file");
+			CHECKERRNO(removeFile(token) < 0, "Errore remove file");
 			if(config.verbose) printf("Rimosso %s\n", token);
 		}
-		free(real_path);
-		real_path = NULL;
+		if(real_path){
+			free(real_path);
+			real_path = NULL;
+		} 
 		token = strtok_r(NULL, DELIM, &tmpstr);
 	}
 	return 0;
