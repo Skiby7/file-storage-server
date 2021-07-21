@@ -1006,37 +1006,25 @@ void clean_attributes(fssFile *entry, bool close_com){
 	open_file_client_list *befree = NULL;
 	lock_file_queue *befree1 = NULL;
 	server_response response;
-	if(entry->clients_open != NULL){
-		while (entry->clients_open != NULL){
-			befree = entry->clients_open;
-			entry->clients_open = entry->clients_open->next;
-			free(befree);
-		}
+	while (entry->clients_open != NULL){
+		befree = entry->clients_open;
+		entry->clients_open = entry->clients_open->next;
+		free(befree);
 	}
-	if(entry->lock_waiters != NULL){
-		while (entry->lock_waiters != NULL){
-			if(close_com) close(entry->lock_waiters->com);
-			else{
-				memset(&response, 0, sizeof response);
-				response.code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
-				response.code[1] = ENOENT;
-				response.pathlen = strlen(entry->name) + 1;
-				response.pathname = (char *) calloc(response.pathlen, sizeof(char));
-				strcpy(response.pathname, entry->name);
-				if(entry->lock_waiters != NULL){
-					while (entry->lock_waiters != NULL){
-						respond_to_client(entry->lock_waiters->com, response);
-						sendback_client(entry->lock_waiters->com, false);
-						befree1 = entry->lock_waiters;
-						entry->lock_waiters = entry->lock_waiters->next;
-						free(befree);
-					}
-				}
-				free(response.pathname);
-			}
-			befree1 = entry->lock_waiters;
-			entry->lock_waiters = entry->lock_waiters->next;
-			free(befree1);
-		}
+	memset(&response, 0, sizeof response);
+	response.code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
+	response.code[1] = ENOENT;
+
+	while (entry->lock_waiters != NULL){
+		response.pathlen = strlen(entry->name) + 1;
+		response.pathname = (char *) calloc(response.pathlen, sizeof(char));
+		strcpy(response.pathname, entry->name);
+		respond_to_client(entry->lock_waiters->com, response);
+		if(close_com) close(entry->lock_waiters->com);
+		else sendback_client(entry->lock_waiters->com, false);
+		befree1 = entry->lock_waiters;
+		entry->lock_waiters = entry->lock_waiters->next;
+		free(befree1);
+		free(response.pathname);
 	}
 }
