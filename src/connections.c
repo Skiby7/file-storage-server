@@ -100,9 +100,10 @@ void lock_next(char* pathname, bool mutex_write){
 
 static int handle_request(int com, int thread, client_request *request){ // -1 error in file operation -2 error responding to client
 	int exit_status = -1, files_read = 0;
-	char *log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
+	char* log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
 	char* last_file = NULL;
 	server_response response;
+	victim_queue *victims = NULL, *befree = NULL;
 	memset(&response, 0, sizeof(response));
 	sprintf(log_buffer, "[ Thread %d ] Serving client %d", thread, request->client_id);
 	logger(log_buffer);
@@ -110,15 +111,16 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
 		if(respond_to_client(com, response) < 0) return -2;
-		
-		if(request->flags & O_LOCK){
-			snprintf(log_buffer, LOG_BUFF, "Client %d Open-locked %s",request->client_id, request->pathname);
-			logger(log_buffer);
+		if(exit_status == 0){
+			if(request->flags & O_LOCK){
+				snprintf(log_buffer, LOG_BUFF, "Client %d Open-locked %s",request->client_id, request->pathname);
+				logger(log_buffer);
 
-		} 
-		else{
-			snprintf(log_buffer, LOG_BUFF, "Client %d Opened %s",request->client_id, request->pathname);
-			logger(log_buffer);
+			} 
+			else{
+				snprintf(log_buffer, LOG_BUFF, "Client %d Opened %s",request->client_id, request->pathname);
+				logger(log_buffer);
+			}
 		}
 			
 	}
@@ -160,19 +162,49 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		}
 	}
 	else if(request->command & WRITE){
-		exit_status = write_to_file(request->data, request->size, request->pathname, request->client_id, &response);
-		if(respond_to_client(com, response) < 0) return -2;
-		if(exit_status == 0){
-			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes", request->client_id, request->size);
-			logger(log_buffer);		
-		} 
-	}
-	else if(request->command & APPEND){
-		exit_status = append_to_file(request->data, request->size, request->pathname, request->client_id, &response);
+		exit_status = write_to_file(request->data, request->size, request->pathname, request->client_id, &response, &victims);
 		if(respond_to_client(com, response) < 0) return -2;
 		if(exit_status == 0){
 			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes", request->client_id, request->size);
 			logger(log_buffer);
+			if(victims && get_ack(com)){
+				while(victims){
+					respond_to_client(com, victims->victim);
+					clean_response(&victims->victim);
+					befree = victims;
+					victims = victims->next;
+					free(befree);
+					get_ack(com);
+				}
+				clean_response(&response);
+				response.code[0] = FILE_OPERATION_SUCCESS;
+				response.data = (unsigned char *) calloc(1, sizeof(unsigned char));
+				response.size = 1;
+				respond_to_client(com, response);
+			}		
+		} 
+	}
+	else if(request->command & APPEND){
+		exit_status = append_to_file(request->data, request->size, request->pathname, request->client_id, &response, &victims);
+		if(respond_to_client(com, response) < 0) return -2;
+		if(exit_status == 0){
+			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes", request->client_id, request->size);
+			logger(log_buffer);
+			if(victims && get_ack(com)){
+				while(victims){
+					respond_to_client(com, victims->victim);
+					clean_response(&victims->victim);
+					befree = victims;
+					victims = victims->next;
+					free(befree);
+					get_ack(com);
+				}
+				clean_response(&response);
+				response.code[0] = FILE_OPERATION_SUCCESS;
+				response.data = (unsigned char *) calloc(1, sizeof(unsigned char));
+				response.size = 1;
+				respond_to_client(com, response);
+			}
 		} 
 	}
 	else if(request->command & REMOVE){

@@ -90,14 +90,7 @@ int deserialize_request(client_request *request, unsigned char** buffer, unsigne
 	int increment = 0;
 	unsigned char tmp_int[sizeof(unsigned int)];
 	unsigned char tmp_long[sizeof(unsigned long)];
-	// if(buffer_len > 10000000){
-	// 	for (size_t i = 0; i < buffer_len - 10000000; i++){
-	// 		printf("%.2x ", (*buffer)[i]);
-	// 	}
-	// 	puts("");
-	// 	exit(0);
-	// }
-		
+	
 	memset(tmp_int, 0, sizeof(unsigned int));
 	
 	memcpy(tmp_int, *buffer,  sizeof(request->client_id));
@@ -157,6 +150,9 @@ int serialize_response(server_response response, unsigned char** buffer, unsigne
 		increment += response.pathlen;
 	}
 
+	memcpy(*buffer + increment, &response.has_victim, sizeof(response.has_victim));
+	increment += sizeof(response.has_victim);
+
 	memcpy(*buffer + increment, response.code, sizeof(response.code));
 	increment += sizeof(response.code);
 
@@ -188,6 +184,9 @@ int deserialize_response(server_response *response, unsigned char** buffer, unsi
 		increment += response->pathlen;
 	}
 	
+	memcpy(&response->has_victim, *buffer + increment, sizeof(response->has_victim));
+	increment += sizeof(response->has_victim);
+
 	memcpy(&response->code, *buffer + increment, sizeof(response->code));
 	increment += sizeof(response->code);
 	

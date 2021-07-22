@@ -74,8 +74,8 @@ int open_file(char *filename, int flags, int client_id, server_response *respons
 int close_file(char *filename, int client_id, server_response *response);
 int read_file(char *filename, int client_id, server_response *response);
 int read_n_file(char **last_file, int client_id, server_response* response);
-int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response);
-int append_to_file(unsigned char* new_data, int new_data_size, char *filename, int client_id, server_response *response);
+int write_to_file(unsigned char *data, int length, char *filename, int client_id, server_response *response, victim_queue** victims);
+int append_to_file(unsigned char* new_data, int new_data_size, char *filename, int client_id, server_response *response, victim_queue** victims);
 int remove_file(char *filename, int client_id,  server_response *response);
 int lock_file(char *filename, int client_id, bool mutex_write, server_response *response);
 int unlock_file(char *filename, int client_id, server_response *response);

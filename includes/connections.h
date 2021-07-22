@@ -18,10 +18,16 @@ typedef struct client_request_{
 typedef struct server_response_{
 	unsigned int pathlen; // PATHLEN INCLUDES THE END CHARACTER
 	char *pathname;
+	unsigned char has_victim;
 	unsigned char code[2]; // 1 -> RESULT 2 -> ERRNO
 	unsigned long size;
 	unsigned char* data;
 } server_response;
+
+typedef struct victim_queue_{
+	server_response victim;
+	struct victim_queue_ *next;
+} victim_queue;
 
 
 

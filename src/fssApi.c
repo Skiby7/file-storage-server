@@ -166,7 +166,7 @@ int readNFile(int N, const char* dirname){
 	int i = 0; // First file is read outside the loop
 	unsigned char* buffer = NULL;
 	size_t buff_size = 0;
-	char current_dir[PATH_MAX];
+	char current_dir[PATH_MAX] = {0};
 	if(good_path) getcwd(current_dir, sizeof current_dir);
 	memset(&read_n_response, 0, sizeof(server_response));
 	init_request(&read_n_request, getpid(), READ, 0, NULL);
@@ -203,6 +203,9 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 	if(check_path(pathname) < 0) return -1;
 	client_request append_request;
 	server_response append_response;
+	unsigned char* buffer = NULL;
+	size_t buff_size = 0;
+	char current_dir[PATH_MAX] = {0};
 	memset(&append_response, 0, sizeof(server_response));
 	init_request(&append_request, getpid(), APPEND, 0, pathname);
 	append_request.size = size;
@@ -214,6 +217,20 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 		clean_request(&append_request);
 		return -1;
 	}
+	while(true){
+		send_ack(socket_fd);
+		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
+		deserialize_response(&append_response, &buffer, buff_size);
+		if(append_response.size == 1 && append_response.code[0] == FILE_OPERATION_SUCCESS && append_response.data[0] == 0) break;
+		if(dirname){
+			chdir(dirname);
+			save_to_file(append_response.pathname, append_response.data, append_response.size);
+			chdir(current_dir);
+		}
+		clean_response(&append_response);
+		memset(&append_response, 0, sizeof append_response);
+	}
+	
 	clean_request(&append_request);
 	return 0;
 
@@ -226,6 +243,9 @@ int writeFile(const char* pathname, const char* dirname){
 	size_t size = 0, read_bytes = 0;
 	client_request write_request;
 	server_response write_response;
+	unsigned char* buffer = NULL;
+	size_t buff_size = 0;
+	char current_dir[PATH_MAX] = {0};
 	memset(&write_response, 0, sizeof(server_response));
 	if((file = open(pathname, O_RDONLY)) == -1){
 		perror("Errore durante l'apertura del file");
@@ -248,9 +268,21 @@ int writeFile(const char* pathname, const char* dirname){
 		clean_request(&write_request);
 		return -1;
 	}
+	while(true){
+		send_ack(socket_fd);
+		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
+		deserialize_response(&write_response, &buffer, buff_size);
+		if(write_response.size == 1 && write_response.code[0] == FILE_OPERATION_SUCCESS && write_response.data[0] == 0) break;
+		if(dirname){
+			chdir(dirname);
+			save_to_file(write_response.pathname, write_response.data, write_response.size);
+			chdir(current_dir);
+		}
+		clean_response(&write_response);
+		memset(&write_response, 0, sizeof write_response);
+	}
 	clean_request(&write_request);
 	return 0;
-
 }
 
 int removeFile(const char* pathname){

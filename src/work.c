@@ -1,4 +1,5 @@
 #include "work.h"
+extern client_conf config;
 
 int handle_read_files(char *args, char *dirname){
 	char *tmpstr = NULL;
@@ -37,7 +38,7 @@ int handle_read_files(char *args, char *dirname){
 	return 0;
 }
 
-int handle_simple_request(char *args, unsigned char command){
+int handle_simple_request(char *args, unsigned char command, const char* dirname){
 	char *tmpstr = NULL;
 	char *token = NULL;
 	char *real_path = NULL;
@@ -68,7 +69,7 @@ int handle_simple_request(char *args, unsigned char command){
 			close(file);
 			open_file_val = openFile(real_path, O_CREATE | O_LOCK);
 			if(open_file_val >= 0){
-				CHECKERRNO(writeFile(real_path, NULL) < 0, "Errore scrittura file");
+				CHECKERRNO(writeFile(real_path, dirname) < 0, "Errore scrittura file");
 				CHECKERRNO(closeFile(real_path) < 0, "Errore chiusura file");
 				stat(real_path, &st);
 				if(config.verbose) printf("Scritti %lu bytes (file: %s)\n", st.st_size, token);
@@ -99,7 +100,7 @@ int handle_simple_request(char *args, unsigned char command){
 				size = st.st_size;
 				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
 				read(file, buffer, size);
-				CHECKERRNO(appendToFile(real_path, buffer, size, NULL) < 0, "Errore scrittura file");
+				CHECKERRNO(appendToFile(real_path, buffer, size, dirname) < 0, "Errore scrittura file");
 				CHECKERRNO(closeFile(real_path) < 0, "Errore chiusura file");
 				if(config.verbose) printf("Appended %lu bytes (file: %s)\n", st.st_size, token);
 				free(buffer);
@@ -136,7 +137,7 @@ int handle_simple_request(char *args, unsigned char command){
 	return 0;
 }
 
-int recursive_visit(char *start_dir, int files_to_write, bool locked){
+int recursive_visit(char *start_dir, int files_to_write, bool locked, const char* dirname){
 	DIR* target_dir = NULL;
 	struct stat dirent_info, st;
     struct dirent* current_file;
@@ -162,7 +163,7 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked){
 			continue;
         }
 		if(S_ISDIR(dirent_info.st_mode)){
-			rec_visit = recursive_visit(real_path, files_to_write - files_written, locked);
+			rec_visit = recursive_visit(real_path, files_to_write - files_written, locked, dirname);
 			if(rec_visit < 0) return -1;
 			files_written += rec_visit;
 		}
@@ -170,7 +171,7 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked){
 			errno = 0;
 			open_file_val = openFile(real_path, O_CREATE | O_LOCK);
 			if(open_file_val >= 0){
-				CHECKERRNO(writeFile(real_path, NULL) < 0, "Errore scrittura file");
+				CHECKERRNO(writeFile(real_path, dirname) < 0, "Errore scrittura file");
 				if(!locked) CHECKERRNO(unlockFile(real_path), "Errore unlock file");
 				CHECKERRNO(closeFile(real_path) < 0, "Errore chiusura file");
 				stat(real_path, &st);
@@ -193,7 +194,7 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked){
 				size = st.st_size;
 				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
 				read(file, buffer, size);
-				CHECKERRNO(appendToFile(real_path, buffer, size, NULL) < 0, "Errore scrittura file");
+				CHECKERRNO(appendToFile(real_path, buffer, size, dirname) < 0, "Errore scrittura file");
 				CHECKERRNO(closeFile(real_path) < 0, "Errore chiusura file");
 				if(config.verbose) printf("Appended %lu bytes (file: %s)\n", st.st_size, real_path);
 				free(buffer);
@@ -213,14 +214,14 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked){
 	return files_written;
 }
 
-int write_dir(char *args, bool is_locked){
+int write_dir(char *args, bool is_locked, const char* dirname){
 	int N = 0, files_written = 0;;
-	char *dirname = NULL;
+	char *dirname_to_write = NULL;
 	char *n = NULL;
 	char *tmpstr = NULL;
 	char *real_path = NULL;
-	dirname = strtok_r(args, DELIM, &tmpstr);
-	real_path = realpath(dirname, NULL);
+	dirname_to_write = strtok_r(args, DELIM, &tmpstr);
+	real_path = realpath(dirname_to_write, NULL);
 	if(!real_path){
 		puts(ANSI_COLOR_RED"Cartella non valida!"ANSI_COLOR_RESET);
 		return -1;
@@ -233,7 +234,7 @@ int write_dir(char *args, bool is_locked){
 			N = 0;
 		}
 	}
-	files_written = recursive_visit(real_path, N, is_locked);
+	files_written = recursive_visit(real_path, N, is_locked, dirname);
 	if(files_written < 0) return -1;
 	if(config.verbose) printf("Scritti %d files!\n", files_written);
 	return 0;
@@ -247,7 +248,7 @@ void do_work(work_queue **head, work_queue **tail){
 	bool is_locked = true;
 	while((*tail)){
 		dequeue_work(&command, &args, &dirname, &is_locked, head, tail);
-		if(command & WRITE_DIR) write_dir(args, is_locked);
+		if(command & WRITE_DIR) write_dir(args, is_locked, dirname);
 		else if(command & READ_FILES) handle_read_files(args, dirname);
 		else if(command & READ_N_FILES){
 			errno = 0;
@@ -260,7 +261,7 @@ void do_work(work_queue **head, work_queue **tail){
 			files_read = readNFile(N, dirname);
 			printf("Letti %d files\n", files_read);
 		}
-		else handle_simple_request(args, command);
+		else handle_simple_request(args, command, dirname);
 		free(args);
 		args = NULL;
 		if(dirname){

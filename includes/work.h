@@ -28,11 +28,10 @@ typedef struct work{
 	struct work *prev;
 } work_queue;
 
-extern client_conf config;
 
 char *strtok_r(char *str, const char *delim, char **saveptr);
 int handle_read_files(char *args, char* dirname);
-int handle_simple_request(char *args, unsigned char command);
+int handle_simple_request(char *args, unsigned char command, const char* dirname);
 void do_work(work_queue **head, work_queue **tail);
 void enqueue_work(unsigned char command, char *args, work_queue **head, work_queue **tail);
 int dequeue_work(unsigned char* command, char **args, char **dirname, bool *is_locked, work_queue **head, work_queue **tail);

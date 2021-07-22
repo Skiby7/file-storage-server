@@ -3,13 +3,14 @@
 static int create_new_entry(int id, char *pathname, int flags);
 static fssFile* search_file(const char* pathname);
 static unsigned int hash_pjw(const void* key);
-static int check_memory(unsigned long new_size, unsigned long old_size, char* caller, bool server_mutex_lock);
+static int check_memory(unsigned long new_size, unsigned long old_size, char* caller, bool server_mutex_lock, victim_queue **queue);
 static int check_count(bool server_mutex_lock);
 static void clean_attributes(fssFile *entry, bool close_com);
-void start_read(fssFile* entry);
-void start_write(fssFile* entry);
-void stop_read(fssFile* entry);
-void stop_write(fssFile* entry);
+static void enqueue_victim(fssFile *entry, victim_queue **head);
+static void start_read(fssFile* entry);
+static void start_write(fssFile* entry);
+static void stop_read(fssFile* entry);
+static void stop_write(fssFile* entry);
 extern int respond_to_client(int com, server_response response);
 extern int sendback_client(int com, bool done);
 extern void lock_next(char* pathname, bool mutex_write);
@@ -167,6 +168,7 @@ static int remove_client_file_list(open_file_client_list **head, int id){
 }
 
 
+	
 static int create_new_entry(int id, char *pathname, int flags){
 	unsigned int index = hash_pjw(pathname);
 	fssFile *new_entry = NULL;
@@ -325,7 +327,7 @@ int close_file(char *filename, int client_id, server_response *response){
 	return 0;
 }
 
-int delete_entry(int id, char *pathname, bool server_mutex_lock){
+int delete_entry(int id, char *pathname, bool server_mutex_lock, victim_queue** queue){
 	unsigned int index = hash_pjw(pathname);
 	fssFile* entry = NULL;
 	fssFile* prev = NULL;
@@ -334,6 +336,7 @@ int delete_entry(int id, char *pathname, bool server_mutex_lock){
 		start_write(entry);
 		if(strncmp(pathname, entry->name, strlen(pathname)) == 0){
 			if(entry->whos_locking == id || id == -2 || entry->whos_locking == -1){
+				if(queue && entry->size) enqueue_victim(entry, queue);
 				entry->name = (char *) realloc(entry->name, 11);
 				strncpy(entry->name, "deleted", 10);
 				stop_write(entry);
@@ -380,7 +383,7 @@ int delete_entry(int id, char *pathname, bool server_mutex_lock){
  */
 int remove_file(char *filename, int client_id,  server_response *response){
 	fssFile* file = search_file(filename);
-	int exit_status = delete_entry(client_id, filename, true);
+	int exit_status = delete_entry(client_id, filename, true, NULL);
 	if(exit_status == -1){
 		stop_write(file);
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
@@ -519,7 +522,7 @@ no_more_files:
  * @returns set the response and returns 0 if successful, -1 if something went wrong
  *
  */
-int write_to_file(unsigned char *data, int length, char *pathname, int client_id, server_response *response){
+int write_to_file(unsigned char *data, int length, char *pathname, int client_id, server_response *response, victim_queue** victims){
 	fssFile* file = search_file(pathname);
 	// printf("FILE INDEX: %d\n", file_index);
 	if(!file){
@@ -527,17 +530,20 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
 		return -1;
 	}
-	if(check_memory(length, 0, pathname, true) < 0){
-		response->code[1] = EFBIG;
-		response->code[0] = FILE_OPERATION_FAILED;
-		return -1;
-	}
 	/* QUI INIZIA LO SCRITTORE */
-	start_write(file);
+	start_write(file); 
 
 	/* QUI SI SCRIVE */
 	if(file->whos_locking == client_id && check_client_id(file->clients_open, client_id) < 0 && file->data == NULL){
+		if(check_memory(length, 0, pathname, true, victims) < 0){ // 22/07 SPOSTATO QUI, ERA DOPO "if(!file)"
+			response->code[1] = EFBIG;
+			response->code[0] = FILE_OPERATION_FAILED;
+			stop_write(file);
+			return -1;
+		}
 		
+		if(victims) response->has_victim = 0x01; 
+		printf("HAS VICTIM: 0x%.2x\nNAME: %s\n", response->has_victim, (*victims) ? (*victims)->victim.pathname : "NULL");
 		file->data = (unsigned char *) realloc(file->data, length);
 		CHECKALLOC(file, "Errore allocazione write_to_file");
 		memcpy(file->data, data, length);
@@ -573,26 +579,26 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
  * @returns set the response and returns 0 if successful, -1 if something went wrong
  *
  */
-int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, int client_id, server_response *response){
-	fssFile* file = search_file(pathname);
+int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, int client_id, server_response *response, victim_queue** victims){
 	int old_size = 0;
+	fssFile* file = search_file(pathname);
 	if(!file){
 		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
 		response->code[1] = ENOENT;
 		return -1;
 	}
-	start_read(file);
-	old_size = file->size;
-	stop_read(file);
-	if(check_memory(new_data_size, old_size, pathname, true) < 0){
-		response->code[0] = FILE_OPERATION_FAILED;
-		response->code[1] = EFBIG;
-		return -1;
-	}
+	
 	/* QUI INIZIA LO SCRITTORE */
 	start_write(file);
 	if(check_client_id(file->clients_open, client_id) == -1 && (file->whos_locking == -1 || file->whos_locking == client_id)){
-
+		old_size = file->size;
+		if(check_memory(new_data_size, old_size, pathname, true, victims) < 0){ // 22/07 SPOSTATO QUI, ERA DOPO "if(!file)"
+			response->code[1] = EFBIG;
+			response->code[0] = FILE_OPERATION_FAILED;
+			stop_write(file);
+			return -1;
+		}
+		if(victims) response->has_victim = 0x01;
 		file->data = (unsigned char *) realloc(file->data, new_data_size + old_size);
 		CHECKALLOC(file->data, "Errore allocazione append_to_file");
 		memcpy(file->data + old_size, new_data, new_data_size);
@@ -828,7 +834,7 @@ static unsigned int hash_pjw(const void* key){
     return (hash_value) % server_storage.table_size;
 }
 
-void start_read(fssFile* entry){
+static void start_read(fssFile* entry){
 	SAFELOCK(entry->order_mutex); // ACQUIRE ORDER
 	SAFELOCK(entry->access_mutex); // ACQUIRE ACCESS
 	while (entry->writers > 0){
@@ -842,7 +848,7 @@ void start_read(fssFile* entry){
 	SAFEUNLOCK(entry->access_mutex);
 }
 
-void stop_read(fssFile* entry){
+static void stop_read(fssFile* entry){
 	SAFELOCK(entry->access_mutex); 
 	entry->readers -= 1;
 	if(entry->readers == 0){
@@ -855,7 +861,7 @@ void stop_read(fssFile* entry){
 
 }
 
-void start_write(fssFile* entry){
+static void start_write(fssFile* entry){
 	SAFELOCK(entry->order_mutex); // ACQUIRE ORDER
 	SAFELOCK(entry->access_mutex); // ACQUIRE ACCESS
 	while (entry->readers > 0 || entry->writers > 0){
@@ -869,7 +875,7 @@ void start_write(fssFile* entry){
 	SAFEUNLOCK(entry->access_mutex); 
 }
 
-void stop_write(fssFile* entry){
+static void stop_write(fssFile* entry){
 	
 	SAFELOCK(entry->access_mutex); 
 	entry->writers -= 1;
@@ -889,7 +895,17 @@ static int compare(const void *a, const void *b) {
 	else return (now - a1.last_modified) - (now - b1.last_modified); // if use stat is the same, sort by age
 }
 
-static int select_victim(char* caller, int files_to_delete, unsigned long memory_to_free, bool server_mutex_lock) {
+static void enqueue_victim(fssFile *entry, victim_queue **head){
+	victim_queue* new = (victim_queue *) calloc(1, sizeof(victim_queue));
+	new->victim.pathlen = strlen(entry->name) + 1;
+	new->victim.pathname = (char *) calloc(new->victim.pathlen, sizeof(char));
+	new->victim.size = entry->size;
+	memcpy(new->victim.data, entry->data, entry->size);
+	new->next = (*head);
+	(*head) = new;
+}
+
+static int select_victim(char* caller, int files_to_delete, unsigned long memory_to_free, bool server_mutex_lock, victim_queue **queue) {
 	victim* victims = NULL;
 	fssFile* entry = NULL;
 	int counter = 0, j = 0;
@@ -919,7 +935,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 	
 	qsort(victims, counter, sizeof(victim), compare);
 	if(files_to_delete){
-		delete_entry(-2, victims[0].pathname, false);
+		delete_entry(-2, victims[0].pathname, false, queue);
 		for (int i = 0; i < counter; i++)
 			free(victims[i].pathname);
 		
@@ -927,7 +943,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 		return 0;
 	}
 	while(j < counter && memory_freed < memory_to_free){
-		delete_entry(-2, victims[0].pathname, false);
+		delete_entry(-2, victims[0].pathname, false, queue);
 		memory_freed = victims[j].size;
 		j++;
 	}
@@ -937,6 +953,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 	free(victims);
 	return 0;
 }
+
 /**
  * Check whether there's enough space in memory or not
  * 
@@ -945,7 +962,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
  * @returns 0 if the operation is successful, -1 if the file is too big or there are no locked files to remove
  *
  */
-static int check_memory(unsigned long new_size, unsigned long old_size, char* caller, bool server_mutex_lock){
+static int check_memory(unsigned long new_size, unsigned long old_size, char* caller, bool server_mutex_lock, victim_queue **queue){
 	unsigned long size_used = 0;
 	SAFELOCK(server_storage.storage_access_mtx);
 	size_used = server_storage.size;
@@ -955,7 +972,7 @@ static int check_memory(unsigned long new_size, unsigned long old_size, char* ca
 
 	
 	if(size_used + new_size <= server_storage.size_limit) return 0;
-	return select_victim(caller, 0, (new_size + size_used) - server_storage.size_limit, server_mutex_lock);
+	return select_victim(caller, 0, (new_size + size_used) - server_storage.size_limit, server_mutex_lock, queue);
 }
 
 static int check_count(bool server_mutex_lock){
@@ -965,7 +982,7 @@ static int check_count(bool server_mutex_lock){
 		return 0;
 	}
 	if(server_mutex_lock) SAFEUNLOCK(server_storage.storage_access_mtx);
-	return select_victim(NULL, 1, 0, server_mutex_lock);
+	return select_victim(NULL, 1, 0, server_mutex_lock, NULL);
 }
 
 void* use_stat_update(void *args){

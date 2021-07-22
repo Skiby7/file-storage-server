@@ -65,7 +65,7 @@ int main(int argc, char* argv[]){
 	sigaction(SIGQUIT,&sig,NULL);
 
 	
-	while ((opt = getopt(argc,argv, "hpf:r:W:w:R:d:t:l:u:c:xg")) != -1) {
+	while ((opt = getopt(argc,argv, "hpf:r:W:w:R:d:t:l:u:c:D:xg")) != -1) {
 		switch(opt) {
 			case 'h': PRINT_HELP;
 			case 'p': 
@@ -96,6 +96,31 @@ int main(int argc, char* argv[]){
 				break;
 			case 'R':
 					enqueue_work(READ_N_FILES, optarg, &job_queue[0], &job_queue[1]);
+				break;
+			case 'D':
+					save_dir = realpath(optarg, NULL);
+					if(save_dir){
+						if(!(check_dir = opendir(save_dir))){
+							puts(ANSI_COLOR_RED"Cartella non valida, non sarà possibile salvare i file espulsi!"ANSI_COLOR_RESET);
+							free(save_dir);
+							save_dir = NULL;
+						}
+						else{
+							closedir(check_dir);
+							if(job_queue[0] && (job_queue[0]->command == WRITE_FILES || job_queue[0]->command == WRITE_DIR)){
+								job_queue[0]->working_dir = calloc(strlen(save_dir) + 1, sizeof(char));
+								strncpy(job_queue[0]->working_dir, save_dir, strlen(save_dir));
+								free(save_dir);
+								save_dir = NULL;
+							}
+							else{
+								puts(ANSI_COLOR_RED"Errore: -D deve essere preceduto da -w o -W!"ANSI_COLOR_RESET);
+								free(save_dir);
+								save_dir = NULL;
+							}
+						} 
+					}
+					else puts(ANSI_COLOR_RED"Cartella non valida, non sarà possibile salvare i file espulsi!"ANSI_COLOR_RESET);
 				break;
 			case 'd':
 					save_dir = realpath(optarg, NULL);
