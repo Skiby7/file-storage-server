@@ -33,6 +33,7 @@ typedef struct fssFile_{
 	lock_file_queue *lock_waiters;
 	int whos_locking;
 	unsigned long size;
+	unsigned long uncompressed_size;
 	unsigned short writers;
 	unsigned int readers;
 	time_t create_time;
@@ -53,6 +54,8 @@ typedef struct storage_{
 	unsigned int max_file_num_reached;
 	unsigned int total_evictions;
 	unsigned int table_size;
+	unsigned short compression_level;
+	bool compression;
 	pthread_mutex_t storage_access_mtx;
 } storage;
 
@@ -68,7 +71,7 @@ typedef struct victim_{
 
 
 
-void init_table(int max_file_num, int max_size);
+void init_table(int max_file_num, int max_size, bool compression);
 void clean_storage();
 int open_file(char *filename, int flags, int client_id, server_response *response);
 int close_file(char *filename, int client_id, server_response *response);

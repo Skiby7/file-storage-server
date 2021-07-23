@@ -1,4 +1,5 @@
 #include "file.h"
+#include "zlib.h"
 
 static int create_new_entry(int id, char *pathname, int flags);
 static fssFile* search_file(const char* pathname);
@@ -21,7 +22,7 @@ pthread_cond_t start_victim_selector = PTHREAD_COND_INITIALIZER;
 
 
 
-void init_table(int max_file_num, int max_size){
+void init_table(int max_file_num, int max_size, bool compression){
 	server_storage.file_limit = max_file_num; // nbuckets
 	server_storage.size_limit = max_size;
 	server_storage.size = 0;
@@ -31,6 +32,7 @@ void init_table(int max_file_num, int max_size){
 	server_storage.total_evictions = 0;
 	server_storage.table_size = server_storage.file_limit * 1.33;
 	server_storage.storage_table = (fssFile **) calloc(server_storage.table_size, sizeof(fssFile *));
+	server_storage.compression = compression;
 	pthread_mutex_init(&server_storage.storage_access_mtx, NULL);
 }
 
@@ -202,6 +204,8 @@ static int create_new_entry(int id, char *pathname, int flags){
 	new_entry = (fssFile *)calloc(1, sizeof(fssFile));
 	CHECKALLOC(new_entry, "Errore inserimento nuovo file");
 	insert_client_file_list(&new_entry->clients_open, id);
+	new_entry->size = 0;
+	new_entry->uncompressed_size = 0;
 	new_entry->create_time = time(NULL);
 	new_entry->last_modified = time(NULL);
 
@@ -523,6 +527,8 @@ no_more_files:
  *
  */
 int write_to_file(unsigned char *data, int length, char *pathname, int client_id, server_response *response, victim_queue** victims){
+	unsigned char* tmp = NULL;
+	unsigned long size = 0;
 	fssFile* file = search_file(pathname);
 	// printf("FILE INDEX: %d\n", file_index);
 	if(!file){
@@ -535,29 +541,39 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 
 	/* QUI SI SCRIVE */
 	if(file->whos_locking == client_id && check_client_id(file->clients_open, client_id) < 0 && file->data == NULL){
-		if(check_memory(length, 0, pathname, true, victims) < 0){ // 22/07 SPOSTATO QUI, ERA DOPO "if(!file)"
+		if(server_storage.compression){
+			tmp = (unsigned char *) calloc(length+20, sizeof(unsigned char)); // zlib needs some bytes to store header and trailer, so if the input data is small and compress does not have effect, this prevents a seg fault 
+			CHECKALLOC(tmp, "Errore allocazione write_to_file");
+			size = length + 20;
+			compress2(tmp, &size, data, length, server_storage.compression_level);
+		}
+		else size = length;
+		if(check_memory(size, 0, pathname, true, victims) < 0){
 			response->code[1] = EFBIG;
 			response->code[0] = FILE_OPERATION_FAILED;
 			stop_write(file);
+			free(tmp);
 			return -1;
 		}
+		if((*victims)) response->has_victim = 0x01;
 		
-		if((*victims)) response->has_victim = 0x01; 
-		file->data = (unsigned char *) realloc(file->data, length);
-		CHECKALLOC(file, "Errore allocazione write_to_file");
-		memcpy(file->data, data, length);
-		file->size = length;
+		file->data = (unsigned char *) calloc(size, sizeof(unsigned char));
+		CHECKALLOC(file->data, "Errore allocazione write_to_file");
+		file->size = size;
+		memcpy(file->data, server_storage.compression ? tmp : data, size);
+		
 		file->use_stat += 1;
 		file->last_modified = time(NULL);
 		
 		/* QUI HO FINITO DI SCRIVERE ED ESCO */
 		stop_write(file);
 		SAFELOCK(server_storage.storage_access_mtx);
-		server_storage.size += length;
+		server_storage.size += size;
 		if(server_storage.size > server_storage.max_size_reached)  server_storage.max_size_reached = server_storage.size;
 		pthread_cond_signal(&start_victim_selector);
 		SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
+		free(tmp);
 		return 0;
 	}
 	stop_write(file);

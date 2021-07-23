@@ -3,7 +3,7 @@ CFLAGS	+= -Wall -pedantic -std=c99 -g
 DEFINES += -D_GNU_SOURCE=1
 INCLUDES = -I includes/
 TARGETS = server client
-
+LIBS = -L ./libs -lz
 .PHONY: clean test1 test2 test3
 .SUFFIXES: .c .h
 
@@ -11,7 +11,7 @@ TARGETS = server client
 all: server client
 
 server:  libserver libcommon
-		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon
+		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon $(LIBS)
 
 client: libclient libcommon
 		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./build -lclient -lcommon
