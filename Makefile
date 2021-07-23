@@ -66,6 +66,6 @@ test1: client server
 	./statistiche.sh bin/server.log
 
 test2: client server
-	$(RM) ./test/test_output/*
+	$(RM) -r ./test/test_output/*
 	./test/test2.sh
 	./statistiche.sh bin/server.log

@@ -38,7 +38,7 @@ int handle_read_files(char *args, char *dirname){
 	return 0;
 }
 
-int handle_simple_request(char *args, unsigned char command, const char* dirname){
+int handle_simple_request(char *args, const unsigned char command, const char* dirname){
 	char *tmpstr = NULL;
 	char *token = NULL;
 	char *real_path = NULL;
@@ -49,7 +49,6 @@ int handle_simple_request(char *args, unsigned char command, const char* dirname
 	token = strtok_r(args, DELIM, &tmpstr);
 	
 	while(token){
-		
 		errno = 0;
 		if(command & WRITE_FILES){ 
 			real_path = realpath(token, NULL);
@@ -119,8 +118,12 @@ int handle_simple_request(char *args, unsigned char command, const char* dirname
 			if(config.verbose) printf("Locked %s\n", token);
 
 		}
-		else if(command & UNLOCK_FILES){ 
-			CHECKERRNO(unlockFile(token) < 0, "Errore unlock file");
+		else if(command & UNLOCK_FILES){
+			if(unlockFile(token) < 0){
+				fprintf(stderr, "Errore unlock file: %s -> %s\n", token, strerror(errno));
+				token = strtok_r(NULL, DELIM, &tmpstr);
+				continue;
+			}
 			if(config.verbose) printf("Unlocked %s\n", token);
 
 		}
@@ -300,7 +303,7 @@ int dequeue_work(unsigned char* command, char **args, char **dirname, bool *is_l
 	if((*tail)->working_dir){
 		*dirname = (char *)calloc((strlen((*tail)->working_dir)) + 1, sizeof(char));
 		strncpy(*dirname, (*tail)->working_dir, strlen((*tail)->working_dir));
-		free((*tail)->working_dir);
+		// free((*tail)->working_dir);
 	}
 	free((*tail)->args);
 	befree = (*tail);

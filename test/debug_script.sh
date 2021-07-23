@@ -1,13 +1,11 @@
+CWD=$(realpath $(dirname $0))
 
-CWD=$(dirname $0)
-bin/client -f /tmp/socket.sk -w ${CWD}/small_files,10 -x -p -t 200 
 
-bin/client -f /tmp/socket.sk -R 0 -d ${CWD}/test_output -p -t 200
+bin/client -f /tmp/socket.sk -W ${CWD}/test_2/initial_file_0.txt -u ${CWD}/test_2/initial_file_0.txt  -p  
 
-bin/client -f /tmp/socket.sk -W ${CWD}/medium_files/medium_0.txt -u ${CWD}/medium_files/medium_0.txt  -p -t 200 
+# bin/client -f /tmp/socket.sk -r /home/leonardo/Documents/SO/Project/file-storage-server/test/test_2/initial_file_0.txt -p
+sleep 2
+# bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_files_0.txt,${CWD}/test_2/eviction_files_1.txt -D ${CWD}/test_output -u ${CWD}/test_2/evictions_file_0.txt,${CWD}/test_2/evictions_file_1.txt   -p  
+bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_file_0.txt,${CWD}/test_2/eviction_file_1.txt,${CWD}/test_2/eviction_file_2.txt -D ${CWD}/test_output -u ${CWD}/test_2/eviction_file_0.txt,${CWD}/test_2/eviction_file_1.txt,${CWD}/test_2/eviction_file_2.txt  -p  
 
-bin/client -f /tmp/socket.sk -r ${CWD}/medium_files/medium_0.txt -d ${CWD}/test_output -p -t 200 
 
-bin/client -f /tmp/socket.sk -l ${CWD}/medium_files/medium_0.txt -u ${CWD}/medium_files/medium_0.txt -p -t 2000 &
-
-bin/client -f /tmp/socket.sk -l ${CWD}/medium_files/medium_0.txt -c ${CWD}/medium_files/medium_0.txt -p -t 200 

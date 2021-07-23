@@ -479,9 +479,9 @@ int read_n_file(char **last_file, int client_id, server_response* response){
 			CHECKALLOC(response->data, "Errore allocazione memoria read_file");
 			response->size = entry->size;
 			memcpy(response->data, entry->data, response->size);
-			response->pathlen = strlen(basename(entry->name))+1;
+			response->pathlen = strlen(entry->name)+1;
 			response->pathname = (char *) calloc(response->pathlen, sizeof(char));
-			strncpy(response->pathname, basename(entry->name), response->pathlen-1);
+			strncpy(response->pathname, entry->name, response->pathlen-1);
 			/* QUI HO FINITO DI LEGGERE ED ESCO */
 			stop_read(entry);
 			SAFEUNLOCK(server_storage.storage_access_mtx);
@@ -542,8 +542,7 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 			return -1;
 		}
 		
-		if(victims) response->has_victim = 0x01; 
-		printf("HAS VICTIM: 0x%.2x\nNAME: %s\n", response->has_victim, (*victims) ? (*victims)->victim.pathname : "NULL");
+		if((*victims)) response->has_victim = 0x01; 
 		file->data = (unsigned char *) realloc(file->data, length);
 		CHECKALLOC(file, "Errore allocazione write_to_file");
 		memcpy(file->data, data, length);
@@ -598,7 +597,8 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 			stop_write(file);
 			return -1;
 		}
-		if(victims) response->has_victim = 0x01;
+		if((*victims)) response->has_victim = 0x01; 
+
 		file->data = (unsigned char *) realloc(file->data, new_data_size + old_size);
 		CHECKALLOC(file->data, "Errore allocazione append_to_file");
 		memcpy(file->data + old_size, new_data, new_data_size);
@@ -899,7 +899,9 @@ static void enqueue_victim(fssFile *entry, victim_queue **head){
 	victim_queue* new = (victim_queue *) calloc(1, sizeof(victim_queue));
 	new->victim.pathlen = strlen(entry->name) + 1;
 	new->victim.pathname = (char *) calloc(new->victim.pathlen, sizeof(char));
+	strcpy(new->victim.pathname, entry->name);
 	new->victim.size = entry->size;
+	new->victim.data = (unsigned char *) calloc(entry->size, sizeof(unsigned char));
 	memcpy(new->victim.data, entry->data, entry->size);
 	new->next = (*head);
 	(*head) = new;
@@ -916,7 +918,10 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 	for (size_t i = 0; i < server_storage.table_size; i++){
 		entry = server_storage.storage_table[i];
 		while(entry){
-			if(caller && strncmp(entry->name, caller, strlen(entry->name)) == 0) continue;
+			if(caller && strncmp(entry->name, caller, strlen(entry->name)) == 0){
+				entry = entry->next;
+				continue;
+			} 
 			start_read(entry);
 			victims[counter].pathname = (char*) calloc(strlen(entry->name)+1, sizeof(char));
 			CHECKALLOC(victims[counter].pathname, "Errore allocazione pathname select_victim");
@@ -930,7 +935,6 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 			entry = entry->next;
 		}
 	}
-	if(server_mutex_lock) SAFEUNLOCK(server_storage.storage_access_mtx);
 	
 	
 	qsort(victims, counter, sizeof(victim), compare);
@@ -943,12 +947,15 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 		return 0;
 	}
 	while(j < counter && memory_freed < memory_to_free){
-		delete_entry(-2, victims[0].pathname, false, queue);
-		memory_freed = victims[j].size;
+		delete_entry(-2, victims[j].pathname, false, queue);
+		memory_freed += victims[j].size;
 		j++;
 	}
+	server_storage.size -= memory_freed;
+	if(server_mutex_lock) SAFEUNLOCK(server_storage.storage_access_mtx);
+
 	for (int i = 0; i < counter; i++)
-		free(victims->pathname);
+		free(victims[i].pathname);
 		
 	free(victims);
 	return 0;

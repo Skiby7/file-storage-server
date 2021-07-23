@@ -11,7 +11,7 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 void clean_request(client_request* request);
 void clean_response(server_response* response);
 int handle_connection(client_request request, server_response *response);
-int save_to_file(char* pathname, unsigned char* data, size_t size);
+int save_to_file(const char* pathname, unsigned char* data, size_t size);
 bool send_ack(int com){
 	unsigned char acknowledge = 0x01;
 	if(write(com, &acknowledge, 1) < 0) return false;
@@ -217,20 +217,21 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 		clean_request(&append_request);
 		return -1;
 	}
-	while(true){
-		send_ack(socket_fd);
-		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
-		deserialize_response(&append_response, &buffer, buff_size);
-		if(append_response.size == 1 && append_response.code[0] == FILE_OPERATION_SUCCESS && append_response.data[0] == 0) break;
-		if(dirname){
-			chdir(dirname);
-			save_to_file(append_response.pathname, append_response.data, append_response.size);
-			chdir(current_dir);
+	if(append_response.has_victim){
+		while(true){
+			send_ack(socket_fd);
+			if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
+			deserialize_response(&append_response, &buffer, buff_size);
+			if(append_response.size == 1 && append_response.code[0] == FILE_OPERATION_SUCCESS && append_response.data[0] == 0) break;
+			if(dirname){
+				chdir(dirname);
+				save_to_file(append_response.pathname, append_response.data, append_response.size);
+				chdir(current_dir);
+			}
+			clean_response(&append_response);
+			memset(&append_response, 0, sizeof append_response);
 		}
-		clean_response(&append_response);
-		memset(&append_response, 0, sizeof append_response);
 	}
-	
 	clean_request(&append_request);
 	return 0;
 
@@ -268,18 +269,21 @@ int writeFile(const char* pathname, const char* dirname){
 		clean_request(&write_request);
 		return -1;
 	}
-	while(true){
-		send_ack(socket_fd);
-		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
-		deserialize_response(&write_response, &buffer, buff_size);
-		if(write_response.size == 1 && write_response.code[0] == FILE_OPERATION_SUCCESS && write_response.data[0] == 0) break;
-		if(dirname){
-			chdir(dirname);
-			save_to_file(write_response.pathname, write_response.data, write_response.size);
-			chdir(current_dir);
+
+	if(write_response.has_victim){
+		while(true){
+			send_ack(socket_fd);
+			if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
+			deserialize_response(&write_response, &buffer, buff_size);
+			if(write_response.size == 1 && write_response.code[0] == FILE_OPERATION_SUCCESS && write_response.data[0] == 0) break;
+			if(dirname){
+				chdir(dirname);
+				save_to_file(write_response.pathname, write_response.data, write_response.size);
+				chdir(current_dir);
+			}
+			clean_response(&write_response);
+			memset(&write_response, 0, sizeof write_response);
 		}
-		clean_response(&write_response);
-		memset(&write_response, 0, sizeof write_response);
 	}
 	clean_request(&write_request);
 	return 0;
@@ -367,12 +371,59 @@ int handle_connection(client_request request, server_response *response){
 	return -1;
 }
 
-int save_to_file(char* pathname, unsigned char* data, size_t size){
-	int fd = 0;
-	if((fd = open(pathname, O_CREAT | O_RDWR, 0777)) < 0){
-		return -1;
+int mkpath(const char* pathname){
+	char *tmpstr = NULL;
+	char *token = NULL;
+	char *path = (char *) calloc(strlen(pathname) + 1, sizeof(char));
+	char original_dir[PATH_MAX] = {0};
+	getcwd(original_dir, sizeof original_dir);
+	strcpy(path, pathname);
+	for (int i = strlen(path)-1; ; i--){
+		if(path[i] == '/'){
+			path[i] = 0;
+			break;
+		}
+		path[i] = 0;
 	}
-	writen(fd, data, size);
+	token = strtok_r(path, "/", &tmpstr);
+	while(token){
+		if(chdir(token) < 0){
+			if(mkdir(token, 0777) == -1){
+				perror(ANSI_COLOR_RED"Errore durante la creazione della cartella");
+				puts(ANSI_COLOR_RESET);
+				chdir(original_dir);
+				return -1;
+			}
+			chdir(token);
+		}
+		token = strtok_r(NULL, "/", &tmpstr);
+	}
+	free(path);
+	chdir(original_dir);
+	return 0;
+}
+
+int save_to_file(const char* pathname, unsigned char* data, size_t size){
+	int fd = 0;
+	char* path = (char *) calloc(strlen(pathname) + 1, sizeof(char));
+	strcpy(path, (pathname[0] == '/') ? pathname + 1 : pathname);
+	errno = 0;
+	if((fd = open(path, O_CREAT | O_RDWR, 0777)) < 0){
+		if (errno == ENOENT){
+			mkpath(path);
+			if((fd = open(path, O_CREAT | O_RDWR, 0777)) < 0){
+				free(path);
+				return -1;
+			}
+		}
+		else{
+			free(path);
+			return -1;
+		}
+		
+	}
+	write(fd, data, size);
 	close(fd);
+	free(path);
 	return 0;
 }

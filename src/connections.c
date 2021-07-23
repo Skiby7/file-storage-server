@@ -49,7 +49,7 @@ int respond_to_client(int com, server_response response){
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	serialize_response(response, &serialized_response, &response_size);
 	ulong_to_char(response_size, packet_size_buff);
-	if (safe_write(com, packet_size_buff, sizeof(unsigned long)) < 0)
+	if (safe_write(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
 	
 	if(get_ack(com)) exit_status = safe_write(com, serialized_response, response_size);
@@ -110,7 +110,11 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
-		if(respond_to_client(com, response) < 0) return -2;
+		if(respond_to_client(com, response) < 0){
+			clean_response(&response);
+			free(log_buffer);
+			return -2;
+		}
 		if(exit_status == 0){
 			if(request->flags & O_LOCK){
 				snprintf(log_buffer, LOG_BUFF, "Client %d Open-locked %s",request->client_id, request->pathname);
@@ -126,7 +130,11 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	}
 	else if(request->command & CLOSE){
 		exit_status = close_file(request->pathname, request->client_id, &response); 
-		if(respond_to_client(com, response) < 0) return -2;
+		if(respond_to_client(com, response) < 0){
+			clean_response(&response);
+			free(log_buffer);
+			return -2;
+		}
 		snprintf(log_buffer, LOG_BUFF, "Client %d Closed %s",request->client_id, request->pathname);
 		logger(log_buffer);
 			
@@ -134,7 +142,11 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	else if(request->command & READ){
 		if(request->files_to_read == 1){
 			exit_status = read_file(request->pathname, request->client_id, &response);
-			if(respond_to_client(com, response) < 0) return -2;
+			if(respond_to_client(com, response) < 0){
+				clean_response(&response);
+				free(log_buffer);
+				return -2;
+			}
 			if(exit_status == 0){
 				snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
 				logger(log_buffer);
@@ -163,7 +175,11 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	}
 	else if(request->command & WRITE){
 		exit_status = write_to_file(request->data, request->size, request->pathname, request->client_id, &response, &victims);
-		if(respond_to_client(com, response) < 0) return -2;
+		if(respond_to_client(com, response) < 0){
+			clean_response(&response);
+			free(log_buffer);
+			return -2;
+		}
 		if(exit_status == 0){
 			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes", request->client_id, request->size);
 			logger(log_buffer);
@@ -186,7 +202,11 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	}
 	else if(request->command & APPEND){
 		exit_status = append_to_file(request->data, request->size, request->pathname, request->client_id, &response, &victims);
-		if(respond_to_client(com, response) < 0) return -2;
+		if(respond_to_client(com, response) < 0){
+			clean_response(&response);
+			free(log_buffer);
+			return -2;
+		}
 		if(exit_status == 0){
 			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes", request->client_id, request->size);
 			logger(log_buffer);
@@ -209,7 +229,11 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	}
 	else if(request->command & REMOVE){
 		exit_status = remove_file(request->pathname, request->client_id, &response);
-		if(respond_to_client(com, response) < 0) return -2;
+		if(respond_to_client(com, response) < 0){
+			clean_response(&response);
+			free(log_buffer);
+			return -2;
+		}
 		if(exit_status == 0){
 			snprintf(log_buffer, LOG_BUFF, "Client %d Deleted %s", request->client_id, request->pathname);
 			logger(log_buffer);
@@ -220,7 +244,11 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		if(request->flags & O_LOCK){
 			exit_status = lock_file(request->pathname, request->client_id, true, &response);
 			if(exit_status == 0){
-				if(respond_to_client(com, response) < 0) return -2;
+				if(respond_to_client(com, response) < 0){
+					clean_response(&response);
+					free(log_buffer);
+					return -2;
+				}
 				snprintf(log_buffer, LOG_BUFF, "Client %d Locked %s", request->client_id, request->pathname);
 				logger(log_buffer);
 			}
@@ -232,23 +260,29 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 				return 0;
 			}
 			else{
-				if(respond_to_client(com, response) < 0) return -2;
+				if(respond_to_client(com, response) < 0){
+					clean_response(&response);
+					free(log_buffer);
+					return -2;
+				}
 				snprintf(log_buffer, LOG_BUFF, "Client %d failed locking %s with error %s", request->client_id, request->pathname, strerror(response.code[1]));
 				logger(log_buffer);
 			}
 		}
 		else{
 			exit_status = unlock_file(request->pathname, request->client_id, &response);
-			if(respond_to_client(com, response) < 0) return -2;
+			if(respond_to_client(com, response) < 0){
+				clean_response(&response);
+				free(log_buffer);
+				return -2;
+			} 
 			if(exit_status == 0){
 				snprintf(log_buffer, LOG_BUFF, "Client %d Unlocked %s", request->client_id, request->pathname);
 				logger(log_buffer);
 				lock_next(request->pathname, true);
 			}
 			else{
-				respond_to_client(com, response);
-				safe_write(com, &response, sizeof response);
-				snprintf(log_buffer, LOG_BUFF, "Client %d failed unlocking %s with error %s", request->client_id, request->pathname, strerror(response.code[1]));
+				snprintf(log_buffer, LOG_BUFF, "Client %d failed unlocking %s -> %s", request->client_id, request->pathname, strerror(response.code[1]));
 				logger(log_buffer);
 			}
 		} 
@@ -284,7 +318,6 @@ void* worker(void* args){
 			if(abort_connections){
 				SAFEUNLOCK(abort_connections_mtx);
 				SAFEUNLOCK(ready_queue_mtx);
-				puts(ANSI_COLOR_RED"EXIT 0"ANSI_COLOR_RESET);
 				return (void *) 0;
 			}
 			SAFEUNLOCK(abort_connections_mtx);
@@ -345,7 +378,6 @@ void* worker(void* args){
 		}
 		SAFEUNLOCK(abort_connections_mtx);
 	}
-	puts(ANSI_COLOR_RED"EXIT"ANSI_COLOR_RESET);
 	return (void *) 0;
 }
 
@@ -381,7 +413,12 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	
 	if (safe_read(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
+	// for (size_t i = 0; i < 8; i++)
+	// 	printf("%d ", packet_size_buff[i]);
+	// puts("");
+	fflush(stdout);
 	*buff_size = char_to_ulong(packet_size_buff);
+	
 	if(*buff_size == 0) {
 		// puts(ANSI_COLOR_BLUE"QUIT REQUEST"ANSI_COLOR_RESET);
 		sendback_client(com, true);
