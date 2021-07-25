@@ -798,9 +798,9 @@ void print_storage_info(){
 	snprintf(memory, 20, "%lu/%lu", server_storage.size, server_storage.size_limit); 
 	snprintf(files, 20, "%u/%u", server_storage.file_count, server_storage.file_limit); 
 	SAFEUNLOCK(server_storage.storage_access_mtx);
-	printf(ANSI_COLOR_CYAN"»»» %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_CYAN" \n"
-			"»»» %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" \n" ANSI_COLOR_RESET, "Memory:",
-			memory, "Files:", files);
+	printf(ANSI_COLOR_CYAN"»»» %-20s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_CYAN" \n"
+			"»»» %-20s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" \n" ANSI_COLOR_RESET, "Memory Used:",
+			memory, "Files in Memory:", files);
 }
 
 void print_summary(){

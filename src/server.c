@@ -17,8 +17,8 @@ pthread_mutex_t abort_connections_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t can_accept_mtx = PTHREAD_MUTEX_INITIALIZER;
 bool *free_threads;
 clients_list *ready_queue[2];
-pthread_mutex_t lines_mtx = PTHREAD_MUTEX_INITIALIZER;
-int lines = 21;
+// pthread_mutex_t lines_mtx = PTHREAD_MUTEX_INITIALIZER;
+// int lines = 21;
 int good_fd_pipe[2]; // 1 lettura, 0 scrittura
 int done_fd_pipe[2]; // 1 lettura, 0 scrittura
 extern void* worker(void* args);
@@ -41,14 +41,10 @@ void func(clients_list *head){
 }
 
 void print_textual_ui(char* SOCKETADDR){
-	SAFELOCK(lines_mtx);
-	if(lines > 20){
-		lines = 0;
-		printf(ANSI_CLEAR_SCREEN);
-		PRINT_WELCOME;
-		printconf(SOCKETADDR);
-	}
-	SAFEUNLOCK(lines_mtx);
+	printf(ANSI_CLEAR_SCREEN);
+	PRINT_WELCOME;
+	printconf(SOCKETADDR);
+	print_storage_info();
 }
 
 int main(int argc, char* argv[]){
@@ -318,7 +314,7 @@ int main(int argc, char* argv[]){
 	free(com_fd);
 	free(free_threads);
 	puts("comfd closed");
-	pthread_mutex_destroy(&lines_mtx);
+	// pthread_mutex_destroy(&lines_mtx);
 	pthread_mutex_destroy(&ready_queue_mtx);
 	pthread_mutex_destroy(&can_accept_mtx);
 	pthread_mutex_destroy(&log_access_mtx);
@@ -335,10 +331,11 @@ void printconf(const char* socketaddr){
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
 			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, 
-			"Workers:",	configuration.workers, "Mem:", configuration.mem, "Files:", 
-			configuration.files, "Socket file:", socketaddr, "Log:", configuration.log);
-			return;
+			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
+			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n", 
+			"Workers:",	configuration.workers, "Max Memory:", configuration.mem, "Max Files:", 
+			configuration.files, "Socket file:", socketaddr, "Log:", configuration.log, "Compression:", configuration.compression ? "Active" : "Disabled");
+		configuration.compression ? printf(CONF_LINE "│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM ANSI_COLOR_RESET_N, "Level:", configuration.compression_level) : printf(CONF_LINE_BOTTOM ANSI_COLOR_RESET_N);
 	// }
 	// printf(ANSI_COLOR_GREEN CONF_LINE_TOP
 	// 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE, "Workers:",	configuration.workers);

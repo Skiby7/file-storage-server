@@ -30,10 +30,10 @@ ssize_t safe_read(int fd, void *ptr, size_t n);
 ssize_t safe_write(int fd, void *ptr, size_t n);
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 void logger(char *log);
-void add_line();
+// void add_line();
 
-extern pthread_mutex_t lines_mtx;
-extern int lines;
+// extern pthread_mutex_t lines_mtx;
+// extern int lines;
 
 
 bool get_ack(int com){
@@ -288,10 +288,10 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		} 
 	}
 
-	if(configuration.tui){
-		print_storage_info();
-		add_line();
-	} 
+	// if(configuration.tui){
+	// 	print_storage_info();
+	// 	add_line();
+	// } 
 	// print_storage();
 	sendback_client(com, false);
 	clean_response(&response);
@@ -442,8 +442,8 @@ void logger(char *log){
 	SAFEUNLOCK(log_access_mtx);
 }
 
-void add_line(){
-	SAFELOCK(lines_mtx);
-	lines++;
-	SAFEUNLOCK(lines_mtx);
-}
+// void add_line(){
+// 	SAFELOCK(lines_mtx);
+// 	lines++;
+// 	SAFEUNLOCK(lines_mtx);
+// }
