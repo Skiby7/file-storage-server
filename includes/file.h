@@ -71,7 +71,7 @@ typedef struct victim_{
 
 
 
-void init_table(int max_file_num, int max_size, bool compression);
+void init_table(int max_file_num, int max_size, bool compression, unsigned short compression_level);
 void clean_storage();
 int open_file(char *filename, int flags, int client_id, server_response *response);
 int close_file(char *filename, int client_id, server_response *response);

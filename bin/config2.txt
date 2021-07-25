@@ -4,3 +4,5 @@ MAXFILES: 10
 SOCKNAME: socket.sk
 LOGFILE: bin/server.log
 TUI: n
+COMPRESSION: y
+C_LEVEL: 6

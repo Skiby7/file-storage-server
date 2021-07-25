@@ -61,7 +61,7 @@ clean:
 		$(RM) build/* src/*.h.gch bin/client bin/server
 
 test1: client server
-	$(RM) ./test/test_output/*
+	$(RM) -r ./test/test_output/*
 	./test/test1.sh
 	./statistiche.sh bin/server.log
 

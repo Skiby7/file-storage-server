@@ -58,9 +58,21 @@ int parseConfig(FILE *conf, config *configuration) {
 		else if(strcmp(token, "TUI") == 0){
 			token = strtok_r(NULL, " ", &tmpstr);
 			removeChar(token);
-			if(token[0] == 'y') configuration->tui = true;
-			else configuration->tui = false;
-			
+			configuration->tui = (token[0] == 'y') ? true : false;
+		}
+
+		else if(strcmp(token, "COMPRESSION") == 0){
+			token = strtok_r(NULL, " ", &tmpstr);
+			removeChar(token);
+			configuration->compression = (token[0] == 'y') ? true : false;
+		}
+
+		else if(strcmp(token, "C_LEVEL") == 0){
+			token = strtok_r(NULL, " ", &tmpstr);
+			removeChar(token);
+			int level = atoi(token);
+			configuration->compression_level = (level >= 0 && level <= 9) ? level : 6;
+			if(level < 0 || level > 9) fprintf(stderr, ANSI_COLOR_RED"Il livello di compressione deve essere compreso fra 0 e 9, impostato livello di default 6!"ANSI_COLOR_RESET_N);
 		}
 
 		else{
