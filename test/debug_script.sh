@@ -2,7 +2,22 @@ CWD=$(realpath $(dirname $0))
 
 
 bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x -p  &
+bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x -p  &
+# bin/client -f /tmp/socket.sk -R 0 -p  &
+# bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x -p  &
+# bin/client -f /tmp/socket.sk -R 10 -p  &
 bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x -p  &
+bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x -p  &
+# bin/client -f /tmp/socket.sk -w ${CWD}/large_files -x -p  &
+bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x -p  &
+# bin/client -f /tmp/socket.sk -R 0 -p  &
+bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x -p  &
+bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x -p  &
+# bin/client -f /tmp/socket.sk -R 50 -p  &
+# bin/client -f /tmp/socket.sk -w ${CWD}/large_files -x -p  &
+bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x -p  &
+# bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x -p  &
+# bin/client -f /tmp/socket.sk -R 0 -p  &
 bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x -p  
 
 

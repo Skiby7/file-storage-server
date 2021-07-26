@@ -277,9 +277,9 @@ int main(int argc, char* argv[]){
 	SAFEUNLOCK(ready_queue_mtx);
 	
 	
-	for (int i = 0; i < configuration.workers; i++){
+	for (int i = 0; i < configuration.workers; i++)
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
-	}
+	
 	CHECKEXIT(pthread_join(signal_handler_thread, NULL) != 0, false, "Errore durante il join dei workers");
 	SAFELOCK(server_storage.storage_access_mtx);
 	pthread_cond_broadcast(&start_victim_selector); // sveglio tutti i thread

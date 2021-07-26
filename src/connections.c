@@ -68,21 +68,21 @@ int sendback_client(int com, bool done){
 	return 0;
 }
 
-void lock_next(char* pathname, bool mutex_write){
+void lock_next(char* pathname, bool server_mutex, bool file_mutex){
 	int lock_com = 0, lock_id = 0;
 	server_response response;
 	char *log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
 	memset(&response, 0, sizeof response);
-	if(pop_lock_file_list(pathname, &lock_id, &lock_com) == 0){
+	if(pop_lock_file_list(pathname, &lock_id, &lock_com, server_mutex, file_mutex) == 0){
 		while (fcntl(lock_com, F_GETFD) != 0 ){
 			sendback_client(lock_com, true);
-			if(pop_lock_file_list(pathname, &lock_id, &lock_com) < 0){
+			if(pop_lock_file_list(pathname, &lock_id, &lock_com, server_mutex, file_mutex) < 0){
 				free(log_buffer);
 				return;
 			}
 		}
 		
-		if(lock_file(pathname, lock_id, mutex_write, &response) < 0){
+		if(lock_file(pathname, lock_id, server_mutex, file_mutex, &response) < 0){
 			snprintf(log_buffer, LOG_BUFF, "Client %d, error locking %s", lock_id, pathname);
 			logger(log_buffer);
 		}
@@ -242,7 +242,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	else if(request->command & SET_LOCK){ // TEST THIS
 		// printf("REQUEST COMMAND: 0x%.2x\nREQUEST FLAGS: 0x%.2x\n", request->command, request->flags);
 		if(request->flags & O_LOCK){
-			exit_status = lock_file(request->pathname, request->client_id, true, &response);
+			exit_status = lock_file(request->pathname, request->client_id, true, true, &response);
 			if(exit_status == 0){
 				if(respond_to_client(com, response) < 0){
 					clean_response(&response);
@@ -279,7 +279,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			if(exit_status == 0){
 				snprintf(log_buffer, LOG_BUFF, "Client %d Unlocked %s", request->client_id, request->pathname);
 				logger(log_buffer);
-				lock_next(request->pathname, true);
+				lock_next(request->pathname, true, true);
 			}
 			else{
 				snprintf(log_buffer, LOG_BUFF, "Client %d failed unlocking %s -> %s", request->client_id, request->pathname, strerror(response.code[1]));
