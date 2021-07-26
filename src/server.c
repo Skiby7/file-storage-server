@@ -239,7 +239,6 @@ int main(int argc, char* argv[]){
 		
 		SAFELOCK(can_accept_mtx);
 		if(!can_accept && !clients_active){
-			puts("waiting");
 			SAFEUNLOCK(can_accept_mtx);
 			while (!thread_finished){
 				for (size_t i = 0; i < configuration.workers; i++){
@@ -260,7 +259,6 @@ int main(int argc, char* argv[]){
 		SAFEUNLOCK(can_accept_mtx);
 	}
 	SAFELOCK(log_access_mtx);
-	write_to_log("Server stopped");
 	SAFEUNLOCK(log_access_mtx);
 	
 	
@@ -303,18 +301,13 @@ int main(int argc, char* argv[]){
 	close(good_fd_pipe[1]);
 	close(done_fd_pipe[0]);
 	close(done_fd_pipe[1]);
-	puts("socket closed");
 	print_summary();
 	freeConfig(&configuration);
 	clean_storage();
 	clean_ready_list(&ready_queue[0]);
-	puts("list closed");
 	free(workers);
-	puts("workers closed");
 	free(com_fd);
 	free(free_threads);
-	puts("comfd closed");
-	// pthread_mutex_destroy(&lines_mtx);
 	pthread_mutex_destroy(&ready_queue_mtx);
 	pthread_mutex_destroy(&can_accept_mtx);
 	pthread_mutex_destroy(&log_access_mtx);
@@ -325,26 +318,18 @@ int main(int argc, char* argv[]){
 }
 
 void printconf(const char* socketaddr){
-	// if(!configuration.summary){
-		printf(ANSI_COLOR_GREEN CONF_LINE_TOP
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n", 
-			"Workers:",	configuration.workers, "Max Memory:", configuration.mem, "Max Files:", 
-			configuration.files, "Socket file:", socketaddr, "Log:", configuration.log, "Compression:", configuration.compression ? "Active" : "Disabled");
-		configuration.compression ? printf(CONF_LINE "│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM ANSI_COLOR_RESET_N, "Level:", configuration.compression_level) : printf(CONF_LINE_BOTTOM ANSI_COLOR_RESET_N);
-	// }
-	// printf(ANSI_COLOR_GREEN CONF_LINE_TOP
-	// 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE, "Workers:",	configuration.workers);
-	// 		// "│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
-	// 		// "│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
-	// print_storage_info();
-	// printf("│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
-	// 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, 
-	// 		"Socket file:", socketaddr, "Log:", configuration.log);
+
+	printf(ANSI_COLOR_GREEN CONF_LINE_TOP
+		"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
+		"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
+		"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
+		"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
+		"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
+		"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n", 
+		"Workers:",	configuration.workers, "Max Memory:", configuration.mem, "Max Files:", 
+		configuration.files, "Socket file:", socketaddr, "Log:", configuration.log, "Compression:", configuration.compression ? "Active" : "Disabled");
+	configuration.compression ? printf(CONF_LINE "│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM ANSI_COLOR_RESET_N, "Level:", configuration.compression_level) : printf(CONF_LINE_BOTTOM ANSI_COLOR_RESET_N);
+
 }
 	
 void init(char *sockname, char *config_file){

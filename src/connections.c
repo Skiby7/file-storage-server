@@ -153,16 +153,27 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			}
 		}
 		else{
-			while(read_n_file(&last_file, request->client_id, &response) != 1 && (!request->files_to_read || files_read < request->files_to_read)){
-					respond_to_client(com, response); // Add errorcheck
-					snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
-					logger(log_buffer);
-					get_ack(com);
+			while(read_n_file(&last_file, request->client_id, &response) != 1){
+				if(request->files_to_read != 0 && files_read == request->files_to_read)
+					break;
+				if(respond_to_client(com, response) < 0){
 					clean_response(&response);
-					memset(&response, 0, sizeof response);
-					files_read++;
+					free(log_buffer);
+					return -2;
+				}
+				snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
+				logger(log_buffer);
+				get_ack(com);
+				clean_response(&response);
+				memset(&response, 0, sizeof response);
+				files_read++;
+				
 			}
-			respond_to_client(com, response);
+			if(respond_to_client(com, response) < 0){
+				clean_response(&response);
+				free(log_buffer);
+				return -2;
+			}
 			clean_response(&response);
 			// snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
 			// logger(log_buffer);
@@ -292,6 +303,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	// 	print_storage_info();
 	// 	add_line();
 	// } 
+	// puts("\n\n\n#####################\n\n");
 	// print_storage();
 	sendback_client(com, false);
 	clean_response(&response);
@@ -361,7 +373,7 @@ void* worker(void* args){
 		clean_request(&request);
 		
 		if(request_status < 0){
-			sprintf(log_buffer,"[Thread %d] Error handling client %d request", whoami, request.client_id);
+			sprintf(log_buffer,"Error handling client %d request", request.client_id);
 			logger(log_buffer);
 			SAFELOCK(free_threads_mtx);
 			free_threads[whoami] = true;

@@ -5,7 +5,6 @@ bin/server bin/config2.txt &
 
 export SERVER=$!
 
-echo $SERVER
 
 bash -c "sleep 5 && kill -1 ${SERVER}" &
 

@@ -1,10 +1,11 @@
 
 
 bin/server bin/config3.txt &
-SERVER=$!
-export SERVER
-bash -c 'sleep 30 && kill -2 ${SERVER}' &
 
+export SERVER=$!
+sleep 2
+bash -c "sleep 10 && kill -2 ${SERVER}" &
+STOP_SERVER=$!
 stress_test_pids=()
 for i in {1..10}; do
     bash -c './test/stress_test.sh' &
@@ -12,13 +13,15 @@ for i in {1..10}; do
     sleep 0.1
 done
 
-sleep 30
+sleep 10
 
 for i in "${stress_test_pids[@]}"; do
-    kill -9 ${i}
-    wait ${i}
+    kill -9 ${i} &> /dev/null
+    wait ${i} &> /dev/null
 done
 
-wait ${SERVER}
-kill -9 $(pidof client)
+
+# $(pidof client) | xargs kill -9 2> /dev/null
+wait $SERVER
+wait $STOP_SERVER
 exit 0

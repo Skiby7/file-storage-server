@@ -67,5 +67,11 @@ test1: client server
 
 test2: client server
 	$(RM) -r ./test/test_output/*
+	$(RM) -r ./test/output_stress_test/*
 	./test/test2.sh
+	./statistiche.sh bin/server.log
+
+test3: client server
+	$(RM) -r ./test/test_output/*
+	./test/test3.sh
 	./statistiche.sh bin/server.log
