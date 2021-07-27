@@ -7,11 +7,12 @@
 #define LOG_BUFF 512
 
  
+pthread_mutex_t tui_mtx;
 
 extern config configuration; // Server config
-extern volatile sig_atomic_t can_accept;
-extern volatile sig_atomic_t abort_connections;
-extern pthread_mutex_t abort_connections_mtx;
+// extern volatile sig_atomic_t can_accept;
+// extern volatile sig_atomic_t abort_connections;
+// extern pthread_mutex_t abort_connections_mtx;
 extern clients_list *ready_queue[2];
 
 extern bool *free_threads;
@@ -305,6 +306,12 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	// } 
 	// puts("\n\n\n#####################\n\n");
 	// print_storage();
+	
+	if(configuration.tui && (request->command & REMOVE || request->command & WRITE || request->command & OPEN) && exit_status == 0){
+		SAFELOCK(tui_mtx);
+		print_storage_info();
+		SAFEUNLOCK(tui_mtx);
+	} 
 	sendback_client(com, false);
 	clean_response(&response);
 	free(log_buffer);
@@ -326,13 +333,6 @@ void* worker(void* args){
 		// Thread waits for work to be assigned
 		SAFELOCK(ready_queue_mtx);
 		while(ready_queue[1] == NULL){
-			SAFELOCK(abort_connections_mtx);
-			if(abort_connections){
-				SAFEUNLOCK(abort_connections_mtx);
-				SAFEUNLOCK(ready_queue_mtx);
-				return (void *) 0;
-			}
-			SAFEUNLOCK(abort_connections_mtx);
 			pthread_cond_wait(&client_is_ready, &ready_queue_mtx); 
 		}
 		SAFELOCK(free_threads_mtx);
@@ -342,7 +342,11 @@ void* worker(void* args){
 		SAFEUNLOCK(ready_queue_mtx);
 		if(com == -1) // Falso allarme
 			continue;
-		
+		if(com == -2){
+			pthread_mutex_destroy(&tui_mtx);
+			return NULL;
+		}
+			
 		
 		memset(&request, 0, sizeof request);
 		read_status = read_all_buffer(com, &request_buffer, &request_buffer_size);
@@ -356,20 +360,11 @@ void* worker(void* args){
 			SAFEUNLOCK(free_threads_mtx);
 			continue;
 		}
-		// for (size_t i = 0; i < request_buffer_size; i++)
-		// 	printf("%.2x ", request_buffer[i]);
-		// puts("");
 		deserialize_request(&request, &request_buffer, request_buffer_size);
 
 		
-		// reset_buffer(&request_buffer, &request_buffer_size);
-		// printf(ANSI_COLOR_MAGENTA"[Thread %d] received request from client %d"ANSI_COLOR_RESET_N, whoami, request.client_id);
-		// if(configuration.tui) add_line();
-		// puts("Deserialized request");
-		// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\nfiles_to_read: %d\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags, request.files_to_read, request.pathname,request.size);
-
+		
 		request_status = handle_request(com, whoami, &request); // Response is set and log is updated
-		// printf("REQUEST COMMAND: 0x%.2x\nREQUEST STATUS: %d\n",request.command, request_status);
 		clean_request(&request);
 		
 		if(request_status < 0){
@@ -383,12 +378,7 @@ void* worker(void* args){
 		SAFELOCK(free_threads_mtx);
 		free_threads[whoami] = true;
 		SAFEUNLOCK(free_threads_mtx);
-		SAFELOCK(abort_connections_mtx);
-		if(abort_connections){
-			SAFEUNLOCK(abort_connections_mtx);
-			break;
-		}
-		SAFEUNLOCK(abort_connections_mtx);
+
 	}
 	return (void *) 0;
 }
@@ -454,8 +444,3 @@ void logger(char *log){
 	SAFEUNLOCK(log_access_mtx);
 }
 
-// void add_line(){
-// 	SAFELOCK(lines_mtx);
-// 	lines++;
-// 	SAFEUNLOCK(lines_mtx);
-// }

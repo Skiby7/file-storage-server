@@ -754,6 +754,7 @@ int unlock_file(char *pathname, int client_id, server_response *response){
 void print_storage_info(){
 	char memory[20];
 	char files[20];
+	printf("\033[2A");
 	SAFELOCK(server_storage.storage_access_mtx);
 	snprintf(memory, 20, "%lu/%lu", server_storage.size, server_storage.size_limit); 
 	snprintf(files, 20, "%u/%u", server_storage.file_count, server_storage.file_limit); 
@@ -761,6 +762,7 @@ void print_storage_info(){
 	printf(ANSI_COLOR_CYAN"»»» %-20s  "ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_CYAN" \n"
 			"»»» %-20s  "ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" "ANSI_COLOR_RESET_N, "Memory Used:",
 			memory, "Files in Memory:", files);
+	
 }
 
 void print_summary(){
@@ -1040,17 +1042,10 @@ static int check_count(){
 
 void* use_stat_update(void *args){
 	fssFile* file = NULL;
+	if(pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL) < 0) exit(EXIT_FAILURE);
 	while(true){
 		SAFELOCK(server_storage.storage_access_mtx);
 		pthread_cond_wait(&start_victim_selector, &server_storage.storage_access_mtx);
-
-		SAFELOCK(abort_connections_mtx);
-		if(abort_connections){
-			SAFEUNLOCK(abort_connections_mtx);
-			SAFEUNLOCK(server_storage.storage_access_mtx);
-			return (void *) 0;
-		}
-		SAFEUNLOCK(abort_connections_mtx);
 		for(int i = 0; i < server_storage.table_size; i++){
 			
 			if(server_storage.storage_table[i] == NULL) continue;

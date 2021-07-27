@@ -8,17 +8,15 @@
 
 
 config configuration; // Server config
-bool can_accept = true;
-bool abort_connections = false;
+volatile sig_atomic_t can_accept = 1;
+volatile sig_atomic_t abort_connections = 0;
 pthread_mutex_t ready_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t log_access_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t client_is_ready = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t abort_connections_mtx = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t can_accept_mtx = PTHREAD_MUTEX_INITIALIZER;
+
 bool *free_threads;
 clients_list *ready_queue[2];
-// pthread_mutex_t lines_mtx = PTHREAD_MUTEX_INITIALIZER;
-// int lines = 21;
+
 int good_fd_pipe[2]; // 1 lettura, 0 scrittura
 int done_fd_pipe[2]; // 1 lettura, 0 scrittura
 extern void* worker(void* args);
@@ -28,6 +26,16 @@ extern storage server_storage;
 extern pthread_cond_t start_victim_selector;
 
 
+void signal_handler(int signum) {
+    if (signum == SIGHUP) {
+        can_accept = 0;
+    }
+    else{
+		can_accept = 0;
+		abort_connections = 1;
+	}
+}
+        
 
 
 void func(clients_list *head){
@@ -44,7 +52,7 @@ void print_textual_ui(char* SOCKETADDR){
 	printf(ANSI_CLEAR_SCREEN);
 	PRINT_WELCOME;
 	printconf(SOCKETADDR);
-	print_storage_info();
+	puts("\n\n");
 }
 
 int main(int argc, char* argv[]){
@@ -67,20 +75,24 @@ int main(int argc, char* argv[]){
 	CHECKALLOC(com_fd, "pollfd");
 	bool thread_finished = false;
 	pthread_t *workers;
-	pthread_t signal_handler_thread;
 	pthread_t use_stat_thread;
+	struct sigaction sig_handler;
+	memset(&sig_handler, 0, sizeof sig_handler);
+	sig_handler.sa_handler = signal_handler;
 	sigset_t signal_mask;
 	struct sockaddr_un sockaddress; // Socket init
-	
+	sigemptyset(&signal_mask);
+    sigaddset(&signal_mask, SIGINT);
+    sigaddset(&signal_mask, SIGHUP);
+    sigaddset(&signal_mask, SIGQUIT);
+    sig_handler.sa_mask = signal_mask;
+	sigaction(SIGINT, &sig_handler, NULL);
+    sigaction(SIGHUP, &sig_handler, NULL);
+    sigaction(SIGQUIT, &sig_handler, NULL);
+
 	init(SOCKETADDR, argv[1]); // Configuration struct is now initialized
 	open_log(configuration.log);
-	
-	// Signal handler
-	CHECKSCEXIT(sigfillset(&signal_mask), true, "Errore durante il settaggio di signal_mask");
-	CHECKSCEXIT(sigdelset(&signal_mask, SIGSEGV), true, "Errore durante il settaggio di signal_mask");
-	// CHECKSCEXIT(sigdelset(&signal_mask, SIGPIPE), true, "Errore durante il settaggio di signal_mask");
-	CHECKEXIT(pthread_sigmask(SIG_SETMASK, &signal_mask, NULL) != 0, false, "Errore durante il mascheramento dei segnali");
-	// END signal handler
+
 	write_to_log("Segnali mascherati.");
 
 	init_table(configuration.files, configuration.mem, configuration.compression, configuration.compression_level);
@@ -117,92 +129,82 @@ int main(int argc, char* argv[]){
 	com_fd[2].events = POLLIN;
 	com_count = 3;
 	write_to_log("Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1.");
-	CHECKEXIT(pthread_create(&signal_handler_thread, NULL, &sig_wait_thread, NULL) != 0, false, "Errore di creazione del signal handler thread");
+	// CHECKEXIT(pthread_create(&signal_handler_thread, NULL, &sig_wait_thread, NULL) != 0, false, "Errore di creazione del signal handler thread");
 	CHECKEXIT(pthread_create(&use_stat_thread, NULL, &use_stat_update, NULL) != 0, false, "Errore di creazione di use stat thread");
 	for (int i = 0; i < configuration.workers; i++){
 		CHECKEXIT(pthread_create(&workers[i], NULL, &worker, &i), false, "Errore di creazione dei worker");
 	}
-
-	while(true){
-		if(configuration.tui) print_textual_ui(SOCKETADDR);
+	if(configuration.tui) print_textual_ui(SOCKETADDR);
+	while(!abort_connections){
+		
 		
 		
 		poll_val = poll(com_fd, com_count, -1);
-		CHECKERRNO(poll_val < 0, "Errore durante il polling");
+		if(poll_val < 0){
+			if(errno == EINTR){
+				if(abort_connections) break;
+				continue;
+			}
+			perror("Errore durante la poll!");
+			exit(EXIT_FAILURE);
+		} 
 		// PRINT_POLLING(poll_print);
 		// printf("poll_val -> %d\n", poll_val);
-		SAFELOCK(abort_connections_mtx);
-		if(abort_connections){
-			SAFEUNLOCK(abort_connections_mtx);
-			break;
-		}
-		SAFEUNLOCK(abort_connections_mtx);
+		// SAFELOCK(abort_connections_mtx);
+		// if(abort_connections){
+		// 	SAFEUNLOCK(abort_connections_mtx);
+		// 	break;
+		// }
+		// SAFEUNLOCK(abort_connections_mtx);
 		
 		if(com_fd[0].revents & POLLIN){
 			com = accept(socket_fd, NULL, 0);
-			SAFELOCK(can_accept_mtx);
-			if(!can_accept){
-				SAFEUNLOCK(can_accept_mtx);
-				close(com);
-			}
-			else if(com < 0){
-				SAFEUNLOCK(can_accept_mtx);
-				CHECKERRNO(true, "Errore durante la accept");
-			}
+			if(!can_accept) close(com);
+			else if(com < 0){ CHECKERRNO(com < 0, "Errore durante la accept"); }
 			else{
-				SAFEUNLOCK(can_accept_mtx);
 				clients_active++;
 				if (clients_active > max_clients_active) max_clients_active = clients_active;
 				if (com_size - com_count < 3){
-						com_size = realloc_com_fd(&com_fd, com_size);
-						for (size_t i = com_count; i < com_size; i++){
-							com_fd[i].fd = 0;
-							com_fd[i].events = 0;
-						}
+					com_size = realloc_com_fd(&com_fd, com_size);
+					for (size_t i = com_count; i < com_size; i++){
+						com_fd[i].fd = 0;
+						com_fd[i].events = 0;
 					}
+				}
 				insert_com_fd(com, &com_size, &com_count, com_fd);
 			}
 		}	
 			
 		if(com_fd[1].revents & POLLIN){
-			// printf("REVENTS %d \n", com_fd[2].revents);
-
 			read_bytes = read(good_fd_pipe[0], buffer, sizeof(buffer));
 			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
-			if(strncmp(buffer, "termina", PIPE_BUF) != 0){
-				tmp = strtol(buffer, NULL, 10);
-				if(tmp <= 0)
-					fprintf(stderr, "Errore strtol good_pipe! Buffer -> %s\n", buffer);
-					
-				else{
-					// printf("ARRIVED %d in good_pipe\n", tmp);
-
-					if (com_size - com_count < 3){
-						com_size = realloc_com_fd(&com_fd, com_size);
-						for (size_t i = com_count; i < com_size; i++){
-							com_fd[i].fd = 0;
-							com_fd[i].events = 0;
-						}
+			tmp = strtol(buffer, NULL, 10);
+			if(tmp <= 0)
+				fprintf(stderr, "Errore strtol good_pipe! Buffer -> %s\n", buffer);
+				
+			else{
+				if (com_size - com_count < 3){
+					com_size = realloc_com_fd(&com_fd, com_size);
+					for (size_t i = com_count; i < com_size; i++){
+						com_fd[i].fd = 0;
+						com_fd[i].events = 0;
 					}
-					insert_com_fd(tmp, &com_size, &com_count, com_fd);
 				}
+				insert_com_fd(tmp, &com_size, &com_count, com_fd);
 			}
+			
 		}
 			
 		if(com_fd[2].revents & POLLIN){
-			// printf("REVENTS %d \n", com_fd[2].revents);
 			read_bytes = read(done_fd_pipe[0], buffer, sizeof buffer);
 			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
-			
 			tmp = strtol(buffer, NULL, 10);
 			if(tmp <= 0)
 				fprintf(stderr, "Errore strtol done_pipe! Buffer -> %s\n", buffer);
 			else{
-				// shutdown(tmp, SHUT_RDWR);
-				// printf("ARRIVED %d in done_pipe\n", tmp);
-
 				CHECKERRNO(close(tmp) < 0, "Errore chiusura done queue pipe");
 				clients_active--;
+				if(!clients_active && !can_accept) break;
 				continue;
 			}
 		}
@@ -237,11 +239,10 @@ int main(int argc, char* argv[]){
 			SAFEUNLOCK(free_threads_mtx);
 		}
 		
-		SAFELOCK(can_accept_mtx);
 		if(!can_accept && !clients_active){
-			SAFEUNLOCK(can_accept_mtx);
 			while (!thread_finished){
 				for (size_t i = 0; i < configuration.workers; i++){
+					puts("waiting");
 					SAFELOCK(free_threads_mtx);
 					if (!free_threads[i]){
 						SAFEUNLOCK(free_threads_mtx);
@@ -252,25 +253,19 @@ int main(int argc, char* argv[]){
 					SAFEUNLOCK(free_threads_mtx);
 					
 				}
-				sleep(1);
 			}
 			break;
 		}
-		SAFEUNLOCK(can_accept_mtx);
 	}
-	SAFELOCK(log_access_mtx);
-	SAFEUNLOCK(log_access_mtx);
 	
 	
 	
-	SAFELOCK(abort_connections_mtx);
-	if(!abort_connections){
-		abort_connections = true;
-		SAFEUNLOCK(abort_connections_mtx);
-	}
-	else
-		SAFEUNLOCK(abort_connections_mtx);
+
 	SAFELOCK(ready_queue_mtx);
+	clean_ready_list(&ready_queue[0]);
+	for (int i = 0; i < configuration.workers; i++)
+		insert_client_list(-2, &ready_queue[0], &ready_queue[1]);
+
 	pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
 	SAFEUNLOCK(ready_queue_mtx);
 	
@@ -278,10 +273,8 @@ int main(int argc, char* argv[]){
 	for (int i = 0; i < configuration.workers; i++)
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
 	
-	CHECKEXIT(pthread_join(signal_handler_thread, NULL) != 0, false, "Errore durante il join dei workers");
-	SAFELOCK(server_storage.storage_access_mtx);
-	pthread_cond_broadcast(&start_victim_selector); // sveglio tutti i thread
-	SAFEUNLOCK(server_storage.storage_access_mtx);
+	pthread_cancel(use_stat_thread);
+	
 	CHECKEXIT(pthread_join(use_stat_thread, NULL) != 0, false, "Errore durante la cancellazione dei workers attivi");
 	for (size_t i = 0; i < com_size; i++){
 			if(com_fd[i].fd != 0)
@@ -309,7 +302,6 @@ int main(int argc, char* argv[]){
 	free(com_fd);
 	free(free_threads);
 	pthread_mutex_destroy(&ready_queue_mtx);
-	pthread_mutex_destroy(&can_accept_mtx);
 	pthread_mutex_destroy(&log_access_mtx);
 	pthread_mutex_destroy(&free_threads_mtx);
 	pthread_cond_destroy(&client_is_ready);
@@ -364,39 +356,3 @@ nfds_t realloc_com_fd(struct pollfd **com_fd, nfds_t free_slot){
 	return new_size;
 }
 
-void* sig_wait_thread(void *args){
-	int signum = 0;
-	sigset_t sig_set;
-	char buffer[PIPE_BUF];
-	memset(buffer, 0, PIPE_BUF);
-	SAFELOCK(log_access_mtx);
-	write_to_log("Avviato signal handler thread");
-	SAFEUNLOCK(log_access_mtx);
-	CHECKSCEXIT(sigemptyset(&sig_set), true, "Errore di inizializzazione sig_set");
-	CHECKSCEXIT(sigaddset(&sig_set, SIGINT), true, "Errore di inizializzazione sig_set");
-	CHECKSCEXIT(sigaddset(&sig_set, SIGHUP), true, "Errore di inizializzazione sig_set");
-	CHECKSCEXIT(sigaddset(&sig_set, SIGQUIT), true, "Errore di inizializzazione sig_set");
-	while(true){
-		CHECKEXIT(sigwait(&sig_set, &signum) != 0, false, "Errore sigwait");
-		if(signum == SIGINT || signum == SIGQUIT){
-			SAFELOCK(abort_connections_mtx);
-			abort_connections = true;
-			SAFEUNLOCK(abort_connections_mtx);
-			SAFELOCK(can_accept_mtx);
-			can_accept = false;
-			SAFEUNLOCK(can_accept_mtx);
-			sprintf(buffer, "termina");
-			CHECKERRNO((write(good_fd_pipe[1], buffer, sizeof(buffer)) < 0), "Errore invio terminazione sulla pipe");
-			break;
-		}
-		if(signum == SIGHUP){
-			SAFELOCK(can_accept_mtx);
-			can_accept = false;
-			SAFEUNLOCK(can_accept_mtx);
-			sprintf(buffer, "termina");
-			CHECKERRNO((write(good_fd_pipe[1], buffer, sizeof(buffer)) < 0), "Errore invio terminazione sulla pipe");
-			break;
-		}
-	}
-	return (void *) 0;
-}
