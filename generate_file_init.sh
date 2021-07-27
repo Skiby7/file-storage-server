@@ -42,4 +42,6 @@ head -c 500000 < /dev/urandom > ${CWD}/test/test_2/initial_file_0.txt
 echo -e "${LINE_UP}Generati i file per il test 2"
 
 chmod 777 -R ${CWD}/test/test_2/
+mkdir ${CWD}/test/output_stress_test &> /dev/null
+mkdir ${CWD}/test/test_output &> /dev/null
 echo -e "Fatto!\n"
