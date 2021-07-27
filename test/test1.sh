@@ -6,10 +6,10 @@ valgrind --leak-check=full bin/server bin/config1.txt &
 
 export SERVER=$!
 
-bash -c "sleep 10 && kill -1 ${SERVER}" &
+# bash -c "sleep 20 && kill -1 ${SERVER}" &
 
 STOP_SERVER=$!
-sleep 1
+sleep 5
 # Write some files
 bin/client -f /tmp/socket.sk -w ${CWD}/small_files,10 -x -p -t 200 
 
@@ -22,7 +22,8 @@ bin/client -f /tmp/socket.sk -r ${CWD}/medium_files/medium_0.txt -d ${CWD}/test_
 bin/client -f /tmp/socket.sk -l ${CWD}/medium_files/medium_0.txt -u ${CWD}/medium_files/medium_0.txt -p -t 2000 &
 
 bin/client -f /tmp/socket.sk -l ${CWD}/medium_files/medium_0.txt -c ${CWD}/medium_files/medium_0.txt -p -t 200 
-
+sleep 5
+kill -1 $SERVER
 
 
 wait $SERVER

@@ -120,7 +120,7 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 		else if(command & LOCK_FILES){ 
 			retval = lockFile(token);
 			if(config.verbose) CHECKERRNO(retval < 0, "Errore lock file");
-			if(config.verbose) printf("Locked %s\n", token);
+			if(config.verbose && retval == 0) printf("Locked %s\n", token);
 
 		}
 		else if(command & UNLOCK_FILES){

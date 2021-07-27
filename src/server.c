@@ -142,7 +142,7 @@ int main(int argc, char* argv[]){
 		poll_val = poll(com_fd, com_count, -1);
 		if(poll_val < 0){
 			if(errno == EINTR){
-				if(abort_connections) break;
+				if(abort_connections || (!can_accept && clients_active == 0)) break;
 				continue;
 			}
 			perror("Errore durante la poll!");
@@ -251,7 +251,7 @@ int main(int argc, char* argv[]){
 					if (free_threads[i] && i == configuration.workers - 1)
 						thread_finished = true;
 					SAFEUNLOCK(free_threads_mtx);
-					
+					puts("Here");
 				}
 			}
 			break;
@@ -261,14 +261,16 @@ int main(int argc, char* argv[]){
 	
 	
 
-	SAFELOCK(ready_queue_mtx);
-	clean_ready_list(&ready_queue[0]);
-	for (int i = 0; i < configuration.workers; i++)
-		insert_client_list(-2, &ready_queue[0], &ready_queue[1]);
+	// SAFELOCK(ready_queue_mtx);
+	// clean_ready_list(&ready_queue[0]);
+	// for (int i = 0; i < configuration.workers; i++)
+	// 	insert_client_list(-2, &ready_queue[0], &ready_queue[1]);
 
-	pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
-	SAFEUNLOCK(ready_queue_mtx);
-	
+	// pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
+	// SAFEUNLOCK(ready_queue_mtx);
+	for (int i = 0; i < configuration.workers; i++)
+		pthread_cancel(workers[i]);
+
 	
 	for (int i = 0; i < configuration.workers; i++)
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");

@@ -307,7 +307,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	// puts("\n\n\n#####################\n\n");
 	// print_storage();
 	
-	if(configuration.tui && (request->command & REMOVE || request->command & WRITE || request->command & OPEN) && exit_status == 0){
+	if(configuration.tui && (request->command & REMOVE || request->command & WRITE || request->command & OPEN || request->command & APPEND) && exit_status == 0){
 		SAFELOCK(tui_mtx);
 		print_storage_info();
 		SAFEUNLOCK(tui_mtx);
