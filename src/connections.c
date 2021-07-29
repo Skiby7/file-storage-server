@@ -176,6 +176,10 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 				clean_response(&response);
 				response.code[0] = FILE_NOT_EXISTS;
 			}
+			if(last_file){
+				free(last_file);
+				last_file = NULL;
+			} 
 			if(respond_to_client(com, response) < 0){
 				clean_response(&response);
 				free(log_buffer);
@@ -184,10 +188,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			clean_response(&response);
 			// snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
 			// logger(log_buffer);
-			if(last_file){
-				free(last_file);
-				last_file = NULL;
-			} 
+			
 			exit_status = 0;
 		}
 	}
@@ -335,6 +336,10 @@ void* worker(void* args){
 	client_request request;
 	memset(log_buffer, 0, LOG_BUFF);
 	pthread_setcancelstate(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+	sigset_t signal_mask;
+	CHECKSCEXIT(sigfillset(&signal_mask), true, "Errore durante il settaggio di signal_mask");
+	CHECKSCEXIT(sigdelset(&signal_mask, SIGSEGV), true, "Errore durante il settaggio di signal_mask");
+	CHECKEXIT(pthread_sigmask(SIG_SETMASK, &signal_mask, NULL) != 0, false, "Errore durante il mascheramento dei segnali");
 	while(true){
 		// Thread waits for work to be assigned
 		SAFELOCK(ready_queue_mtx);
@@ -349,7 +354,7 @@ void* worker(void* args){
 		if(com == -1) // Falso allarme
 			continue;
 		if(com == -2){
-			pthread_mutex_destroy(&tui_mtx);
+			// pthread_mutex_destroy(&tui_mtx);
 			return NULL;
 		}
 			
