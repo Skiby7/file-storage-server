@@ -6,7 +6,9 @@ for i in {1..10}; do
 done
 
 sleep 30
-kill -2 66456
+SERVER=$(pidof server)
+kill -2 $SERVER
+wait $SERVER &> /dev/null
 for i in "${stress_test_pids[@]}"; do
     kill -9 ${i} &> /dev/null
     wait ${i} &> /dev/null

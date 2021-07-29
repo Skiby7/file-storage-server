@@ -260,14 +260,13 @@ int main(int argc, char* argv[]){
 	
 	
 	
+	SAFELOCK(ready_queue_mtx);
+	clean_ready_list(&ready_queue[0]);
+	for (int i = 0; i < configuration.workers; i++)
+		insert_client_list(-2, &ready_queue[0], &ready_queue[1]);
 
-	// SAFELOCK(ready_queue_mtx);
-	// clean_ready_list(&ready_queue[0]);
-	// for (int i = 0; i < configuration.workers; i++)
-	// 	insert_client_list(-2, &ready_queue[0], &ready_queue[1]);
-
-	// pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
-	// SAFEUNLOCK(ready_queue_mtx);
+	pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
+	SAFEUNLOCK(ready_queue_mtx);
 	for (int i = 0; i < configuration.workers; i++)
 		pthread_cancel(workers[i]);
 

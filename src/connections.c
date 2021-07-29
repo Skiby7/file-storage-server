@@ -328,7 +328,7 @@ void* worker(void* args){
 	unsigned char* request_buffer = NULL;
 	client_request request;
 	memset(log_buffer, 0, LOG_BUFF);
-	
+	pthread_setcancelstate(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	while(true){
 		// Thread waits for work to be assigned
 		SAFELOCK(ready_queue_mtx);
