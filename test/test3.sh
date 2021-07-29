@@ -5,13 +5,13 @@ bin/server bin/config3.txt &
 export SERVER=$!
 sleep 2
 stress_test_pids=()
-for i in {1..10}; do
+for i in {1..15}; do
     bash -c './test/stress_test.sh' &
     stress_test_pids+=($!)
     sleep 0.1
 done
  
-sleep 10
+sleep 20
 kill -2 ${SERVER}
 wait $SERVER
 for i in "${stress_test_pids[@]}"; do

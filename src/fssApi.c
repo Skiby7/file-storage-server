@@ -174,18 +174,19 @@ int readNFile(int N, const char* dirname){
 	if(N <= 0) N = 0;
 	if(!good_path) puts(ANSI_COLOR_RED"Il path fornito non è assoluto: impossibile salvare i file!"ANSI_COLOR_RESET);
 	handle_connection(read_n_request, &read_n_response);
-	if(read_n_response.size == 1 && read_n_response.code[0] == FILE_OPERATION_SUCCESS && read_n_response.data[0] == 0) return i;
+	if(read_n_response.code[0] == FILE_NOT_EXISTS) return i;
 	i++;
 	if(good_path){
 		chdir(dirname);
 		save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
 		chdir(current_dir);
 	} 
-	while(!N || i < N){
+	clean_response(&read_n_response);
+	while(true){
 		send_ack(socket_fd);
 		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
 		deserialize_response(&read_n_response, &buffer, buff_size);
-		if(read_n_response.size == 1 && read_n_response.code[0] == FILE_OPERATION_SUCCESS && read_n_response.data[0] == 0) break;
+		if(read_n_response.code[0] == FILE_NOT_EXISTS) break;
 		if(good_path){
 			chdir(dirname);
 			save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);

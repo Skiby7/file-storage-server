@@ -28,18 +28,21 @@ int pop_client(clients_list **head, clients_list **tail){
 		(*head) = NULL;
 	
 	free(befree);
+	befree = NULL;
 	return retval;
 	
 } 
 
-void clean_ready_list(clients_list **head){
+void clean_ready_list(clients_list **head, clients_list **tail){
 	clients_list *befree = NULL;
 	while((*head)!=NULL){
 		close((*head)->com);
 		befree = (*head);
 		(*head) = (*head)->next;
 		free(befree);
+		befree = NULL;
 	}
+	(*tail) = NULL;
 }
 
 

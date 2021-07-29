@@ -14,4 +14,4 @@ typedef struct connections_{
 
 void insert_client_list(int com, clients_list **head, clients_list **tail);
 int pop_client(clients_list **head, clients_list **tail);
-void clean_ready_list(clients_list **head);
+void clean_ready_list(clients_list **head,  clients_list **tail);

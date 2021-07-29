@@ -492,10 +492,7 @@ int read_n_file(char **last_file, int client_id, server_response* response){
 	
 no_more_files:
 	SAFEUNLOCK(server_storage.storage_access_mtx);
-	response->code[0] = FILE_OPERATION_SUCCESS;
-	response->size = 1;
-	response->data = calloc(1, sizeof(unsigned char));
-	response->data[0] = 0;
+	response->code[0] = FILE_NOT_EXISTS;
 	return 1;
 }
 
