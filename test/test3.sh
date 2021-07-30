@@ -11,15 +11,17 @@ for i in {1..15}; do
     sleep 0.1
 done
  
-sleep 20
-kill -2 ${SERVER}
-wait $SERVER
+
+sleep 30
+
 for i in "${stress_test_pids[@]}"; do
     kill -9 ${i} &> /dev/null
     wait ${i} &> /dev/null
 done
 
+kill -2 $SERVER
+wait $SERVER
 
-# $(pidof client) | xargs kill -9 2> /dev/null
+$(pidof client) | xargs kill -9 {} &> /dev/null
 
 exit 0

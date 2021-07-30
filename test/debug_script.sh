@@ -7,14 +7,14 @@ done
 
 sleep 30
 SERVER=$(pidof server)
-
-for i in "${stress_test_pids[@]}"; do
-    kill -9 ${i} &> /dev/null
-    wait ${i} 
-done
 kill -2 $SERVER
 echo "SIGNAL SENT TO SERVER"
 wait $SERVER
+
+for i in "${stress_test_pids[@]}"; do
+    kill -9 ${i} &> /dev/null
+    wait ${i} &> /dev/null
+done
 
 $(pidof client) | xargs kill -9 {} &> /dev/null
 

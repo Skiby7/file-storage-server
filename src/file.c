@@ -749,16 +749,36 @@ int unlock_file(char *pathname, int client_id, server_response *response){
 
 
 void print_storage_info(){
+	char bg = ' ';
+	char fg = '#';
 	char memory[20];
 	char files[20];
+	int percent_int_mem = 0, percent_int_files = 0, graphic_size = 15;
+	float percent_float_mem = 0.0, percent_float_files = 0.0;
+	char mem_bar[graphic_size+1];
+	char files_bar[graphic_size+1];
+	files_bar[graphic_size] = 0;
+	mem_bar[graphic_size] = 0;
+	memset(files_bar, bg, graphic_size);
+	memset(mem_bar, bg, graphic_size);
+
 	printf("\033[2A");
 	SAFELOCK(server_storage.storage_access_mtx);
+	percent_float_mem = (float) server_storage.size/server_storage.size_limit;
+	percent_float_files = (float) server_storage.file_count/server_storage.file_limit;
+	percent_int_mem = graphic_size*percent_float_mem;
+	percent_int_files = graphic_size*percent_float_files;
+	for (size_t i = 0; i < percent_int_files; i++)
+		files_bar[i] = fg;
+	for (size_t i = 0; i < percent_int_mem; i++)
+		mem_bar[i] = fg;
+
 	snprintf(memory, 20, "%lu/%lu", server_storage.size, server_storage.size_limit); 
 	snprintf(files, 20, "%u/%u", server_storage.file_count, server_storage.file_limit); 
 	SAFEUNLOCK(server_storage.storage_access_mtx);
-	printf(ANSI_COLOR_CYAN"»»» %-20s  "ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_CYAN" \n"
-			"»»» %-20s  "ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" "ANSI_COLOR_RESET_N, "Memory Used:",
-			memory, "Files in Memory:", files);
+	printf(ANSI_COLOR_CYAN"»»» %-20s  "ANSI_COLOR_YELLOW"[%s] %20s"ANSI_COLOR_CYAN" \n"
+			"»»» %-20s  "ANSI_COLOR_YELLOW"[%s] %20s"ANSI_COLOR_GREEN" "ANSI_COLOR_RESET_N, "Memory Used:", mem_bar,
+			memory, "Files in Memory:", files_bar, files);
 	
 }
 
