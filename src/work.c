@@ -51,59 +51,62 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 	while(token){
 		errno = 0;
 		if(command & WRITE_FILES){ 
-			real_path = realpath(token, NULL);
-			if(!real_path){
-				fprintf(stderr, ANSI_COLOR_RED"Pathname %s non valido!"ANSI_COLOR_RESET_N, token);
-				token = strtok_r(NULL, DELIM, &tmpstr);
-
-				continue;
-			} 
-			if((file = open(real_path, O_RDONLY)) == -1){
+			// real_path = realpath(token, NULL);
+			// if(!real_path){
+			// 	fprintf(stderr, ANSI_COLOR_RED"Pathname %s non valido!"ANSI_COLOR_RESET_N, token);
+			// 	token = strtok_r(NULL, DELIM, &tmpstr);
+			// 	continue;
+			// } 
+			if((file = open(token, O_RDONLY)) == -1){
 				perror("Errore durante l'apertura del file");
-				free(real_path);
-				real_path = NULL;
+				// free(real_path);
+				// real_path = NULL;
 				token = strtok_r(NULL, DELIM, &tmpstr);
 				continue;
 			}
 			close(file);
-			open_file_val = openFile(real_path, O_CREATE | O_LOCK);
+			open_file_val = openFile(token, O_CREATE | O_LOCK);
 			if(open_file_val >= 0){
-				retval = writeFile(real_path, dirname);
+				retval = writeFile(token, dirname);
 				if(config.verbose) CHECKERRNO(retval < 0, "Errore scrittura file");
-				retval = closeFile(real_path);
+				retval = closeFile(token);
 				if(config.verbose) CHECKERRNO(retval < 0, "Errore chiusura file");
-				stat(real_path, &st);
+				stat(token, &st);
 				if(config.verbose) printf("Scritti %lu bytes (file: %s)\n", st.st_size, token);
 			}
 			else if(open_file_val <= 0 && errno == EEXIST){
 				errno = 0;
-				if(openFile(real_path, 0) < 0){
+				if(openFile(token, 0) < 0){
 					if(config.verbose) perror("Errore apertura file");
-					free(real_path);
-					real_path = NULL;
+					// free(real_path);
+					// real_path = NULL;
 					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
-				if((file = open(real_path, O_RDONLY)) == -1){
+				if((file = open(token, O_RDONLY)) == -1){
 					if(config.verbose) perror("Errore durante l'apertura del file");
-					free(real_path);
-					real_path = NULL;
+					// free(real_path);
+					// real_path = NULL;
 					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
 				if(fstat(file, &st) < 0){
 					perror("Errore fstat");
-					free(real_path);
-					real_path = NULL;	
+					// free(real_path);
+					// real_path = NULL;	
 					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
 				size = st.st_size;
 				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
-				read(file, buffer, size);
-				retval = appendToFile(real_path, buffer, size, dirname);
+				if(read(file, buffer, size) < 0){
+					perror("Errore lettura del file");
+					token = strtok_r(NULL, DELIM, &tmpstr);
+					continue;
+				}
+				retval = appendToFile(token, buffer, size, dirname);
 				if(config.verbose) CHECKERRNO(retval < 0, "Errore scrittura file");
-				retval = closeFile(real_path);
+				retval = closeFile(token);
 				if(config.verbose) CHECKERRNO(retval < 0, "Errore chiusura file");
 				if(config.verbose) printf("Appended %lu bytes (file: %s)\n", st.st_size, token);
 				free(buffer);
@@ -111,8 +114,8 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 			}
 			else{
 				perror("Errore apertura file");
-				free(real_path);
-				real_path = NULL;
+				// free(real_path);
+				// real_path = NULL;
 				token = strtok_r(NULL, DELIM, &tmpstr);
 				continue;
 			}

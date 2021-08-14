@@ -3,14 +3,14 @@ CFLAGS	+= -Wall -pedantic -std=c99 -g
 DEFINES += -D_GNU_SOURCE=1
 INCLUDES = -I includes/
 TARGETS = server client
-LIBS = -L ./libs -lz
+LIBS = -L ./libs/zlib -lz
 .PHONY: clean test1 test2 test3
 .SUFFIXES: .c .h
 
 
 all: server client
 
-server:  libserver libcommon
+server:  libserver libcommon zlib
 		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon $(LIBS)
 
 client: libclient libcommon
@@ -58,7 +58,12 @@ work.o:
 		$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) -c src/work.c -o build/work.o
 
 clean: 
-		$(RM) build/* src/*.h.gch bin/client bin/server
+		$(RM) build/* src/*.h.gch bin/client bin/server libs/zlib/libz.a
+
+
+zlib:
+		cd libs/zlib/ && ./configure --static --const && make -j
+		
 
 test1: client server
 	$(RM) -r ./test/test_output/*

@@ -33,14 +33,14 @@ static int check_error(unsigned char *code){
 	return 0;
 }
 
-static int check_path(const char* pathname){
+static int check_path(const char* pathname, char* op){
 	if(!pathname){
-		printf(ANSI_COLOR_RED"Errore API: pathname non specificato!\n"ANSI_COLOR_RESET);
+		// printf(ANSI_COLOR_RED"Errore API: pathname non specificato!\n"ANSI_COLOR_RESET);
 		errno = EINVAL;
 		return -1;
 	}
 	if(pathname[0] != '/'){
-		printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. openFile non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET, pathname);
+		// printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. %s non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET, pathname, op);
 		errno = EINVAL;
 		return -1;
 	}
@@ -60,7 +60,7 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 		.tv_sec = 0
 	};
 	if (strncmp(open_connection_name, "None", AF_UNIX_MAX_PATH) != 0){
-		errno = ENFILE;
+		errno = ENOENT;
 		return -1;
 	}
 	memset(open_connection_name, 0, AF_UNIX_MAX_PATH);
@@ -101,7 +101,7 @@ int closeConnection(const char *sockname){
 }
 
 int openFile(const char *pathname, int flags){
-	if(check_path(pathname) < 0) return -1;
+	if(check_path(pathname, "openFile") < 0) return -1;
 	client_request open_request;
 	server_response open_response;
 	memset(&open_response, 0, sizeof(server_response));
@@ -115,7 +115,7 @@ int openFile(const char *pathname, int flags){
 }
 
 int closeFile(const char *pathname){
-	if(check_path(pathname) < 0) return -1;
+	if(check_path(pathname, "closeFile") < 0) return -1;
 	client_request close_request;
 	server_response close_response;
 	memset(&close_response, 0, sizeof(server_response));
@@ -129,7 +129,7 @@ int closeFile(const char *pathname){
 }
 
 int readFile(const char *pathname, void **buf, size_t *size){
-	if(check_path(pathname) < 0) return -1;
+	if(check_path(pathname, "readFile") < 0) return -1;
 	client_request read_request;
 	server_response read_response;
 	unsigned char *data = NULL;
@@ -162,7 +162,7 @@ int readFile(const char *pathname, void **buf, size_t *size){
 int readNFile(int N, const char* dirname){
 	client_request read_n_request;
 	server_response read_n_response;
-	bool good_path = (check_path(dirname) == 0) ? true : false;
+	bool good_path = (check_path(dirname, "readNFile") == 0) ? true : false;
 	int i = 0; // First file is read outside the loop
 	unsigned char* buffer = NULL;
 	size_t buff_size = 0;
@@ -201,7 +201,7 @@ int readNFile(int N, const char* dirname){
 
 
 int appendToFile(const char *pathname, void *buf, size_t size, const char *dirname){
-	if(check_path(pathname) < 0) return -1;
+	if(check_path(pathname, "appendToFile") < 0) return -1;
 	client_request append_request;
 	server_response append_response;
 	unsigned char* buffer = NULL;
@@ -239,7 +239,7 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 }
 
 int writeFile(const char* pathname, const char* dirname){
-	if(check_path(pathname) < 0) return -1;
+	if(check_path(pathname, "writeFile") < 0) return -1;
 	struct stat file_info;
 	int file;
 	size_t size = 0, read_bytes = 0;
@@ -291,7 +291,7 @@ int writeFile(const char* pathname, const char* dirname){
 }
 
 int removeFile(const char* pathname){
-	if(check_path(pathname) < 0) return -1;
+	if(check_path(pathname, "removeFile") < 0) return -1;
 	client_request remove_request;
 	server_response remove_response;
 	memset(&remove_response, 0, sizeof(server_response));
@@ -306,7 +306,7 @@ int removeFile(const char* pathname){
 
 
 int lockFile(const char* pathname){
-	if(check_path(pathname) < 0) return -1;
+	if(check_path(pathname, "lockFile") < 0) return -1;
 	client_request lock_request;
 	server_response lock_response;
 	memset(&lock_response, 0, sizeof(server_response));
@@ -321,7 +321,7 @@ int lockFile(const char* pathname){
 
 
 int unlockFile(const char* pathname){
-	if(check_path(pathname) < 0) return -1;
+	if(check_path(pathname, "unlockFile") < 0) return -1;
 	client_request unlock_request;
 	server_response unlock_response;
 	memset(&unlock_response, 0, sizeof(server_response));
