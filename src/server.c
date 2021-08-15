@@ -267,7 +267,6 @@ int main(int argc, char* argv[]){
 			SAFEUNLOCK(ready_queue_mtx);
 			break;
 		}
-
 		pthread_cond_signal(&client_is_ready); // sveglio tutti i thread
 		SAFEUNLOCK(ready_queue_mtx);
 	}
@@ -332,7 +331,6 @@ void printconf(const char* socketaddr){
 }
 	
 void init(char *sockname, char *config_file){
-	
 	FILE *conf = NULL;
 	if((conf = fopen(config_file, "r")) == NULL){
 		perror("Error while opening config file");

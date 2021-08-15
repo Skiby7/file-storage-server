@@ -13,7 +13,7 @@ typedef struct client_request_{
 	char *pathname;
 	unsigned long size;
 	unsigned char* data;
-}client_request;
+} client_request;
 
 typedef struct server_response_{
 	unsigned int pathlen; // PATHLEN INCLUDES THE END CHARACTER
@@ -28,6 +28,3 @@ typedef struct victim_queue_{
 	server_response victim;
 	struct victim_queue_ *next;
 } victim_queue;
-
-
-

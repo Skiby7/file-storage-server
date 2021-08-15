@@ -1,12 +1,12 @@
---- 
-author: 
+---
+author:
 	- "Leonardo Scoppitto"
 classoption: a4paper
 date: "May 2020"
 documentclass: article
 fontsize: 11pt
 geometry: "left=2cm,right=2cm,top=2cm,bottom=2cm"
-output: 
+output:
 	pdf_document:
 		latex_engine: xelatex
 title: Relazione file storage server
@@ -16,11 +16,11 @@ title: Relazione file storage server
 
 Il progetto è stato testato sulla macchina virtuale fornita dai docenti con 2 cores e **almeno** 2GB di ram.
 Il repository di git è consultabile [qui](https://github.com/Skiby7/file-storage-server), tuttavia i file usati per i test non sono presenti in quanto Github limita la dimensione dei file a 50 MB.\
-Sono state siluppate delle parti opzionali quali:
+Sono state sviluppate delle parti opzionali quali:
 
 * È stato realizzato un algoritmo di rimpiazzamento più avanzato rispetto a quello FIFO
 
-* Le opzioni -x e -g per il client (verrano documentate in seguito essendo un'aggiunta alla specifica)
+* Le opzioni -x e -g per il client (verranno documentate in seguito essendo un'aggiunta alla specifica)
 
 * Lo script `generate_files.sh` per generare file testuali di dimensione diversa usati per testare le funzionalità del server
 
@@ -31,7 +31,7 @@ Una volta scompattato l'archivio, sarà necessario spostarsi dentro la root del 
 Completata, l'operazione sarà possibile testare il progetto con in comandi `make testN` con **N** = *1,2,3*.
 Nel caso si volesse clonare il progetto direttamente da Github, è necessario usare l'operazione `--recursive` per scaricare anche il sorgente di zlib, necessario per la compilazione del progetto:
 ```bash
-git clone https://github.com/Skiby7/file-storage-server --recursive 
+git clone https://github.com/Skiby7/file-storage-server --recursive
 ```
 
 ## Makefile targets
@@ -91,14 +91,27 @@ Le strutture che definiscono la memoria del server, `fssFile` e `storage`, sono 
 
 ## Rimpiazzamento dei file
 
-Ogni volta che avviene una scrittura(sia `WRITE`, che `APPEND`) viene controllato che lo storage non abbia raggiunto il numero massimo di file che può contenere né che il file sia troppo grande o che non ci sia abbastanza spazio libero. Se la condizione non è soddisfatta, si va alla ricerca della vittima: viene allocato un array di `victim`, ovvero una struttura in cui verrano copiate le statistiche di utilizzo `use_stat`, il timestamp dell'ultima modifica, la dimensione e il nome di ogni file presente nello storage. Dopo aver inizializzato l'array con i metadati di tutti i file, questo, viene ordinato con `qsort` in base al campo `use_stat` e, nel caso questo fosse uguale per due file, in base al tempo trascorso dall'ultima modifica. Questo approccio permette di rimuovere dallo storage i file meno usati e fra questi, a parità di utilizzo, scegliere in base all'ultimo utilizzo.\
-Il contatore `use_stat` viene aggiornato da un thread dedicato `use_stat_update` che, ogniqualvolta viene eseguita un'operazione di lettura o scrittura, visita tutto lo storage diminuendo di una unità il contatore. Il contatore di ogni file viene inizializzato a 16, ha un valore massimo di 32 e, una volta che ha raggiunto lo 0, se sul file era stata eseguita la lock, questo, dopo 2 minuti di inutilizzo, viene sbloccato automaticamente  e la lock viene passata ad un eventuale client in attesa. 
+Ogni volta che avviene una scrittura(sia `WRITE`, che `APPEND`) viene controllato che lo storage non abbia raggiunto il numero massimo di file che può contenere né che il file sia troppo grande o che non ci sia abbastanza spazio libero. Se la condizione non è soddisfatta, si va alla ricerca della vittima: viene allocato un array di `victim`, ovvero una struttura in cui verranno copiate le statistiche di utilizzo `use_stat`, il timestamp dell'ultima modifica, la dimensione e il nome di ogni file presente nello storage. Dopo aver inizializzato l'array con i metadati di tutti i file, questo, viene ordinato con `qsort` in base al campo `use_stat` e, nel caso questo fosse uguale per due file, in base al tempo trascorso dall'ultima modifica. Questo approccio permette di rimuovere dallo storage i file meno usati e fra questi, a parità di utilizzo, scegliere in base all'ultimo utilizzo.\
+Il contatore `use_stat` viene aggiornato da un thread dedicato `use_stat_update` che, ogniqualvolta viene eseguita un'operazione di lettura o scrittura, visita tutto lo storage diminuendo di una unità il contatore. Il contatore di ogni file viene inizializzato a 16, ha un valore massimo di 32 e, una volta che ha raggiunto lo 0, se sul file era stata eseguita la lock, questo, dopo 2 minuti di inutilizzo, viene sbloccato automaticamente  e la lock viene passata ad un eventuale client in attesa.
+
+# Client
+
+Dal momento che gli fd lato server usati per la comunicazione con il client non sono univoci, ma vengono riciclati, ogni client viene identificato dal server tramite il suo PID, che invece, con avendo come limite superiore 2^22^, si può considerare univoco. Un possibile sviluppo del progetto potrebbe essere introdurre un flag (ad esempio `-n`) col quale specificare un token o un nome cpn cui autenticarsi in modo da poter lavorare sui file in sessioni diverse.
+
+## Utilizzo dei path
+
+Il compito di fornire il path assoluto per eseguire le operazioni sui file spetta all'utente, che riceverà un errore dalle API del client in caso il pathname non sia valido o sia relativo. Ho deciso di non permettere di usare un path relativo per l'operazione `-W` per mantenere una consistenza nell'uso del client e nella denominazione dei file lato client e lato server, sebbene, operando su file in locale, questo non sarebbe stato un problema, in quanto i file vengono identificati da un path relativo univoco rispetto alla directory da cui eseguo il client. È comunque possibile usare il comando `$(pwd)/path/to/file` per specificare solo il path relativo. \
+Le opzioni, invece, che non richiedono un path assoluto sono `-d`, `-D` e `-w` in quanto prendono in input il path, non di un file, ma di una directory che non ha una corrispondenza lato server.
+
+## Salvataggio dei file sul disco
+
+I file che il server invia al client, vengono salvati nella cartella specificata con i flag `-d` o `-D` ricostruendo l'albero delle directory.
 
 # Comunicazione client-server
 
 La comunicazione fra il client (C) e il server (S) avviene tramite il protocollo richiesta-risposta come segue:
 
-1. C: Invia la lunghezza della richiesta 
+1. C: Invia la lunghezza della richiesta
 
 2. S: Il thread Master invia il file descriptor del client al thread Worker che legge la lunghezza della richiesta, invia un byte di *acknowledge* al client e alloca la memoria per leggere la richiesta
 
@@ -106,17 +119,73 @@ La comunicazione fra il client (C) e il server (S) avviene tramite il protocollo
 
 4. S: Riceve la richiesta, la processa, serializza la risposta e invia la dimensione della risposta
 
-5. C: Legge la lunghezza della risposta invia un byte di acknowledge, alloca la memoria per leggere la risposta e processa la risposta
+5. C: Legge la lunghezza della risposta invia un byte di acknowledge e alloca la memoria per leggere la risposta e processa la risposta
 
 6. S: Il thread worker invia il descrittore del socket del client al thread dispatcher e si rimette in attesa
 
 Tutti i dati, sia la lunghezza del pacchetto che il pacchetto, vengono inviati come stringa di byte (`unsigned char *`). L'implementazione della conversione da `unsigned int` e `unsigned long` ad array di byte e la serializzazione/deserializzazione delle richieste può essere consultata in `serialization.c` e `serialization.h`
 
-# Gesitone errori
+## `client_request` e `server_response`
 
-## Path
+Sia il server che il client utilizzano delle `struct` per organizzare le richieste e le risposte da inviare:
 
-Il compito di fornire il path assoluto per eseguire le operazioni sui file spetta all'utente, che riceverà un errore dalle API del client in caso di errore. Le opzioni che non richiedono un path assoluto sono `-d`, `-D` e `-w` in quanto prendono in input il path di una directory.
+```c
+		typedef struct client_request_{		typedef struct server_response_{
+			unsigned int client_id;				unsigned int pathlen;
+			unsigned char command;				char *pathname;
+			unsigned char flags;				unsigned char has_victim;
+			int files_to_read; 					unsigned char code[2];
+			unsigned int pathlen;				unsigned long size;
+			char *pathname;						unsigned char* data;
+			unsigned long size;				} server_response;
+			unsigned char* data;
+		} client_request;
+```
 
+I campi in comune per la richiesta e la risposta sono: `pathlen` che indica la lunghezza della stringa `pathname` (compreso `\0`) e `size` che indica la lunghezza del campo `data`, che contiene i dati del file (non compressi). Per quanto riguarda `client_request`, partendo dall'alto si trova:
 
+* `client_id`: PID del processo che invia la richiesta
 
+* `command`: comando da eseguire (vedi *sezione x.x*)
+
+* `flags`: assume i valori `O_LOCK` e/0 `O_CREATE`
+
+* `files_to_read`: numero di file da leggere per l'operazione *readNFile* 
+
+Mentre, per `server_response` abbiamo:
+
+* `has_victim`: indica se dopo la prima risposta il client si deve rimettere in attesa per ricevere i file eliminati in seguito a una scrittura. Vale 0 o 1
+
+* `code[2]`: all'indice 0 si ha l'esito dell'operazione (vedi *sezione x.x*), mentre all'indice 1 si trova un eventuale valore di errore fra quelli definiti in `errno.h` e `errno-base.h`
+
+## Serializzazione e deserializzazione
+
+Ho deciso di serializzare le richieste, le risposte e gli interi, piuttosto che inviare campo per campo in modo da utilizzare un numero minore di read (una per la dimensione del pacchetto e una per il pacchetto stesso) e per rendere l'applicazione compatibile con la comunicazione via rete senza apportare troppe modifiche.
+In `serialization.c` e `serialization.h` si trova l'implementazione delle funzioni usate per la serializzazione.
+
+# Codici di errore e comandi
+
+| Operazione 	| Codice 	| Cose                                                                	|
+|------------	|--------	|---------------------------------------------------------------------	|
+| OPEN       	|  0x01  	| Operazione di apertura file                                         	|
+| CLOSE      	|  0x02  	| Operazione di chiusura file                                         	|
+| READ       	|  0x04  	| Operazione di lettura file                                          	|
+| WRITE      	|  0x08  	| Operazione di scrittura nuovo file                                  	|
+| APPEND     	|  0x10  	| Operazione di scrittura in append a un file                         	|
+| REMOVE     	|  0x20  	| Operazione di rimozione file                                        	|
+| QUIT       	|  0x40  	| UNUSED                                                              	|
+| SET_LOCK   	|  0x80  	| Operazione di lock/unlock file:                                     	|
+|            	|        	| se il campo  flag  sella richiesta vale  `O_LOCK`,                  	|
+|            	|        	| viene eseguita l'operazione di lock,                                	|
+|            	|        	| viene eseguita l'operazione di lock,  altrimenti si esegue l'unlock 	|
+
+O_CREATE 0x01
+O_LOCK 0x02
+FILE_OPERATION_SUCCESS 0x01 
+FILE_OPERATION_FAILED 0x02
+FILE_ALREADY_OPEN 0x04
+FILE_ALREADY_LOCKED 0x08
+FILE_LOCKED_BY_OTHERS 0x10
+FILE_NOT_LOCKED 0X20
+FILE_EXISTS 0x40
+FILE_NOT_EXISTS 0x80
