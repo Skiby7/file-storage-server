@@ -1,6 +1,6 @@
 
 
-bin/server bin/config3.txt &
+bin/server $1 &
 
 export SERVER=$!
 sleep 2

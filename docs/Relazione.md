@@ -2,7 +2,6 @@
 author:
 	- "Leonardo Scoppitto"
 classoption: a4paper
-date: "May 2020"
 documentclass: article
 fontsize: 11pt
 geometry: "left=2cm,right=2cm,top=2cm,bottom=2cm"
@@ -11,6 +10,13 @@ output:
 		latex_engine: xelatex
 title: Relazione file storage server
 ---
+
+\hypersetup{linkcolor=black}
+
+\pagebreak
+\renewcommand{\contentsname}{Indice}
+\tableofcontents
+\pagebreak
 
 # Introduzione
 
@@ -36,7 +42,7 @@ git clone https://github.com/Skiby7/file-storage-server --recursive
 
 ## Makefile targets
 
-Oltre ai target definiti nella specifica, è possibile usare anche i seguenti:
+Oltre a quelli definiti nella specifica, è possibile usare anche i seguenti target:
 
 * `clean`: rimuove le librerie statiche, gli eseguibili e eventuali altri file generati durante la compilazione
 
@@ -46,7 +52,7 @@ Oltre ai target definiti nella specifica, è possibile usare anche i seguenti:
 
 * `gen_files`: genera i file di testo usati per i test
 
-* `testX_un`: esegue i test con la compressione disabilitata (`X` è il numero del test da eseguire). 
+* `test1_un` e `test3_un`: per eseguire il test 1 e 3 con la compressione disabilita. 
 
 # Server
 
@@ -138,8 +144,7 @@ Ho deciso poi di condensare sia i comandi che i codici di errore in un byte per 
 | WRITE      	| `0x08`   	| Operazione di scrittura nuovo file                                  	|
 | APPEND     	| `0x10`   	| Operazione di scrittura in append a un file                         	|
 | REMOVE     	| `0x20`   	| Operazione di rimozione file                                        	|
-| QUIT       	| `0x40`   	| UNUSED                                                              	|
-| SET_LOCK   	| `0x80`   	| Operazione di lock/unlock file:                                     	|
+| SET_LOCK   	| `0x40`   	| Operazione di lock/unlock file:                                     	|
 |            	|        	| se il campo  flag  della richiesta vale  `O_LOCK`,                  	|
 |            	|        	| viene eseguita l'operazione di lock,  altrimenti si esegue l'unlock 	|
 

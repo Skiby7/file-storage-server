@@ -15,3 +15,4 @@ int lockFile(const char* pathname);
 int unlockFile(const char* pathname);
 int closeFile(const char* pathname);
 int removeFile(const char* pathname);
+int save_to_file(const char* pathname, unsigned char* data, size_t size);

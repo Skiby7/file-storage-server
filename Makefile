@@ -1,20 +1,24 @@
 CC	=  gcc
 CFLAGS	+= -Wall -pedantic -std=c99 -g
+# DEFINES += -D_CIAO=1
 DEFINES += -D_GNU_SOURCE=1
 INCLUDES = -I includes/
 TARGETS = server client
 LIBS = -L ./libs/zlib -lz
-.PHONY: clean clean_files clean_all gen_files test1 test2 test3
+.PHONY: clean clean_files clean_all gen_files test1 test2 test3 test1_un test3_un
 .SUFFIXES: .c .h
 
 
-all: server client
+all: server client binary_test
 
 server:  libserver libcommon zlib
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon $(LIBS)
 
 client: libclient libcommon
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./build -lclient -lcommon
+
+binary_test:
+	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/binary_test.c -o test/binary/binary_test
 
 libserver: parser.o client_queue.o log.o file.o
 	ar rvs build/libserver.a build/parser.o  build/client_queue.o build/log.o build/file.o
@@ -74,17 +78,30 @@ gen_files:
 test1: client server
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
-	./test/test1.sh
-	./statistiche.sh bin/server.log
-
-test2: client server
-	$(RM) -r ./test/test_output/*
-	$(RM) -r ./test/output_stress_test/*
-	./test/test2.sh
+	./test/test1.sh bin/config1.txt
 	./statistiche.sh bin/server.log
 
 test3: client server
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
-	./test/test3.sh
+	./test/test3.sh bin/config3txt
+	./statistiche.sh bin/server.log
+
+
+test1_un: client server
+	$(RM) -r ./test/test_output/*
+	$(RM) -r ./test/output_stress_test/*
+	./test/test1.sh bin/config1_un.txt
+	./statistiche.sh bin/server.log
+
+test2_un: client server
+	$(RM) -r ./test/test_output/*
+	$(RM) -r ./test/output_stress_test/*
+	./test/test2.sh bin/config2_un.txt
+	./statistiche.sh bin/server.log
+
+test3_un: client server
+	$(RM) -r ./test/test_output/*
+	$(RM) -r ./test/output_stress_test/*
+	./test/test3.sh bin/config3_un.txt
 	./statistiche.sh bin/server.log

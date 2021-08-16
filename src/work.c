@@ -26,10 +26,11 @@ int handle_read_files(char *args, char *dirname){
 		}
 		if(dirname){
 			chdir(dirname);
-			fd = open(basename(token), O_CREAT | O_RDWR, 0777);
-			CHECKSCEXIT(fd, true, "Non sono riuscito ad aprire il file");
-			CHECKSCEXIT(write(fd, buffer, buff_size), true, "Errore scrittura file nella cartella");
-			close(fd);
+			// fd = open(basename(token), O_CREAT | O_RDWR, 0777);
+			// CHECKSCEXIT(fd, true, "Non sono riuscito ad aprire il file");
+			// CHECKSCEXIT(write(fd, buffer, buff_size), true, "Errore scrittura file nella cartella");
+			// close(fd);
+			save_to_file(token, buffer, buff_size);
 			chdir(current_dir);
 		}
 		free(buffer);

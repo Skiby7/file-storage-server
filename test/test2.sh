@@ -1,7 +1,7 @@
 #!/bin/bash
 CWD=$(realpath $(dirname $0))
 
-bin/server bin/config2.txt &
+bin/server $1 &
 
 export SERVER=$!
 
