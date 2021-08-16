@@ -27,9 +27,9 @@ Sono state sviluppate delle parti opzionali quali:
 
 # Compilazione ed esecuzione
 
-Una volta scompattato l'archivio, sarà necessario spostarsi dentro la root del progetto e dare il comando `./generate_files.sh` in modo da creare i file che verranno usati dai test. L'operazione richiederà al massimo un paio di minuti, a seconda delle prestazioni della processore su cui si esegue lo script.
-Completata, l'operazione sarà possibile testare il progetto con in comandi `make testN` con **N** = *1,2,3*.
-Nel caso si volesse clonare il progetto direttamente da Github, è necessario usare l'operazione `--recursive` per scaricare anche il sorgente di zlib, necessario per la compilazione del progetto:
+Una volta scompattato l'archivio, sarà necessario spostarsi dentro la root del progetto e dare il comando `make gen_files` in modo da creare i file che verranno usati dai test. L'operazione richiederà qualche secondo, a seconda delle prestazioni della processore su cui si esegue lo script.
+Completata l'operazione, sarà possibile testare il progetto con in comandi `make testX` dove `X` è il numero del test che si vuole eseguire. 
+Nel caso si volesse clonare il progetto direttamente da Github, è necessario usare l'opzione `--recursive` per scaricare anche il sorgente di zlib, necessario per la compilazione del progetto:
 ```bash
 git clone https://github.com/Skiby7/file-storage-server --recursive
 ```
@@ -46,6 +46,7 @@ Oltre ai target definiti nella specifica, è possibile usare anche i seguenti:
 
 * `gen_files`: genera i file di testo usati per i test
 
+* `testX_un`: esegue i test con la compressione disabilitata (`X` è il numero del test da eseguire). 
 
 # Server
 
@@ -82,7 +83,7 @@ Il thread master, una volta uscito dal loop principale, svuota la coda dei lavor
 
 ## Storage
 
-L'implementazione dello storage vero e proprio può essere consultata nei file `file.c` e `file.h`, dove sono definite le funzioni che i workers possono usare per modificare i dati all'interno del server. Ho deciso di implementare lo storage con una tabella hash con liste di trabocco, la cui dimensone è 1,33 volte il numero massimo di file che il server può gestire, così da mantenere il fattore di carico sotto il 75% e avere delle buone prestazioni (come da letteratura). Per il calcolo dell'hash ho usato l'algoritmo di Peter Jay Weinberger (la cui [implementazione](http://didawiki.cli.di.unipi.it/lib/exe/fetch.php/informatica/sol/laboratorio21/esercitazionib/icl_hash.tgz) è stata fornita a laboratorio). \
+L'implementazione dello storage vero e proprio può essere consultata nei file `file.c` e `file.h`, dove sono definite le funzioni che i workers possono usare per modificare i dati all'interno del server. Ho deciso di implementare lo storage con una tabella hash con liste di trabocco, la cui dimensione è 1,33 volte il numero massimo di file che il server può gestire, così da mantenere il fattore di carico sotto il 75% e avere delle buone prestazioni (come da letteratura). Per il calcolo dell'hash ho usato l'algoritmo di Peter Jay Weinberger (la cui [implementazione](http://didawiki.cli.di.unipi.it/lib/exe/fetch.php/informatica/sol/laboratorio21/esercitazionib/icl_hash.tgz) è stata fornita a laboratorio). \
 Le strutture che definiscono la memoria del server, `fssFile` e `storage`, sono consultabili in `file.h`:
 
 * `fssFile` contiene, oltre che i metadati e i dati del file stesso, due mutex, una *condition variable* e due contatori `readers` e `writers` con le quali ho implementato la procedura *lettore-scrittore* vista a lezione. La struttura contiene, inoltre, il timestamp dell'ultimo accesso e un contatore di utilizzo `use_stat`, che vedremo in seguito nella sezione dedicata all'algoritmo di rimpiazzamento.
@@ -91,7 +92,7 @@ Le strutture che definiscono la memoria del server, `fssFile` e `storage`, sono 
 
 ## Rimpiazzamento dei file
 
-Ogni volta che avviene una scrittura(sia `WRITE`, che `APPEND`) viene controllato che lo storage non abbia raggiunto il numero massimo di file che può contenere né che il file sia troppo grande o che non ci sia abbastanza spazio libero. Se la condizione non è soddisfatta, si va alla ricerca della vittima: viene allocato un array di `victim`, ovvero una struttura in cui verranno copiate le statistiche di utilizzo `use_stat`, il timestamp dell'ultima modifica, la dimensione e il nome di ogni file presente nello storage. Dopo aver inizializzato l'array con i metadati di tutti i file, questo, viene ordinato con `qsort` in base al campo `use_stat` e, nel caso questo fosse uguale per due file, in base al tempo trascorso dall'ultima modifica. Questo approccio permette di rimuovere dallo storage i file meno usati e fra questi, a parità di utilizzo, scegliere in base all'ultimo utilizzo.\
+Ogni volta che avviene una scrittura (sia `WRITE`, che `APPEND`) viene controllato che lo storage non abbia raggiunto il numero massimo di file che può contenere né che il file sia troppo grande o che non ci sia abbastanza spazio libero. Se la condizione non è soddisfatta, si va alla ricerca della vittima: viene allocato un array di `victim`, ovvero una struttura in cui verranno copiate le statistiche di utilizzo `use_stat`, il timestamp dell'ultima modifica, la dimensione e il nome di ogni file presente nello storage. Dopo aver inizializzato l'array con i metadati di tutti i file, questo, viene ordinato con `qsort` in base al campo `use_stat` e, nel caso questo fosse uguale per due file, in base al tempo trascorso dall'ultima modifica. Questo approccio permette di rimuovere dallo storage i file meno usati e fra questi, a parità di utilizzo, scegliere in base all'ultimo utilizzo.\
 Il contatore `use_stat` viene aggiornato da un thread dedicato `use_stat_update` che, ogniqualvolta viene eseguita un'operazione di lettura o scrittura, visita tutto lo storage diminuendo di una unità il contatore. Il contatore di ogni file viene inizializzato a 16, ha un valore massimo di 32 e, una volta che ha raggiunto lo 0, se sul file era stata eseguita la lock, questo, dopo 2 minuti di inutilizzo, viene sbloccato automaticamente  e la lock viene passata ad un eventuale client in attesa.
 
 # Client
@@ -125,24 +126,72 @@ La comunicazione fra il client (C) e il server (S) avviene tramite il protocollo
 
 Tutti i dati, sia la lunghezza del pacchetto che il pacchetto, vengono inviati come stringa di byte (`unsigned char *`). L'implementazione della conversione da `unsigned int` e `unsigned long` ad array di byte e la serializzazione/deserializzazione delle richieste può essere consultata in `serialization.c` e `serialization.h`
 
+Ho deciso poi di condensare sia i comandi che i codici di errore in un byte per semplicità e per usare il minor spazio possibiles.
+
+## Comandi
+
+| Operazione 	| Valore 	| Descrizione                                                         	|
+|------------	|:--------:	|---------------------------------------------------------------------	|
+| OPEN       	| `0x01`   	| Operazione di apertura file                                         	|
+| CLOSE      	| `0x02`   	| Operazione di chiusura file                                         	|
+| READ       	| `0x04`   	| Operazione di lettura file                                          	|
+| WRITE      	| `0x08`   	| Operazione di scrittura nuovo file                                  	|
+| APPEND     	| `0x10`   	| Operazione di scrittura in append a un file                         	|
+| REMOVE     	| `0x20`   	| Operazione di rimozione file                                        	|
+| QUIT       	| `0x40`   	| UNUSED                                                              	|
+| SET_LOCK   	| `0x80`   	| Operazione di lock/unlock file:                                     	|
+|            	|        	| se il campo  flag  della richiesta vale  `O_LOCK`,                  	|
+|            	|        	| viene eseguita l'operazione di lock,  altrimenti si esegue l'unlock 	|
+
+I flag `O_CREATE` e `O_LOCK` hanno rispettivamente il valore `0x01` e `0x02`
+
+## Errori
+
+Ho deciso di definire dei codici di errore per estendere gli errori riportati in `errno.h` e dare una spiegazione più specifica del problema, come ad esempio una mancata lock, una open ripetuta o la creazione di un file già esistente. Di seguito la tabella: 
+
+| Codice                 	| Valore 	| Descrizione                                        	|
+|------------------------	|:------:	|----------------------------------------------------	|
+| FILE_OPERATION_SUCCESS 	|   `0x01` 	| L'operazione è stata completata con successo       	|
+| FILE_OPERATION_FAILED  	|  `0x02`  	| Si è verificato un errore e                        	|
+|                        	|        	| l'operazione non è stata completata                	|
+| FILE_ALREADY_OPEN      	|  `0x04`  	| Il file che si sta cercando di aprire è già aperto 	|
+| FILE_ALREADY_LOCKED    	|  `0x08`  	| Il file che si sta cercando di bloccare è          	|
+|                        	|        	| già bloccato dal client chiamante                  	|
+| FILE_LOCKED_BY_OTHERS  	|  `0x10`  	| Il file che si sta cercando di bloccare            	|
+|                        	|        	| o modificare è bloccato da un altro client         	|
+| FILE_NOT_LOCKED        	|  `0x20`  	| Il file non è stato bloccato prima di              	|
+|                        	|        	| un'operazione che richiede la lock                 	|
+| FILE_EXISTS            	|  `0x40`  	| Il file esiste già, pertanto non può essere creato 	|
+| FILE_NOT_EXISTS        	|  `0x80`  	| Il file non esiste (`ENOENT`)							|
+
+
 ## `client_request` e `server_response`
 
-Sia il server che il client utilizzano delle `struct` per organizzare le richieste e le risposte da inviare:
+Sia il server che il client utilizzano le seguenti strutture per organizzare le richieste e le risposte da inviare:
 
 ```c
-		typedef struct client_request_{		typedef struct server_response_{
-			unsigned int client_id;				unsigned int pathlen;
-			unsigned char command;				char *pathname;
-			unsigned char flags;				unsigned char has_victim;
-			int files_to_read; 					unsigned char code[2];
-			unsigned int pathlen;				unsigned long size;
-			char *pathname;						unsigned char* data;
-			unsigned long size;				} server_response;
-			unsigned char* data;
-		} client_request;
+typedef struct client_request_{
+	unsigned int client_id;	
+	unsigned char command;	
+	unsigned char flags;	
+	int files_to_read; 		
+	unsigned int pathlen;	
+	char *pathname;			
+	unsigned long size;		
+	unsigned char* data;
+} client_request;
+
+typedef struct server_response_{
+	unsigned int pathlen;
+	char *pathname;
+	unsigned char has_victim;
+	unsigned char code[2];
+	unsigned long size;
+	unsigned char* data;
+} server_response;
 ```
 
-I campi in comune per la richiesta e la risposta sono: `pathlen` che indica la lunghezza della stringa `pathname` (compreso `\0`) e `size` che indica la lunghezza del campo `data`, che contiene i dati del file (non compressi). Per quanto riguarda `client_request`, partendo dall'alto si trova:
+I campi in comune per la richiesta e la risposta sono: `pathlen` che indica la lunghezza della stringa `pathname` (compreso `\0`) e `size` che indica la lunghezza del campo `data`, che contiene i dati del file (non compressi) inviato/ricevuto. Per quanto riguarda `client_request`, partendo dall'alto si trova:
 
 * `client_id`: PID del processo che invia la richiesta
 
@@ -163,29 +212,3 @@ Mentre, per `server_response` abbiamo:
 Ho deciso di serializzare le richieste, le risposte e gli interi, piuttosto che inviare campo per campo in modo da utilizzare un numero minore di read (una per la dimensione del pacchetto e una per il pacchetto stesso) e per rendere l'applicazione compatibile con la comunicazione via rete senza apportare troppe modifiche.
 In `serialization.c` e `serialization.h` si trova l'implementazione delle funzioni usate per la serializzazione.
 
-# Codici di errore e comandi
-
-| Operazione 	| Codice 	| Cose                                                                	|
-|------------	|--------	|---------------------------------------------------------------------	|
-| OPEN       	|  0x01  	| Operazione di apertura file                                         	|
-| CLOSE      	|  0x02  	| Operazione di chiusura file                                         	|
-| READ       	|  0x04  	| Operazione di lettura file                                          	|
-| WRITE      	|  0x08  	| Operazione di scrittura nuovo file                                  	|
-| APPEND     	|  0x10  	| Operazione di scrittura in append a un file                         	|
-| REMOVE     	|  0x20  	| Operazione di rimozione file                                        	|
-| QUIT       	|  0x40  	| UNUSED                                                              	|
-| SET_LOCK   	|  0x80  	| Operazione di lock/unlock file:                                     	|
-|            	|        	| se il campo  flag  sella richiesta vale  `O_LOCK`,                  	|
-|            	|        	| viene eseguita l'operazione di lock,                                	|
-|            	|        	| viene eseguita l'operazione di lock,  altrimenti si esegue l'unlock 	|
-
-O_CREATE 0x01
-O_LOCK 0x02
-FILE_OPERATION_SUCCESS 0x01 
-FILE_OPERATION_FAILED 0x02
-FILE_ALREADY_OPEN 0x04
-FILE_ALREADY_LOCKED 0x08
-FILE_LOCKED_BY_OTHERS 0x10
-FILE_NOT_LOCKED 0X20
-FILE_EXISTS 0x40
-FILE_NOT_EXISTS 0x80

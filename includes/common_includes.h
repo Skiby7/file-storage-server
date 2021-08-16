@@ -21,8 +21,8 @@
 #define WRITE 0x08
 #define APPEND 0x10
 #define REMOVE 0x20
-#define QUIT 0x40
-#define SET_LOCK 0x80
+#define SET_LOCK 0x40
+#define UNUSED 0x80
 
 // FLAGS
 #define O_CREATE 0x01
@@ -34,7 +34,7 @@
 #define FILE_ALREADY_OPEN 0x04
 #define FILE_ALREADY_LOCKED 0x08
 #define FILE_LOCKED_BY_OTHERS 0x10
-#define FILE_NOT_LOCKED 0X20
+#define FILE_NOT_LOCKED 0x20
 #define FILE_EXISTS 0x40
 #define FILE_NOT_EXISTS 0x80
 
