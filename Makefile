@@ -81,6 +81,12 @@ test1: client server
 	./test/test1.sh bin/config1.txt
 	./statistiche.sh bin/server.log
 
+test2: client server
+	$(RM) -r ./test/test_output/*
+	$(RM) -r ./test/output_stress_test/*
+	./test/test2.sh bin/config2.txt
+	./statistiche.sh bin/server.log
+
 test3: client server
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
@@ -92,12 +98,6 @@ test1_un: client server
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test1.sh bin/config1_un.txt
-	./statistiche.sh bin/server.log
-
-test2_un: client server
-	$(RM) -r ./test/test_output/*
-	$(RM) -r ./test/output_stress_test/*
-	./test/test2.sh bin/config2_un.txt
 	./statistiche.sh bin/server.log
 
 test3_un: client server

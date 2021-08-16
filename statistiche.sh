@@ -1,3 +1,5 @@
+#!/bin/bash
+
 if [ $# -eq 0 ]
   then
     echo "Usare -> ./statistiche.sh path/to/log"
