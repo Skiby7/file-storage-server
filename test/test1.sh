@@ -2,7 +2,7 @@
 
 CWD=$(realpath $(dirname $0))
 
-valgrind --fair-sched=yes --leak-check=full -s bin/server $1 &
+valgrind --fair-sched=yes --leak-check=full bin/server $1 &
 # bin/server $1 &
 
 SERVER=$!

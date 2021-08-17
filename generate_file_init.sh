@@ -29,7 +29,7 @@ echo ""
 mkdir ${CWD}/test/large_files &> /dev/null
 for i in {0..4}
 do
-	base64 /dev/urandom | head -c 50000000 > ${CWD}/test/large_files/large_${i}.txt
+	base64 /dev/urandom | head -c 30000000 > ${CWD}/test/large_files/large_${i}.txt
 	NUM=$((i+1))
 	echo -e "${LINE_UP}Generati ${NUM} file grandi"
 done

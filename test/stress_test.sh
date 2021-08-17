@@ -19,7 +19,16 @@ do
 
 	if [[ $(($RANDOM % 10)) -eq 5 ]]
 	then
-		bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x &> /dev/null
+		bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x &> /dev/null
+	fi
+	if [[ $(($RANDOM % 6)) -eq 3 ]]
+	then
+		bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x &> /dev/null
+	fi
+
+	if [[ $(($RANDOM % 100)) -eq 50 ]]
+	then
+		bin/client -f /tmp/socket.sk -W ${CWD}/large_files/large_${LARGE_FILE_NUM}.txt -u ${CWD}/large_files/large_${LARGE_FILE_NUM}.txt &> /dev/null
 	fi
 
 

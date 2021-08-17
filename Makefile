@@ -14,6 +14,9 @@ all: clean server client binary_test
 server:  libserver libcommon zlib
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon $(LIBS)
 
+server_no_debug: libserver libcommon zlib
+	$(CC) -O3 -std=c99 $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon $(LIBS)
+
 client: libclient libcommon
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./build -lclient -lcommon
 
@@ -87,10 +90,10 @@ test2: client server
 	./test/test2.sh bin/config2.txt
 	./statistiche.sh bin/server.log
 
-test3: client server
+test3: client server_no_debug
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
-	./test/test3.sh bin/config3txt
+	./test/test3.sh bin/config3.txt
 	./statistiche.sh bin/server.log
 
 
@@ -100,7 +103,7 @@ test1_un: client server
 	./test/test1.sh bin/config1_un.txt
 	./statistiche.sh bin/server.log
 
-test3_un: client server
+test3_un: client server_no_debug
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh bin/config3_un.txt

@@ -28,6 +28,9 @@ grep -w "Locked" $1 | wc -l
 echo -e -n "Unlock effettuate -> "
 grep -w "Unlocked" $1 | wc -l
 
+echo -e -n "Cancellazioni effettuate -> "
+grep -w "Deleted" $1 | wc -l
+
 echo -e -n "Evictions effettuate -> "
 grep -w "evictions" $1 | awk '{print $NF}'
 
