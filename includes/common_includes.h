@@ -18,11 +18,11 @@
 #define OPEN 0x01
 #define CLOSE 0x02
 #define READ 0x04
-#define WRITE 0x08
-#define APPEND 0x10
-#define REMOVE 0x20
-#define SET_LOCK 0x40
-#define UNUSED 0x80
+#define READ_N 0x08
+#define WRITE 0x10
+#define APPEND 0x20
+#define REMOVE 0x40
+#define SET_LOCK 0x80
 
 // FLAGS
 #define O_CREATE 0x01

@@ -9,7 +9,7 @@ LIBS = -L ./libs/zlib -lz
 .SUFFIXES: .c .h
 
 
-all: server client binary_test
+all: clean server client binary_test
 
 server:  libserver libcommon zlib
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon $(LIBS)
@@ -64,7 +64,7 @@ zlib:
 	cd libs/zlib/ && ./configure --static --const && make -j
 
 clean: 
-	$(RM) build/* src/*.h.gch bin/client bin/server libs/zlib/libz.a
+	$(RM) build/* src/*.h.gch bin/client bin/server libs/zlib/libz.a test/binary_test/binary
 
 clean_files:
 	$(RM) test/large_files/* test/medium_files/* test/small_files/* test/test_2/*

@@ -107,10 +107,13 @@ int openFile(const char *pathname, int flags){
 	memset(&open_response, 0, sizeof(server_response));
 	init_request(&open_request, getpid(), OPEN, flags, pathname);
 	handle_connection(open_request, &open_response);
+	clean_request(&open_request);
 	if(open_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(open_response.code);
+		clean_response(&open_response);
 		return -1;
 	}
+	clean_response(&open_response);
 	return 0;
 }
 
@@ -121,10 +124,13 @@ int closeFile(const char *pathname){
 	memset(&close_response, 0, sizeof(server_response));
 	init_request(&close_request, getpid(), CLOSE, 0, pathname);
 	handle_connection(close_request, &close_response);
+	clean_request(&close_request);
 	if(close_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(close_response.code);
+		clean_response(&close_response);
 		return -1;
 	}
+	clean_response(&close_response);
 	return 0;
 }
 
@@ -135,9 +141,10 @@ int readFile(const char *pathname, void **buf, size_t *size){
 	unsigned char *data = NULL;
 	memset(&read_response, 0, sizeof(server_response));
 	init_request(&read_request, getpid(), READ, 0, pathname);
-	read_request.files_to_read = 1;
 	if(handle_connection(read_request, &read_response) < 0){
 		errno = ECONNABORTED;
+		clean_request(&read_request);
+		clean_response(&read_response);
 		return -1;
 	} 
 	if(read_response.code[0] & FILE_OPERATION_SUCCESS){
@@ -152,6 +159,7 @@ int readFile(const char *pathname, void **buf, size_t *size){
 	else{
 		errno = check_error(read_response.code);
 		clean_request(&read_request);
+		clean_response(&read_response);
 		return -1;
 	}
 	clean_request(&read_request);
@@ -169,7 +177,7 @@ int readNFile(int N, const char* dirname){
 	char current_dir[PATH_MAX] = {0};
 	if(good_path) getcwd(current_dir, sizeof current_dir);
 	memset(&read_n_response, 0, sizeof(server_response));
-	init_request(&read_n_request, getpid(), READ, 0, NULL);
+	init_request(&read_n_request, getpid(), READ_N, 0, NULL);
 	read_n_request.files_to_read = N;
 	if(N <= 0) N = 0;
 	if(!good_path) puts(ANSI_COLOR_RED"Il path fornito non è assoluto: impossibile salvare i file!"ANSI_COLOR_RESET);
@@ -196,6 +204,8 @@ int readNFile(int N, const char* dirname){
 		memset(&read_n_response, 0, sizeof read_n_response);
 		i++;
 	}
+	clean_request(&read_n_request);
+	clean_response(&read_n_response);
 	return i;
 }
 
@@ -216,6 +226,7 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 	if(append_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(append_response.code);
 		clean_request(&append_request);
+		clean_response(&append_response);
 		return -1;
 	}
 	if(append_response.has_victim){
@@ -234,6 +245,8 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 		}
 	}
 	clean_request(&append_request);
+	clean_response(&append_response);
+
 	return 0;
 
 }
@@ -268,6 +281,7 @@ int writeFile(const char* pathname, const char* dirname){
 	if(write_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(write_response.code);
 		clean_request(&write_request);
+		clean_response(&write_response);
 		return -1;
 	}
 
@@ -287,6 +301,7 @@ int writeFile(const char* pathname, const char* dirname){
 		}
 	}
 	clean_request(&write_request);
+	clean_response(&write_response);
 	return 0;
 }
 
@@ -297,10 +312,13 @@ int removeFile(const char* pathname){
 	memset(&remove_response, 0, sizeof(server_response));
 	init_request(&remove_request, getpid(), REMOVE, 0, pathname);
 	handle_connection(remove_request, &remove_response);
+	clean_request(&remove_request);
 	if(remove_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(remove_response.code);
+		clean_response(&remove_response);
 		return -1;
 	}
+	clean_response(&remove_response);
 	return 0;
 }
 
@@ -312,10 +330,13 @@ int lockFile(const char* pathname){
 	memset(&lock_response, 0, sizeof(server_response));
 	init_request(&lock_request, getpid(), SET_LOCK, O_LOCK, pathname);
 	handle_connection(lock_request, &lock_response);
+	clean_request(&lock_request);
 	if(lock_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(lock_response.code);
+		clean_response(&lock_response);
 		return -1;
 	}
+	clean_response(&lock_response);
 	return 0;
 }
 
@@ -327,10 +348,13 @@ int unlockFile(const char* pathname){
 	memset(&unlock_response, 0, sizeof(server_response));
 	init_request(&unlock_request, getpid(), SET_LOCK, 0, pathname); // Se il flag e' O_LOCK fa il lock, altrimenti unlock
 	handle_connection(unlock_request, &unlock_response);
+	clean_request(&unlock_request);
 	if(unlock_response.code[0] & FILE_OPERATION_FAILED){
 		errno = check_error(unlock_response.code);
+		clean_response(&unlock_response);
 		return -1;
 	}
+	clean_response(&unlock_response);
 	return 0;
 }
 

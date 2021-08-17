@@ -26,7 +26,7 @@ void* sig_wait_thread(void *args);
 extern void* worker(void* args);
 pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-extern storage server_storage;
+extern fss_storage_t server_storage;
 extern pthread_cond_t start_victim_selector;
 
 

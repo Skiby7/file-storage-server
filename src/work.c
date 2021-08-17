@@ -4,7 +4,6 @@ extern client_conf config;
 int handle_read_files(char *args, char *dirname){
 	char *tmpstr = NULL;
 	char *token = NULL;
-	int fd = 0;
 	unsigned char *buffer = NULL;
 	size_t buff_size = 0;
 	int retval = 0;
@@ -26,10 +25,6 @@ int handle_read_files(char *args, char *dirname){
 		}
 		if(dirname){
 			chdir(dirname);
-			// fd = open(basename(token), O_CREAT | O_RDWR, 0777);
-			// CHECKSCEXIT(fd, true, "Non sono riuscito ad aprire il file");
-			// CHECKSCEXIT(write(fd, buffer, buff_size), true, "Errore scrittura file nella cartella");
-			// close(fd);
 			save_to_file(token, buffer, buff_size);
 			chdir(current_dir);
 		}
@@ -256,6 +251,8 @@ int write_dir(char *args, bool is_locked, const char* dirname){
 	files_written = recursive_visit(real_path, N, is_locked, dirname);
 	if(files_written < 0) return -1;
 	else if(config.verbose) printf("Scritti %d files!\n", files_written);
+	free(real_path);
+	real_path = NULL;
 	return 0;
 }
 
@@ -319,7 +316,8 @@ int dequeue_work(unsigned char* command, char **args, char **dirname, bool *is_l
 	if((*tail)->working_dir){
 		*dirname = (char *)calloc((strlen((*tail)->working_dir)) + 1, sizeof(char));
 		strncpy(*dirname, (*tail)->working_dir, strlen((*tail)->working_dir));
-		// free((*tail)->working_dir);
+		free((*tail)->working_dir);
+		(*tail)->working_dir = NULL;
 	}
 	free((*tail)->args);
 	befree = (*tail);

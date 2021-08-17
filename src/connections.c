@@ -141,56 +141,55 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			
 	}
 	else if(request->command & READ){
-		if(request->files_to_read == 1){
-			exit_status = read_file(request->pathname, request->client_id, &response);
+		exit_status = read_file(request->pathname, request->client_id, &response);
+		if(respond_to_client(com, response) < 0){
+			clean_response(&response);
+			free(log_buffer);
+			return -2;
+		}
+		if(exit_status == 0){
+			snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
+			logger(log_buffer);
+		}
+	}
+	else if(request->command & READ_N){
+		while(!request->files_to_read || files_read != request->files_to_read){
+			if(read_n_file(&last_file, request->client_id, &response) == 1) break;
 			if(respond_to_client(com, response) < 0){
 				clean_response(&response);
 				free(log_buffer);
 				return -2;
 			}
-			if(exit_status == 0){
-				snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
-				logger(log_buffer);
-			}
-		}
-		else{
-			while(!request->files_to_read || files_read != request->files_to_read){
-				if(read_n_file(&last_file, request->client_id, &response) == 1) break;
-				if(respond_to_client(com, response) < 0){
-					clean_response(&response);
-					free(log_buffer);
-					return -2;
-				}
-				snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
-				logger(log_buffer);
-				if(!get_ack(com)){
-					clean_response(&response);
-					free(log_buffer);
-					return -2;
-				}
-				clean_response(&response);
-				memset(&response, 0, sizeof response);
-				files_read++;
-			}
-			if(files_read == request->files_to_read){
-				clean_response(&response);
-				response.code[0] = FILE_NOT_EXISTS;
-			}
-			if(last_file){
-				free(last_file);
-				last_file = NULL;
-			} 
-			if(respond_to_client(com, response) < 0){
+			snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
+			logger(log_buffer);
+			if(!get_ack(com)){
 				clean_response(&response);
 				free(log_buffer);
 				return -2;
 			}
 			clean_response(&response);
-			// snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
-			// logger(log_buffer);
-			
-			exit_status = 0;
+			memset(&response, 0, sizeof response);
+			files_read++;
 		}
+		if(files_read == request->files_to_read){
+			clean_response(&response);
+			response.code[0] = FILE_NOT_EXISTS;
+		}
+		if(last_file){
+			free(last_file);
+			last_file = NULL;
+		} 
+		if(respond_to_client(com, response) < 0){
+			clean_response(&response);
+			free(log_buffer);
+			return -2;
+		}
+		clean_response(&response);
+		// snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
+		// logger(log_buffer);
+		
+		exit_status = 0;
+	
 	}
 	else if(request->command & WRITE){
 		exit_status = write_to_file(request->data, request->size, request->pathname, request->client_id, &response, &victims);

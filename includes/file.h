@@ -42,10 +42,10 @@ typedef struct fssFile_{
 	pthread_mutex_t access_mutex;
 	pthread_cond_t go_cond;
 	struct fssFile_ *next;
-} fssFile;
+} fss_file_t;
 
 typedef struct storage_{
-	fssFile **storage_table;
+	fss_file_t **storage_table;
 	unsigned long size;
 	unsigned long size_limit;
 	unsigned long max_size_reached;
@@ -57,7 +57,7 @@ typedef struct storage_{
 	unsigned short compression_level;
 	bool compression;
 	pthread_mutex_t storage_access_mtx;
-} storage;
+} fss_storage_t;
 
 typedef struct victim_{
 	char* pathname;
@@ -65,7 +65,7 @@ typedef struct victim_{
 	unsigned long size;
 	time_t create_time;
 	time_t last_modified;
-} victim;
+} victim_t;
 
 
 

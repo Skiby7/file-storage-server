@@ -2,18 +2,14 @@
 
 CWD=$(realpath $(dirname $0))
 
-valgrind --leak-check=full bin/server $1 &
+valgrind --fair-sched=yes --leak-check=full -s bin/server $1 &
+# bin/server $1 &
 
-export SERVER=$!
+SERVER=$!
 
-# bash -c "sleep 20 && kill -1 ${SERVER}" &
+echo -e -n "\nAvvio il server \033[5m*\033[0m\n\n"
 
-STOP_SERVER=$!
-sleep 5
-
-bin/client -f /tmp/socket.sk -w ${CWD}/small_files,10 -x -p -t 200 
-
-bin/client -f /tmp/socket.sk -w ${CWD}/small_files,10 -x -p -t 200 
+sleep 3
 
 bin/client -f /tmp/socket.sk -w ${CWD}/small_files,10 -x -p -t 200 
 
@@ -47,12 +43,10 @@ ${CWD}/test_output${CWD}/binary/binary_test Scaricato
 
 echo ""
 
-
-sleep 2
 kill -1 $SERVER
 
+echo -e -n "\nSIGHUP inviato al server, attendo \033[5m*\033[0m\n\n"
 
 wait $SERVER
-wait $STOP_SERVER
 
 exit 0
