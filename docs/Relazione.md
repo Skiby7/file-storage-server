@@ -137,14 +137,15 @@ Ho deciso poi di condensare sia i comandi che i codici di errore in un byte per 
 ## Comandi
 
 | Operazione 	| Valore 	| Descrizione                                                         	|
-|------------	|:--------:	|---------------------------------------------------------------------	|
-| OPEN       	| `0x01`   	| Operazione di apertura file                                         	|
-| CLOSE      	| `0x02`   	| Operazione di chiusura file                                         	|
-| READ       	| `0x04`   	| Operazione di lettura file                                          	|
-| WRITE      	| `0x08`   	| Operazione di scrittura nuovo file                                  	|
-| APPEND     	| `0x10`   	| Operazione di scrittura in append a un file                         	|
-| REMOVE     	| `0x20`   	| Operazione di rimozione file                                        	|
-| SET_LOCK   	| `0x40`   	| Operazione di lock/unlock file:                                     	|
+|------------	|--------	|---------------------------------------------------------------------	|
+| OPEN       	| 0x01   	| Operazione di apertura file                                         	|
+| CLOSE      	| 0x02   	| Operazione di chiusura file                                         	|
+| READ       	| 0x04   	| Operazione di lettura file                                          	|
+| WRITE      	| 0x08   	| Operazione di scrittura nuovo file                                  	|
+| APPEND     	| 0x10   	| Operazione di scrittura in append a un file                         	|
+| REMOVE     	| 0x20   	| Operazione di rimozione file                                        	|
+| QUIT       	| 0x40   	| UNUSED                                                              	|
+| SET_LOCK   	| 0x80   	| Operazione di lock/unlock file:                                     	|
 |            	|        	| se il campo  flag  della richiesta vale  `O_LOCK`,                  	|
 |            	|        	| viene eseguita l'operazione di lock,  altrimenti si esegue l'unlock 	|
 

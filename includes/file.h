@@ -45,17 +45,17 @@ typedef struct fssFile_{
 } fss_file_t;
 
 typedef struct storage_{
-	fss_file_t **storage_table;
-	unsigned long size;
-	unsigned long size_limit;
-	unsigned long max_size_reached;
+	fss_file_t **storage_table;	
+	bool compression;
+	unsigned short compression_level;
 	unsigned int file_count;
 	unsigned int file_limit;
 	unsigned int max_file_num_reached;
 	unsigned int total_evictions;
 	unsigned int table_size;
-	unsigned short compression_level;
-	bool compression;
+	unsigned long size;
+	unsigned long size_limit;
+	unsigned long max_size_reached;
 	pthread_mutex_t storage_access_mtx;
 } fss_storage_t;
 

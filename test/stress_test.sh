@@ -21,9 +21,10 @@ do
 	then
 		bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x &> /dev/null
 	fi
-	if [[ $(($RANDOM % 6)) -eq 3 ]]
+
+	if [[ $(($RANDOM % 3)) -eq 1 ]]
 	then
-		bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x &> /dev/null
+		bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x &> /dev/null
 	fi
 
 	if [[ $(($RANDOM % 100)) -eq 50 ]]

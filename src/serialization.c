@@ -271,7 +271,7 @@ void init_request(client_request* request, pid_t pid, unsigned char command, uns
 	request->pathlen = pathname ? strlen(pathname) + 1 : 0;
 	if(request->pathlen){
 		request->pathname = calloc(request->pathlen, sizeof(char));
-		strncpy(request->pathname, pathname, strlen(pathname));
+		strcpy(request->pathname, pathname);
 	}
 }
 

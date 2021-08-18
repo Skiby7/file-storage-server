@@ -17,7 +17,7 @@ pthread_mutex_t log_access_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t client_is_ready = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t abort_connections_mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t can_accept_mtx = PTHREAD_MUTEX_INITIALIZER;
-int *free_threads;
+bool *free_threads;
 clients_list *ready_queue[2];
 
 int good_fd_pipe[2]; // 1 lettura, 0 scrittura
@@ -112,8 +112,8 @@ int main(int argc, char* argv[]){
 	memset(workers, 0, configuration.workers*sizeof(pthread_t));
 	write_to_log("Workers array inizializzato.");
 
-	free_threads = (int *) malloc(configuration.workers*sizeof(int));
-	memset(free_threads, 1, configuration.workers*sizeof(bool));
+	free_threads = (bool *) malloc(configuration.workers*sizeof(bool));
+	memset(free_threads, true, configuration.workers*sizeof(bool));
 	CHECKALLOC(free_threads, "workers array");
 
 	memset(com_fd, -1, sizeof(struct pollfd));
@@ -140,9 +140,13 @@ int main(int argc, char* argv[]){
 	write_to_log("Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1.");
 	CHECKEXIT(pthread_create(&signal_handler_thread, NULL, &sig_wait_thread, NULL) != 0, false, "Errore di creazione del signal handler thread");
 	CHECKEXIT(pthread_create(&use_stat_thread, NULL, &use_stat_update, NULL) != 0, false, "Errore di creazione di use stat thread");
-	for (int i = 0; i < configuration.workers; i++){
-		CHECKEXIT(pthread_create(&workers[i], NULL, &worker, &i), false, "Errore di creazione dei worker");
-	}
+	int *whoami_list = (int *) malloc(configuration.workers*sizeof(int));
+	for (size_t i = 0; i < configuration.workers; i++)
+		whoami_list[i] = i + 1;
+	
+	for (int i = 0; i < configuration.workers; i++)
+		CHECKEXIT(pthread_create(&workers[i], NULL, &worker, &whoami_list[i]), false, "Errore di creazione dei worker");
+	
 	if(configuration.tui) print_textual_ui(SOCKETADDR);
 	while(true){
 		SAFELOCK(abort_connections_mtx);
@@ -255,19 +259,11 @@ int main(int argc, char* argv[]){
 		}
 		
 	}
-	puts("SEGNALE RICEVUTO, ESCO");
-	SAFELOCK(ready_queue_mtx);
-	clean_ready_list(&ready_queue[0], &ready_queue[0]);
-	SAFEUNLOCK(ready_queue_mtx);
+	puts("TEST FINITO");
 	while(true){
-		SAFEUNLOCK(ready_queue_mtx);
-		insert_client_list(-2, &ready_queue[0], &ready_queue[1]);
-		pthread_cond_broadcast(&client_is_ready);
-		SAFEUNLOCK(ready_queue_mtx);
-
 		for (size_t i = 0; i < configuration.workers; i++){
 			SAFELOCK(free_threads_mtx);
-			if(free_threads[i] != -1){
+			if(!free_threads[i]){
 				SAFEUNLOCK(free_threads_mtx);
 				continue;
 			}
@@ -277,36 +273,36 @@ int main(int argc, char* argv[]){
 		}
 	}
 finish:
+	SAFELOCK(ready_queue_mtx);
+	clean_ready_list(&ready_queue[0], &ready_queue[0]);
+	for (int i = 0; i < configuration.workers; i++)
+		insert_client_list(-2, &ready_queue[0], &ready_queue[1]);
+	SAFEUNLOCK(ready_queue_mtx);
+	while(true){
+		SAFELOCK(ready_queue_mtx);
+		if(!ready_queue[1]){
+			SAFEUNLOCK(ready_queue_mtx);
+			break;
+		}
+		pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
+		SAFEUNLOCK(ready_queue_mtx);
+	}
 	// for (int i = 0; i < configuration.workers; i++)
-	// 	insert_client_list(-2, &ready_queue[0], &ready_queue[1]);
-	// SAFEUNLOCK(ready_queue_mtx);
-	// while(true){
-	// 	SAFELOCK(ready_queue_mtx);
-	// 	if(!ready_queue[1]){
-	// 		SAFEUNLOCK(ready_queue_mtx);
-	// 		break;
-	// 	}
-	// 	pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
-	// 	SAFEUNLOCK(ready_queue_mtx);
-	// }
-	puts("INVIATI TUTTI I SEGNALI DI TERMINAZIONE");
+	// 	pthread_cancel(workers[i]);
+		
+
 	
 	for (int i = 0; i < configuration.workers; i++)
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
-	
-	puts("CHIUSI I THREAD WORKER");
 	pthread_cancel(use_stat_thread);
-	CHECKEXIT(pthread_join(use_stat_thread, NULL) != 0, false, "Errore durante la cancellazione di use_state_thread");
+	
+	CHECKEXIT(pthread_join(use_stat_thread, NULL) != 0, false, "Errore durante la cancellazione dei workers attivi");
 	for (size_t i = 0; i < com_size; i++){
-		if(com_fd[i].fd != 0)
-			close(com_fd[i].fd);
+			if(com_fd[i].fd != 0)
+				close(com_fd[i].fd);
 	}
-	puts("CHIUSO USE_STAT");
-
 	pthread_kill(signal_handler_thread, SIGUSR1);
 	pthread_join(signal_handler_thread, NULL);
-	puts("CHIUSO SIG_HANDLER");
-
 	sprintf(log_buffer, "Max size reached: %lu", server_storage.max_size_reached);
 	write_to_log(log_buffer);
 	sprintf(log_buffer, "Max file num reached: %d", server_storage.max_file_num_reached);
@@ -328,6 +324,7 @@ finish:
 	free(workers);
 	free(com_fd);
 	free(free_threads);
+	free(whoami_list);
 	pthread_mutex_destroy(&ready_queue_mtx);
 	pthread_mutex_destroy(&log_access_mtx);
 	pthread_mutex_destroy(&free_threads_mtx);

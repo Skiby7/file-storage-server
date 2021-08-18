@@ -293,9 +293,10 @@ void enqueue_work(unsigned char command, char *args, work_queue **head, work_que
 	CHECKALLOC(new, "Errore inserimento nella lista pronti");
 	new->command = command;
 	new->args = (char *) calloc((strlen(args)+1), sizeof(char));
-	strncpy(new->args, args, strlen(args));
+	strcpy(new->args, args);
 	new->is_locked = true;
 	new->next = (*head);
+	new->working_dir = NULL;
 	new->prev = NULL;
 	if((*tail) == NULL)
 		(*tail) = new;
@@ -312,10 +313,10 @@ int dequeue_work(unsigned char* command, char **args, char **dirname, bool *is_l
 	*command = (*tail)->command;
 	*args = (char *) calloc((strlen((*tail)->args))+1, sizeof(char));
 	*is_locked = (*tail)->is_locked;
-	strncpy(*args, (*tail)->args, (strlen((*tail)->args)));
+	strcpy(*args, (*tail)->args);
 	if((*tail)->working_dir){
 		*dirname = (char *)calloc((strlen((*tail)->working_dir)) + 1, sizeof(char));
-		strncpy(*dirname, (*tail)->working_dir, strlen((*tail)->working_dir));
+		strcpy(*dirname, (*tail)->working_dir);
 		free((*tail)->working_dir);
 		(*tail)->working_dir = NULL;
 	}

@@ -8,7 +8,7 @@ static int check_count();
 static void clean_attributes(fss_file_t *entry, bool close_com);
 static void enqueue_victim(fss_file_t *entry, victim_queue **head);
 static void start_read(fss_file_t* entry, bool unlock_server_mtx);
-static void start_write(fss_file_t* entry, bool unlock_server_mtx);
+static void start_write(fss_file_t* entry);
 static void stop_read(fss_file_t* entry);
 static void stop_write(fss_file_t* entry);
 extern int respond_to_client(int com, server_response response);
@@ -99,8 +99,7 @@ int insert_lock_file_list(char *pathname, int id, int com){
 		return -1;
 	} 
 	
-	start_write(file, true);
-
+	start_write(file);
 	if(check_client_id_lock(file->lock_waiters, id) == -1){
 		stop_write(file);
 		return -1;
@@ -111,6 +110,7 @@ int insert_lock_file_list(char *pathname, int id, int com){
 	new->next = file->lock_waiters;
 	file->lock_waiters = new;	
 	stop_write(file);
+	SAFEUNLOCK(server_storage.storage_access_mtx);
 	return 0;
 }
 
@@ -132,11 +132,11 @@ int pop_lock_file_list(char *pathname, int *id, int *com, bool server_mutex, boo
 		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
 		return -1;
 	} 
-	if(file_mutex) start_write(file, server_mutex);
-	else if(!file_mutex && server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
+	if(file_mutex) start_write(file);
 	scanner = file->lock_waiters;
 	if(scanner == NULL){
 		if(file_mutex) stop_write(file);
+		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
 		return -1;
 	}
 	if(scanner->next == NULL){
@@ -145,6 +145,7 @@ int pop_lock_file_list(char *pathname, int *id, int *com, bool server_mutex, boo
 		free(scanner);	
 		file->lock_waiters = NULL;
 		if(file_mutex) stop_write(file);
+		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
 		return 0;
 	}
 	while(scanner->next->next != NULL) scanner = scanner->next;
@@ -153,6 +154,7 @@ int pop_lock_file_list(char *pathname, int *id, int *com, bool server_mutex, boo
 	free(scanner->next);
 	scanner->next = NULL;
 	if(file_mutex) stop_write(file);
+	if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
 	return 0;
 }
 
@@ -177,7 +179,6 @@ static int remove_client_file_list(open_file_client_list **head, int id){
 		scanner = scanner->next;
 	}
 }
-
 
 	
 /**
@@ -213,26 +214,24 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 	}
 
 	else if(file){
-		start_write(file, false);
-
+		start_write(file);
 		if(file->whos_locking != client_id && file->whos_locking > 0){
 			stop_write(file);
 			SAFEUNLOCK(server_storage.storage_access_mtx);
 			response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
 			return -1;
 		}
-		else{
+		else {
 			if(insert_client_file_list(&file->clients_open, client_id) < 0){
 				stop_write(file);
 				SAFEUNLOCK(server_storage.storage_access_mtx);
 				response->code[0] = FILE_ALREADY_OPEN;
 				return -1;
 			}
-			if(lock_file)file->whos_locking = client_id;
+			if(lock_file) file->whos_locking = client_id;
 		}
 		file->use_stat += 1;
 		stop_write(file);
-
 	}
 
 	else if(!file){
@@ -260,7 +259,7 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 		else file->whos_locking = -1;
 		file->name = (char *)calloc(strlen(pathname) + 1, sizeof(char));
 		CHECKALLOC(file->name, "Errore inserimento nuovo file");
-		strncpy(file->name, pathname, strlen(pathname));
+		strcpy(file->name, pathname);
 		file->use_stat = 16;
 		file->readers = 0;
 		file->writers = 0;
@@ -270,7 +269,6 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 		if(server_storage.file_count > server_storage.max_file_num_reached)
 			server_storage.max_file_num_reached += 1;
 	}
-	
 	SAFEUNLOCK(server_storage.storage_access_mtx);
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	return 0;
@@ -295,10 +293,11 @@ int close_file(char *filename, int client_id, server_response *response){
 		response->code[1] = ENOENT;
 		return -1; 
 	}
-	start_write(file, true);
+	start_write(file);
 
 	if(file->whos_locking != client_id && file->whos_locking != -1){
 		stop_write(file);
+		SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
 		response->code[1] = EACCES;
 		return -1; 
@@ -306,10 +305,12 @@ int close_file(char *filename, int client_id, server_response *response){
 	
 	if(remove_client_file_list(&file->clients_open, client_id) < 0){
 		stop_write(file);
+		SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_FAILED;
 		return -1; 
 	}
 	stop_write(file);
+	SAFEUNLOCK(server_storage.storage_access_mtx);
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	return 0;
 }
@@ -319,19 +320,19 @@ int delete_entry(int id, char *pathname, victim_queue** queue){
 	fss_file_t* entry = NULL;
 	fss_file_t* prev = NULL;
 	for (entry = server_storage.storage_table[index]; entry; prev = entry, entry = entry->next){
-		start_write(entry, false);
+		start_write(entry);
 		if(strncmp(pathname, entry->name, strlen(pathname)) == 0){
 			if(entry->whos_locking == id || id == -2 || entry->whos_locking == -1){
 				if(queue && entry->uncompressed_size) enqueue_victim(entry, queue);
 				entry->name = (char *) realloc(entry->name, 11);
-				strncpy(entry->name, "deleted", 10);
+				strcpy(entry->name, "deleted");
 				stop_write(entry);
 				server_storage.file_count -= 1;
 				server_storage.size -= entry->size;
 				
 				if(!prev) server_storage.storage_table[index] = entry->next;
 				else{
-					start_write(prev, false);
+					start_write(prev);
 					prev->next = entry->next;
 					stop_write(prev);
 				}
@@ -475,7 +476,7 @@ int read_n_file(char **last_file, int client_id, server_response* response){
 			stop_read(entry);
 			// SAFEUNLOCK(server_storage.storage_access_mtx);
 			*last_file = (char *) realloc(*last_file, strlen(entry->name)+1);
-			strncpy(*last_file, entry->name, strlen(entry->name));
+			strcpy(*last_file, entry->name);
 			response->code[0] = FILE_OPERATION_SUCCESS;
 			return 0;	
 		}
@@ -521,7 +522,7 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		return -1;
 	}
 	/* QUI INIZIA LO SCRITTORE */
-	start_write(file, false); 
+	start_write(file); 
 
 	/* QUI SI SCRIVE */
 	if(file->whos_locking == client_id && check_client_id(file->clients_open, client_id) < 0 && file->data == NULL){
@@ -540,6 +541,7 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 			free(tmp);
 			return -1;
 		}
+		
 		if((*victims)) response->has_victim = 0x01;
 		
 		file->data = (unsigned char *) calloc(size, sizeof(unsigned char));
@@ -549,13 +551,13 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		file->uncompressed_size = length;
 		file->use_stat += 1;
 		file->last_modified = time(NULL);
-		
-		/* QUI HO FINITO DI SCRIVERE ED ESCO */
-		stop_write(file);
 		server_storage.size += size;
 		if(server_storage.size > server_storage.max_size_reached)  server_storage.max_size_reached = server_storage.size;
+		/* QUI HO FINITO DI SCRIVERE ED ESCO */
+		stop_write(file);
 		pthread_cond_signal(&start_victim_selector);
 		SAFEUNLOCK(server_storage.storage_access_mtx);
+		
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		free(tmp);
 		return 0;
@@ -588,14 +590,13 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 	fss_file_t* file = search_file(pathname);
 	if(!file){
 		SAFEUNLOCK(server_storage.storage_access_mtx);
-
 		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
 		response->code[1] = ENOENT;
 		return -1;
 	}
 	
 	/* QUI INIZIA LO SCRITTORE */
-	start_write(file, false);
+	start_write(file);
 
 	if(check_client_id(file->clients_open, client_id) == -1 && (file->whos_locking == -1 || file->whos_locking == client_id)){
 		if(server_storage.compression){
@@ -626,6 +627,7 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 			SAFEUNLOCK(server_storage.storage_access_mtx);
 			return -1;
 		}
+		
 		if((*victims)) response->has_victim = 0x01; 
 
 		file->data = (unsigned char *) realloc(file->data, new_size);
@@ -686,23 +688,25 @@ int lock_file(char *pathname, int client_id, bool server_mutex, bool file_mutex,
 		return -1;
 	}
 	/* QUI INIZIA LO SCRITTORE */
-	if(file_mutex) start_write(file, server_mutex);
-	else if(!file_mutex && server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
+	if(file_mutex) start_write(file);
 
 	if(file->whos_locking == -1){
 		file->whos_locking = client_id;
 		file->use_stat += 1;
 		if(file_mutex) stop_write(file);
+		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		return 0;
 	}
 	else if(file->whos_locking == client_id){
 		if(file_mutex) stop_write(file);
+		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_ALREADY_LOCKED | FILE_OPERATION_FAILED;
 		response->code[1] = EINVAL;
 		return -1;
 	}
 	if(file_mutex) stop_write(file);
+	if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
 	response->code[0] = FILE_LOCKED_BY_OTHERS | FILE_OPERATION_FAILED;
 	response->code[1] = EBUSY;
 	return -1;
@@ -728,21 +732,24 @@ int unlock_file(char *pathname, int client_id, server_response *response){
 		return -1;
 	}
 	/* QUI INIZIA LO SCRITTORE */
-	start_write(file, true);
+	start_write(file);
 
 	if(file->whos_locking == client_id){
 		file->whos_locking = -1;
 		stop_write(file);
+		SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		return 0;
 	}
 	else if(file->whos_locking != client_id){
 		stop_write(file);
+		SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
 		response->code[1] = EBUSY;
 		return -1;
 	}
 	stop_write(file);
+	SAFEUNLOCK(server_storage.storage_access_mtx);
 	response->code[0] = FILE_NOT_LOCKED | FILE_OPERATION_FAILED;
 	return -1;
 }
@@ -766,6 +773,9 @@ void print_storage_info(){
 	SAFELOCK(server_storage.storage_access_mtx);
 	percent_float_mem = (float) server_storage.size/server_storage.size_limit;
 	percent_float_files = (float) server_storage.file_count/server_storage.file_limit;
+	snprintf(memory, 20, "%lu/%lu", server_storage.size, server_storage.size_limit); 
+	snprintf(files, 20, "%u/%u", server_storage.file_count, server_storage.file_limit); 
+	SAFEUNLOCK(server_storage.storage_access_mtx);
 	percent_int_mem = graphic_size*percent_float_mem;
 	percent_int_files = graphic_size*percent_float_files;
 	for (size_t i = 0; i < percent_int_files; i++)
@@ -773,9 +783,6 @@ void print_storage_info(){
 	for (size_t i = 0; i < percent_int_mem; i++)
 		mem_bar[i] = fg;
 
-	snprintf(memory, 20, "%lu/%lu", server_storage.size, server_storage.size_limit); 
-	snprintf(files, 20, "%u/%u", server_storage.file_count, server_storage.file_limit); 
-	SAFEUNLOCK(server_storage.storage_access_mtx);
 	printf(ANSI_COLOR_CYAN"»»» %-20s  "ANSI_COLOR_YELLOW"[%s] %20s"ANSI_COLOR_CYAN" \n"
 			"»»» %-20s  "ANSI_COLOR_YELLOW"[%s] %20s"ANSI_COLOR_GREEN" "ANSI_COLOR_RESET_N, "Memory Used:", mem_bar,
 			memory, "Files in Memory:", files_bar, files);
@@ -919,10 +926,9 @@ static void stop_read(fss_file_t* entry){
 
 }
 
-static void start_write(fss_file_t* entry, bool unlock_server_mtx){
+static void start_write(fss_file_t* entry){
 	SAFELOCK(entry->order_mutex); // ACQUIRE ORDER
 	SAFELOCK(entry->access_mutex); // ACQUIRE ACCESS
-	if(unlock_server_mtx) SAFEUNLOCK(server_storage.storage_access_mtx);
 	while (entry->readers > 0 || entry->writers > 0){
 		if(pthread_cond_wait(&entry->go_cond, &entry->access_mutex) != 0){
 			fprintf(stderr, "Errore (file %s, linea %d): wait su go_cond non riuscita\n", __FILE__, __LINE__);
@@ -959,7 +965,7 @@ static void enqueue_victim(fss_file_t *entry, victim_queue **head){
 	memset(new, 0, sizeof(victim_queue));
 	new->victim.pathlen = strlen(entry->name) + 1;
 	new->victim.pathname = (char *) calloc(new->victim.pathlen, sizeof(char));
-	strncpy(new->victim.pathname, entry->name, strlen(entry->name));
+	strcpy(new->victim.pathname, entry->name);
 	new->victim.size = entry->uncompressed_size;
 	new->victim.data = (unsigned char *) calloc(new->victim.size , sizeof(unsigned char));
 	if(server_storage.compression) uncompress2(new->victim.data, &new->victim.size, entry->data, &entry->size);
@@ -978,14 +984,15 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 	for (size_t i = 0; i < server_storage.table_size; i++){
 		entry = server_storage.storage_table[i];
 		while(entry){
+			start_read(entry, false);
 			if(caller && strncmp(entry->name, caller, strlen(entry->name)) == 0){
 				entry = entry->next;
+				stop_read(entry);
 				continue;
-			} 
-			start_read(entry, false);
+			}
 			victims[counter].pathname = (char*) calloc(strlen(entry->name)+1, sizeof(char));
 			CHECKALLOC(victims[counter].pathname, "Errore allocazione pathname select_victim");
-			strncpy(victims[counter].pathname, entry->name, strlen(entry->name));
+			strcpy(victims[counter].pathname, entry->name);
 			victims[counter].create_time = entry->create_time;
 			victims[counter].last_modified = entry->last_modified;
 			victims[counter].use_stat = entry->use_stat;
@@ -1034,19 +1041,15 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 static int check_memory(unsigned long bytes_to_write, unsigned long old_size, char* caller, victim_queue **queue){
 	unsigned long size_used = 0; // never unlock fss_storage_t mtx before finishing select victim, this must be performed atomically
 	int retval = 0;
-	// SAFELOCK(server_storage.storage_access_mtx);
 	size_used = server_storage.size;
-	if(bytes_to_write + old_size > server_storage.size_limit){
-		// SAFEUNLOCK(server_storage.storage_access_mtx);
+	if(bytes_to_write + old_size > server_storage.size_limit)
 		return -1;
-	}
+	
 		
-	if(size_used + bytes_to_write <= server_storage.size_limit){
-		// SAFEUNLOCK(server_storage.storage_access_mtx);
+	if(size_used + bytes_to_write <= server_storage.size_limit)
 		return 0;
-	} 
+	
 	retval = select_victim(caller, 0, (bytes_to_write + size_used) - server_storage.size_limit, queue);
-	// SAFEUNLOCK(server_storage.storage_access_mtx);
 	return retval;
 }
 
@@ -1064,12 +1067,11 @@ void* use_stat_update(void *args){
 		SAFELOCK(server_storage.storage_access_mtx);
 		pthread_cond_wait(&start_victim_selector, &server_storage.storage_access_mtx);
 		for(int i = 0; i < server_storage.table_size; i++){
-			
 			if(server_storage.storage_table[i] == NULL) continue;
 
 			file = server_storage.storage_table[i];
 			while(file){
-				start_write(file, false);
+				start_write(file);
 				if(file->use_stat != 0)
 					file->use_stat -= 1;
 				if(file->use_stat == 0 && (file->last_modified - time(NULL)) > 120){
@@ -1079,10 +1081,8 @@ void* use_stat_update(void *args){
 				stop_write(file);
 				file = file->next;
 			}
-			
 		}
 		SAFEUNLOCK(server_storage.storage_access_mtx);
-
 	}
 }
 

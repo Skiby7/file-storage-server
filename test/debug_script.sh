@@ -2,7 +2,7 @@
 
 stress_test_pids=()
 for i in {1..15}; do
-    bash -c './test/stress_test.sh' &
+    bash -c './test/stress_test_debug.sh' &
     stress_test_pids+=($!)
     sleep 0.1
 done

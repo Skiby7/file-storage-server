@@ -1,21 +1,23 @@
 CC	=  gcc
-CFLAGS	+= -Wall -pedantic -std=c99 -g
+CFLAGS	+= -O3 -std=c99
 # DEFINES += -D_CIAO=1
 DEFINES += -D_GNU_SOURCE=1
 INCLUDES = -I includes/
 TARGETS = server client
 LIBS = -L ./libs/zlib -lz
-.PHONY: clean clean_files clean_all gen_files test1 test2 test3 test1_un test3_un
+.PHONY: clean clean_files clean_all gen_files test1 test2 test3 test1_un test3_un debug
 .SUFFIXES: .c .h
 
+test1: CFLAGS = -Wall -pedantic -std=c99 -g3
+test1_un: CFLAGS = -Wall -pedantic -std=c99 -g3
+debug: CFLAGS = -Wall -pedantic -std=c99 -g3
 
 all: clean server client binary_test
 
+debug: clean server client binary_test
+
 server:  libserver libcommon zlib
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon $(LIBS)
-
-server_no_debug: libserver libcommon zlib
-	$(CC) -O3 -std=c99 $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon $(LIBS)
 
 client: libclient libcommon
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./build -lclient -lcommon
@@ -63,6 +65,7 @@ serialization.o:
 
 work.o: 
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) -c src/work.c -o build/work.o
+
 zlib:
 	cd libs/zlib/ && ./configure --static --const && make -j
 
@@ -77,33 +80,32 @@ clean_all: clean clean_files
 gen_files:
 	./generate_file_init.sh
 	
-
-test1: client server
+test1: clean client server
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test1.sh bin/config1.txt
 	./statistiche.sh bin/server.log
 
-test2: client server
+test2: clean client server
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test2.sh bin/config2.txt
 	./statistiche.sh bin/server.log
 
-test3: client server_no_debug
+test3: clean client server
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh bin/config3.txt
 	./statistiche.sh bin/server.log
 
 
-test1_un: client server
+test1_un: clean client server
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test1.sh bin/config1_un.txt
 	./statistiche.sh bin/server.log
 
-test3_un: client server_no_debug
+test3_un: clean client server
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh bin/config3_un.txt

@@ -6,15 +6,15 @@
 #include "serialization.h"
 #define LOG_BUFF 512
 
-pthread_mutex_t tui_mtx;
-
+ 
+pthread_mutex_t tui_mtx = PTHREAD_MUTEX_INITIALIZER;
 extern config configuration; // Server config
 // extern volatile sig_atomic_t can_accept;
-// extern bool abort_connections;
-// extern pthread_mutex_t abort_connections_mtx;
+extern bool abort_connections;
+extern pthread_mutex_t abort_connections_mtx;
 extern clients_list *ready_queue[2];
 
-extern int *free_threads;
+extern bool *free_threads;
 extern pthread_mutex_t free_threads_mtx;
 
 extern pthread_mutex_t ready_queue_mtx;
@@ -282,7 +282,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 					free(log_buffer);
 					return -2;
 				}
-				snprintf(log_buffer, LOG_BUFF, "Client %d failed locking %s -> %s", request->client_id, request->pathname, strerror(response.code[1]));
+				snprintf(log_buffer, LOG_BUFF, "Client %d failed locking %s with error %s", request->client_id, request->pathname, strerror(response.code[1]));
 				logger(log_buffer);
 			}
 		}
@@ -336,33 +336,50 @@ void* worker(void* args){
 	pthread_setcancelstate(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	while(true){
 		// Thread waits for work to be assigned
+		// SAFELOCK(abort_connections_mtx);
+		// if(abort_connections){
+		// 	SAFELOCK(free_threads_mtx);
+		// 	free_threads[whoami] = false;
+		// 	SAFEUNLOCK(free_threads_mtx);
+		// 	SAFEUNLOCK(abort_connections_mtx);
+		// 	return NULL;
+		// }
+		// SAFEUNLOCK(abort_connections_mtx);
+
 		SAFELOCK(ready_queue_mtx);
 		while(ready_queue[1] == NULL){
-			pthread_cond_wait(&client_is_ready, &ready_queue_mtx);
+			pthread_cond_wait(&client_is_ready, &ready_queue_mtx); 
+			// SAFELOCK(abort_connections_mtx);
+			// if(abort_connections){
+			// 	SAFELOCK(free_threads_mtx);
+			// 	free_threads[whoami] = false;
+			// 	SAFEUNLOCK(free_threads_mtx);
+			// 	SAFEUNLOCK(ready_queue_mtx);
+			// 	SAFEUNLOCK(abort_connections_mtx);
+
+			// 	return NULL;
+			// }
+			// SAFEUNLOCK(abort_connections_mtx);
 		}
 		SAFELOCK(free_threads_mtx);
-		free_threads[whoami] = 0;
+		free_threads[whoami] = false;
 		SAFEUNLOCK(free_threads_mtx);
 		com = pop_client(&ready_queue[0], &ready_queue[1]); // Pop dalla lista dei socket ready che va fatta durante il lock		
-		// printf("COM -> %d\n", com);
-		
-		// if(com == -1){
-		// 	SAFELOCK(free_threads_mtx);
-		// 	free_threads[whoami] = 1;
-		// 	SAFEUNLOCK(free_threads_mtx);
-		// 	continue;
-		// } // Falso allarme
-			
+		SAFEUNLOCK(ready_queue_mtx);
+		if(com == -1){ // Falso allarme
+			SAFELOCK(free_threads_mtx);
+			free_threads[whoami] = false;
+			SAFEUNLOCK(free_threads_mtx);
+			continue;
+		}
 		if(com == -2){
 			// pthread_mutex_destroy(&tui_mtx);
-			// printf("THREAD %d: EXITING\n", whoami);
 			SAFELOCK(free_threads_mtx);
-			free_threads[whoami] = -1;
+			free_threads[whoami] = false;
 			SAFEUNLOCK(free_threads_mtx);
-			SAFEUNLOCK(ready_queue_mtx);
 			return NULL;
 		}
-		SAFEUNLOCK(ready_queue_mtx);
+			
 		
 		memset(&request, 0, sizeof request);
 		read_status = read_all_buffer(com, &request_buffer, &request_buffer_size);
@@ -372,7 +389,7 @@ void* worker(void* args){
 				logger(log_buffer);
 			}
 			SAFELOCK(free_threads_mtx);
-			free_threads[whoami] = 1;
+			free_threads[whoami] = true;
 			SAFEUNLOCK(free_threads_mtx);
 			continue;
 		}
@@ -387,12 +404,12 @@ void* worker(void* args){
 			sprintf(log_buffer,"Error handling client %d request", request.client_id);
 			logger(log_buffer);
 			SAFELOCK(free_threads_mtx);
-			free_threads[whoami] = 1;
+			free_threads[whoami] = true;
 			SAFEUNLOCK(free_threads_mtx);
 			continue;
 		}
 		SAFELOCK(free_threads_mtx);
-		free_threads[whoami] = 1;
+		free_threads[whoami] = true;
 		SAFEUNLOCK(free_threads_mtx);
 
 	}
@@ -458,4 +475,3 @@ void logger(char *log){
 	write_to_log(log);
 	SAFEUNLOCK(log_access_mtx);
 }
-
