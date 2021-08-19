@@ -61,8 +61,9 @@ int sendback_client(int com, bool done){
 	char* buffer = NULL;
 	buffer = calloc(PIPE_BUF+1, sizeof(char));
 	sprintf(buffer, "%d", com);
-	if(done) write(done_fd_pipe[1], buffer, PIPE_BUF);
-	else write(good_fd_pipe[1], buffer, PIPE_BUF);
+	
+	if(done){ CHECKSCEXIT(write(done_fd_pipe[1], buffer, PIPE_BUF), true, "Errore write done_fd_pipe sendback_client"); }
+	else{ CHECKSCEXIT(write(good_fd_pipe[1], buffer, PIPE_BUF), true, "Errore write good_fd_pipe sendback_client"); }
 	free(buffer);
 	// if(done) printf("SENTBACK BROKEN COM %d\n", com);
 	return 0;

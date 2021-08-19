@@ -447,7 +447,7 @@ int save_to_file(const char* pathname, unsigned char* data, size_t size){
 		}
 		
 	}
-	write(fd, data, size);
+	CHECKSCEXIT(write(fd, data, size), true, "Errore write save_to_file");
 	close(fd);
 	free(path);
 	return 0;
