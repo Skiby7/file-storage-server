@@ -85,6 +85,6 @@ int unlock_file(char *filename, int client_id, server_response *response);
 int insert_lock_file_list(char *filename, int id, int com);
 int pop_lock_file_list(char *filename, int *id, int *com, bool server_mutex, bool file_mutex);
 void print_storage();
-void print_storage_info();
+char* print_storage_info();
 void print_summary();
 void* use_stat_update(void *args);

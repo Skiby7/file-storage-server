@@ -762,7 +762,7 @@ int unlock_file(char *pathname, int client_id, server_response *response){
 }
 
 
-void print_storage_info(){
+char* print_storage_info(){
 	char bg = ' ';
 	char fg = '#';
 	char memory[20];
@@ -771,6 +771,8 @@ void print_storage_info(){
 	float percent_float_mem = 0.0, percent_float_files = 0.0;
 	char mem_bar[graphic_size+1];
 	char files_bar[graphic_size+1];
+	char *ret_buf = NULL;
+	ret_buf = (char *) calloc(201, sizeof(char));
 	files_bar[graphic_size] = 0;
 	mem_bar[graphic_size] = 0;
 	memset(files_bar, bg, graphic_size);
@@ -790,10 +792,10 @@ void print_storage_info(){
 	for (size_t i = 0; i < percent_int_mem; i++)
 		mem_bar[i] = fg;
 
-	printf(ANSI_COLOR_CYAN"»»» %-20s  "ANSI_COLOR_YELLOW"[%s] %20s"ANSI_COLOR_CYAN" \n"
+	snprintf(ret_buf, 200, ANSI_COLOR_CYAN"»»» %-20s  "ANSI_COLOR_YELLOW"[%s] %20s"ANSI_COLOR_CYAN" \n"
 			"»»» %-20s  "ANSI_COLOR_YELLOW"[%s] %20s"ANSI_COLOR_GREEN" "ANSI_COLOR_RESET_N, "Memory Used:", mem_bar,
 			memory, "Files in Memory:", files_bar, files);
-	
+	return ret_buf;
 }
 
 void print_summary(){

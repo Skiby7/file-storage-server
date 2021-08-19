@@ -5,7 +5,7 @@ DEFINES += -D_GNU_SOURCE=1
 INCLUDES = -I includes/
 TARGETS = server client
 LIBS = -L ./libs/zlib -lz
-.PHONY: clean clean_files clean_all gen_files test1 test2 test3 test1_un test3_un debug
+.PHONY: clean clean_files clean_all gen_files test1 test2 test3 test1_un test3_un test3_un_quiet test3_quiet debug
 .SUFFIXES: .c .h
 
 test1: CFLAGS = -Wall -pedantic -std=c99 -g3
@@ -109,4 +109,16 @@ test3_un: clean client server
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh bin/config3_un.txt
+	./statistiche.sh bin/server.log
+	
+test3_un_quiet: clean client server
+	$(RM) -r ./test/test_output/*
+	$(RM) -r ./test/output_stress_test/*
+	./test/test3.sh bin/config3_un_quiet.txt
+	./statistiche.sh bin/server.log
+	
+test3_quiet: clean client server
+	$(RM) -r ./test/test_output/*
+	$(RM) -r ./test/output_stress_test/*
+	./test/test3.sh bin/config3_quiet.txt
 	./statistiche.sh bin/server.log

@@ -5,7 +5,7 @@
 #include "log.h"
 #include "serialization.h"
 #define LOG_BUFF 512
-
+#define TUI_BUFF 20
  
 pthread_mutex_t tui_mtx = PTHREAD_MUTEX_INITIALIZER;
 extern config configuration; // Server config
@@ -24,11 +24,12 @@ extern pthread_cond_t client_is_ready;
 extern pthread_mutex_t log_access_mtx;
 extern int good_fd_pipe[2]; // 1 lettura, 0 scrittura
 extern int done_fd_pipe[2]; // 1 lettura, 0 scrittura
-
+extern int tui_pipe[2];
 extern void func(clients_list *head);
 ssize_t safe_read(int fd, void *ptr, size_t n);
 ssize_t safe_write(int fd, void *ptr, size_t n);
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
+
 void logger(char *log);
 // void add_line();
 
@@ -102,6 +103,7 @@ void lock_next(char* pathname, bool server_mutex, bool file_mutex){
 static int handle_request(int com, int thread, client_request *request){ // -1 error in file operation -2 error responding to client
 	int exit_status = -1, files_read = 0;
 	char* log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
+	char tui_buffer[TUI_BUFF] = {0};
 	char* last_file = NULL;
 	server_response response;
 	victim_queue *victims = NULL, *befree = NULL;
@@ -109,15 +111,15 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	sprintf(log_buffer, "[ Thread %d ] Serving client %d", thread, request->client_id);
 	logger(log_buffer);
 	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
-	if(configuration.tui && (request->command & REMOVE || request->command & WRITE || request->command & OPEN || request->command & APPEND)){
-		SAFELOCK(tui_mtx);
-		printf("\033[3A");
-		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND)
-			printf("READ("ANSI_COLOR_CYAN"•"ANSI_COLOR_RESET") - WRITE( )\n");
-		else
-			printf("READ( ) - WRITE("ANSI_COLOR_CYAN"•"ANSI_COLOR_RESET")\n");
-		print_storage_info();
-		SAFEUNLOCK(tui_mtx);
+	if(configuration.tui){
+		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND || request->command & SET_LOCK){
+			strcpy(tui_buffer, "WRITE");
+			CHECKERRNO(write(tui_pipe[1], tui_buffer, TUI_BUFF) < 0, "Errore tui pipe");
+		}
+		else if(request->command & READ || request->command & READ_N){
+			strcpy(tui_buffer, "READ");
+			CHECKERRNO(write(tui_pipe[1], tui_buffer, TUI_BUFF) < 0, "Errore tui pipe");
+		}
 	}
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
@@ -323,16 +325,16 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	// puts("\n\n\n#####################\n\n");
 	// print_storage();
 	
-	if(configuration.tui && (request->command & REMOVE || request->command & WRITE || request->command & OPEN || request->command & APPEND) && exit_status == 0){
-		SAFELOCK(tui_mtx);
-		printf("\033[3A");
-		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND)
-			printf("READ("ANSI_COLOR_CYAN"•"ANSI_COLOR_RESET") - WRITE( )\n");
-		else
-			printf("READ( ) - WRITE("ANSI_COLOR_CYAN"•"ANSI_COLOR_RESET")\n");
-		print_storage_info();
-		SAFEUNLOCK(tui_mtx);
-	} 
+	if(configuration.tui){
+		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND || request->command & SET_LOCK){
+			strcpy(tui_buffer, "WRITE END");
+			CHECKERRNO(write(tui_pipe[1], tui_buffer, TUI_BUFF) < 0, "Errore tui pipe");
+		}
+		else if(request->command & READ || request->command & READ_N){
+			strcpy(tui_buffer, "READ END");
+			CHECKERRNO(write(tui_pipe[1], tui_buffer, TUI_BUFF) < 0, "Errore tui pipe");
+		}
+	}
 	sendback_client(com, false);
 	clean_response(&response);
 	free(log_buffer);
@@ -490,4 +492,50 @@ void logger(char *log){
 	SAFELOCK(log_access_mtx);
 	write_to_log(log);
 	SAFEUNLOCK(log_access_mtx);
+}
+
+void* print_tui(void *args){
+	struct pollfd *pipe_poll =  (struct pollfd *) malloc(sizeof(struct pollfd));
+	nfds_t count = 1;
+	int poll_val = 0, read_bytes = 0;
+	pipe_poll[0].fd = tui_pipe[0];
+	pipe_poll[0].events = POLLIN;
+	char buffer[20] = {0};
+	char *stat_buff = NULL;
+	bool read_stat = false, write_stat = true;
+	printf("\n\n\n");
+	stat_buff = print_storage_info();
+	while(true){
+		poll_val = poll(pipe_poll, count, -1);
+		if(pipe_poll[0].revents & POLLIN){
+			read_bytes = read(tui_pipe[0], buffer, sizeof buffer);
+			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
+			if(strcmp(buffer, "QUIT") == 0) break;
+			if(strcmp(buffer, "READ") == 0)
+				read_stat = true;
+			if(strcmp(buffer, "WRITE") == 0)
+				write_stat = true;
+			if(strcmp(buffer, "READ END") == 0)
+				read_stat = false;
+			if(strcmp(buffer, "WRITE END") == 0){
+				write_stat = false;
+				if (stat_buff){
+					free(stat_buff);
+					stat_buff = NULL;
+				}
+				stat_buff = print_storage_info();
+			}
+				
+			printf("\033[3A");
+			if(read_stat) 
+				printf("READ("ANSI_COLOR_CYAN"*"ANSI_COLOR_RESET")");
+			else printf("READ( )");
+			printf(" - ");
+			if(write_stat) 
+				printf("WRITE("ANSI_COLOR_CYAN"*"ANSI_COLOR_RESET")\n");
+			else printf("WRITE( )\n");
+			printf("%s",stat_buff);
+		}
+	}
+	return NULL;
 }

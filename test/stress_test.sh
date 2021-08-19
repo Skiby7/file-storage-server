@@ -1,3 +1,4 @@
+#!/bin/bash
 CWD=$(realpath $(dirname $0))
 
 while true

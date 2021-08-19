@@ -22,8 +22,10 @@ clients_list *ready_queue[2];
 
 int good_fd_pipe[2]; // 1 lettura, 0 scrittura
 int done_fd_pipe[2]; // 1 lettura, 0 scrittura
+int tui_pipe[2];
 void* sig_wait_thread(void *args);
 extern void* worker(void* args);
+extern void* print_tui(void* args);
 pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 extern fss_storage_t server_storage;
@@ -80,6 +82,7 @@ int main(int argc, char* argv[]){
 	pthread_t *workers;
 	pthread_t signal_handler_thread;
 	pthread_t use_stat_thread;
+	pthread_t tui_thread;
 	// struct sigaction sig_handler;
 	// memset(&sig_handler, 0, sizeof sig_handler);
 	// sig_handler.sa_handler = signal_handler;
@@ -118,8 +121,9 @@ int main(int argc, char* argv[]){
 
 	memset(com_fd, -1, sizeof(struct pollfd));
 	memset(buffer, 0, PIPE_BUF);
-	CHECKEXIT((pipe(good_fd_pipe) == -1), true, "Impossibile inizializzare la pipe");
-	CHECKEXIT((pipe(done_fd_pipe) == -1), true, "Impossibile inizializzare la pipe");
+	CHECKSCEXIT((pipe(good_fd_pipe)), true, "Impossibile inizializzare la pipe");
+	CHECKSCEXIT((pipe(done_fd_pipe)), true, "Impossibile inizializzare la pipe");
+	CHECKSCEXIT((pipe(tui_pipe)), true, "Impossibile inizializzare la pipe");
 	write_to_log("Pipe inzializzata.");
 
 	strncpy(sockaddress.sun_path, SOCKETADDR, AF_UNIX_MAX_PATH-1);
@@ -140,6 +144,7 @@ int main(int argc, char* argv[]){
 	write_to_log("Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1.");
 	CHECKEXIT(pthread_create(&signal_handler_thread, NULL, &sig_wait_thread, NULL) != 0, false, "Errore di creazione del signal handler thread");
 	CHECKEXIT(pthread_create(&use_stat_thread, NULL, &use_stat_update, NULL) != 0, false, "Errore di creazione di use stat thread");
+	if(configuration.tui) {CHECKEXIT(pthread_create(&tui_thread, NULL, &print_tui, NULL) != 0, false, "Errore di creazione di use stat thread");}
 	int *whoami_list = (int *) malloc(configuration.workers*sizeof(int));
 	for (size_t i = 0; i < configuration.workers; i++)
 		whoami_list[i] = i + 1;
@@ -303,6 +308,8 @@ finish:
 	}
 	pthread_kill(signal_handler_thread, SIGUSR1);
 	pthread_join(signal_handler_thread, NULL);
+	strcpy(log_buffer, "QUIT");
+	CHECKERRNO(write(tui_pipe[1], log_buffer, 20) < 0, "Errore tui pipe");
 	sprintf(log_buffer, "Max size reached: %lu", server_storage.max_size_reached);
 	write_to_log(log_buffer);
 	sprintf(log_buffer, "Max file num reached: %d", server_storage.max_file_num_reached);
@@ -317,6 +324,8 @@ finish:
 	close(good_fd_pipe[1]);
 	close(done_fd_pipe[0]);
 	close(done_fd_pipe[1]);
+	close(tui_pipe[0]);
+	close(tui_pipe[1]);
 	print_summary();
 	freeConfig(&configuration);
 	clean_storage();

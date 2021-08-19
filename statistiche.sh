@@ -50,3 +50,6 @@ echo -n "Dimensione media letture -> "
 grep -w "Read" $1 | awk '{SUM += $(NF-1); COUNT += 1} END {print (COUNT==0) ? "0 bytes" : int(SUM/COUNT) " bytes"}'
 
 grep -w "Thread" $1 | awk '{count[$6]++} END {for (i in count) print ">> Il thread " i " ha servito " count[i] " richieste"}'
+
+echo -e -n ">> Totale richieste servite -> "
+grep -w "Thread" $1 | wc -l

@@ -6,6 +6,7 @@ export SERVER=$!
 sleep 2
 stress_test_pids=()
 for i in {1..15}; do
+    # bash -c './test/stress_test.sh' &
     bash -c './test/stress_test.sh' &
     stress_test_pids+=($!)
     sleep 0.1
