@@ -29,7 +29,6 @@ typedef struct work{
 } work_queue;
 
 
-char *strtok_r(char *str, const char *delim, char **saveptr);
 int handle_read_files(char *args, char* dirname);
 int handle_simple_request(char *args, unsigned char command, const char* dirname);
 void do_work(work_queue **head, work_queue **tail);
