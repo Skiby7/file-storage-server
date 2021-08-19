@@ -108,6 +108,16 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	sprintf(log_buffer, "[ Thread %d ] Serving client %d", thread, request->client_id);
 	logger(log_buffer);
 	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
+	if(configuration.tui && (request->command & REMOVE || request->command & WRITE || request->command & OPEN || request->command & APPEND)){
+		SAFELOCK(tui_mtx);
+		printf("\033[3A");
+		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND)
+			printf(ANSI_COLOR_YELLOW"READ "ANSI_COLOR_RESET"- WRITE\n");
+		else
+			printf("READ - "ANSI_COLOR_YELLOW"WRITE"ANSI_COLOR_RESET_N);
+		print_storage_info();
+		SAFEUNLOCK(tui_mtx);
+	}
 	if(request->command & OPEN){
 		exit_status = open_file(request->pathname, request->flags, request->client_id, &response);
 		if(respond_to_client(com, response) < 0){
@@ -314,6 +324,11 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	
 	if(configuration.tui && (request->command & REMOVE || request->command & WRITE || request->command & OPEN || request->command & APPEND) && exit_status == 0){
 		SAFELOCK(tui_mtx);
+		printf("\033[3A");
+		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND)
+			printf(ANSI_COLOR_YELLOW"READ "ANSI_COLOR_RESET"- WRITE\n");
+		else
+			printf("READ - "ANSI_COLOR_YELLOW"WRITE"ANSI_COLOR_RESET_N);
 		print_storage_info();
 		SAFEUNLOCK(tui_mtx);
 	} 
