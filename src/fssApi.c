@@ -217,6 +217,7 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 	unsigned char* buffer = NULL;
 	size_t buff_size = 0;
 	char current_dir[PATH_MAX] = {0};
+	CHECKEXIT(getcwd(current_dir, sizeof current_dir) == NULL, true, "Errore getcwd");
 	memset(&append_response, 0, sizeof(server_response));
 	init_request(&append_request, getpid(), APPEND, 0, pathname);
 	append_request.size = size;
@@ -261,6 +262,7 @@ int writeFile(const char* pathname, const char* dirname){
 	unsigned char* buffer = NULL;
 	size_t buff_size = 0;
 	char current_dir[PATH_MAX] = {0};
+	CHECKEXIT(getcwd(current_dir, sizeof current_dir) == NULL, true, "Errore getcwd");
 	memset(&write_response, 0, sizeof(server_response));
 	if((file = open(pathname, O_RDONLY)) == -1){
 		perror("Errore durante l'apertura del file");
