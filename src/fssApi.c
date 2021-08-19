@@ -401,7 +401,7 @@ int mkpath(const char* pathname){
 	char *token = NULL;
 	char *path = (char *) calloc(strlen(pathname) + 1, sizeof(char));
 	char original_dir[PATH_MAX] = {0};
-	CHECKEXIT(getcwd(original_dir, sizeof original_dir), true, "Errore getcwd");
+	CHECKEXIT(getcwd(original_dir, sizeof original_dir) == NULL, true, "Errore getcwd");
 	strcpy(path, pathname);
 	for (int i = strlen(path)-1; ; i--){
 		if(path[i] == '/'){

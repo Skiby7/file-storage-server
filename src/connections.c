@@ -113,9 +113,9 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		SAFELOCK(tui_mtx);
 		printf("\033[3A");
 		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND)
-			printf(ANSI_COLOR_YELLOW"READ "ANSI_COLOR_RESET"- WRITE\n");
+			printf("READ("ANSI_COLOR_CYAN"•"ANSI_COLOR_RESET") - WRITE( )\n");
 		else
-			printf("READ - "ANSI_COLOR_YELLOW"WRITE"ANSI_COLOR_RESET_N);
+			printf("READ( ) - WRITE("ANSI_COLOR_CYAN"•"ANSI_COLOR_RESET")\n");
 		print_storage_info();
 		SAFEUNLOCK(tui_mtx);
 	}
@@ -327,9 +327,9 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		SAFELOCK(tui_mtx);
 		printf("\033[3A");
 		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND)
-			printf(ANSI_COLOR_YELLOW"READ "ANSI_COLOR_RESET"- WRITE\n");
+			printf("READ("ANSI_COLOR_CYAN"•"ANSI_COLOR_RESET") - WRITE( )\n");
 		else
-			printf("READ - "ANSI_COLOR_YELLOW"WRITE"ANSI_COLOR_RESET_N);
+			printf("READ( ) - WRITE("ANSI_COLOR_CYAN"•"ANSI_COLOR_RESET")\n");
 		print_storage_info();
 		SAFEUNLOCK(tui_mtx);
 	} 
