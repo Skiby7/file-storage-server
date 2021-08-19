@@ -17,6 +17,6 @@ typedef struct _config{
 	bool compression;
 } config;
 
-
+size_t strlen(const char *s);
 int parseConfig(FILE *conf, config *configuration);
 void freeConfig(config *configuration);

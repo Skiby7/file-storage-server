@@ -1,7 +1,7 @@
 #include "parser.h"
 
 
-static inline void removeChar(char *token){
+static void removeChar(char *token){
 	for (int i = strlen(token)-1; i != 0; i--)
 		if(token[i] == '\n' || token[i] == '#'){
 			token[i] = '\0';
