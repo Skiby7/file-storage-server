@@ -401,7 +401,7 @@ int mkpath(const char* pathname){
 	char *token = NULL;
 	char *path = (char *) calloc(strlen(pathname) + 1, sizeof(char));
 	char original_dir[PATH_MAX] = {0};
-	getcwd(original_dir, sizeof original_dir);
+	CHECKEXIT(getcwd(original_dir, sizeof original_dir), true, "Errore getcwd");
 	strcpy(path, pathname);
 	for (int i = strlen(path)-1; ; i--){
 		if(path[i] == '/'){
@@ -416,7 +416,7 @@ int mkpath(const char* pathname){
 			if(mkdir(token, 0777) == -1){
 				perror(ANSI_COLOR_RED"Errore durante la creazione della cartella");
 				puts(ANSI_COLOR_RESET);
-				chdir(original_dir);
+				CHECKERRNO(chdir(original_dir) < 0, "Errore chdir");
 				return -1;
 			}
 			CHECKERRNO(chdir(token) < 0, "Errore chdir");
