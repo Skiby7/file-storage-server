@@ -8,7 +8,7 @@ int handle_read_files(char *args, char *dirname){
 	size_t buff_size = 0;
 	int retval = 0;
 	char current_dir[PATH_MAX];
-	getcwd(current_dir, sizeof current_dir);
+	CHECKEXIT(getcwd(current_dir, sizeof current_dir) == NULL, true, "Errore getcwd");
 	if(!dirname) puts(ANSI_COLOR_RED"Non è stata specificata la cartella di destinazione, i file non verranno salvati!"ANSI_COLOR_RESET);
 	
 	
@@ -24,9 +24,9 @@ int handle_read_files(char *args, char *dirname){
 			if(config.verbose) CHECKERRNO(retval < 0, "Errore closeFile!");
 		}
 		if(dirname){
-			chdir(dirname);
+			CHECKERRNO(chdir(dirname) < 0, "Errore chdir");
 			save_to_file(token, buffer, buff_size);
-			chdir(current_dir);
+			CHECKERRNO(chdir(current_dir) < 0, "Errore chdir");
 		}
 		free(buffer);
 		token = strtok_r(NULL, DELIM, &tmpstr);
@@ -150,7 +150,7 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked, const char
 	struct stat dirent_info, st;
     struct dirent* current_file;
 	char real_path[PATH_MAX] = {0};
-	char filePath[PATH_MAX] = {0};
+	char file_path[PATH_MAX] = {0};
 	int files_written = 0, rec_visit = 0, open_file_val = 0, file = 0, retval = 0;
 	size_t size = 0;
 	unsigned char *buffer = NULL;
@@ -159,14 +159,17 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked, const char
 	}
 	errno = 0;
 	while((current_file = readdir(target_dir)) && (!files_to_write || files_written < files_to_write)){
-		memset(filePath, 0, sizeof filePath);
+		memset(file_path, 0, sizeof file_path);
 		memset(real_path, 0, sizeof real_path);
 		if(errno && !current_file) return -1; 
 		if(strcmp(current_file->d_name, ".") == 0 || strcmp(current_file->d_name, "..") == 0) continue;
-		snprintf(filePath, PATH_MAX-1, "%s/%s", start_dir, current_file->d_name);
-		realpath(filePath, real_path);
+		snprintf(file_path, PATH_MAX-1, "%s/%s", start_dir, current_file->d_name);
+		if(!realpath(file_path, real_path)){
+			if(config.verbose) perror("Errore realpath!");
+			continue;
+		}
 	 	if (stat(real_path, &dirent_info) == -1) {
-            perror("Errore recupero informazioni del file!");
+            if(config.verbose) perror("Errore recupero informazioni del file!");
 			continue;
         }
 		if(S_ISDIR(dirent_info.st_mode)){
@@ -205,7 +208,12 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked, const char
 				}
 				size = st.st_size;
 				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
-				read(file, buffer, size);
+				if(read(file, buffer, size) < 0){
+					if(config.verbose) CHECKERRNO(true, "Errore read dal file");
+					free(buffer);
+					buffer = NULL;
+
+				}
 				retval = appendToFile(real_path, buffer, size, dirname);
 				if(config.verbose) CHECKERRNO(retval < 0, "Errore scrittura file");
 				retval = closeFile(real_path);

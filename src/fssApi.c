@@ -175,7 +175,7 @@ int readNFile(int N, const char* dirname){
 	unsigned char* buffer = NULL;
 	size_t buff_size = 0;
 	char current_dir[PATH_MAX] = {0};
-	if(good_path) getcwd(current_dir, sizeof current_dir);
+	if(good_path){ CHECKEXIT(getcwd(current_dir, sizeof current_dir) == NULL, true, "Errore getcwd!"); }
 	memset(&read_n_response, 0, sizeof(server_response));
 	init_request(&read_n_request, getpid(), READ_N, 0, NULL);
 	read_n_request.files_to_read = N;
@@ -185,9 +185,9 @@ int readNFile(int N, const char* dirname){
 	if(read_n_response.code[0] == FILE_NOT_EXISTS) return i;
 	i++;
 	if(good_path){
-		chdir(dirname);
+		CHECKERRNO(chdir(dirname) < 0, "Errore chdir");
 		save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
-		chdir(current_dir);
+		CHECKERRNO(chdir(current_dir) < 0, "Errore chdir");
 	} 
 	clean_response(&read_n_response);
 	while(true){
@@ -196,9 +196,9 @@ int readNFile(int N, const char* dirname){
 		deserialize_response(&read_n_response, &buffer, buff_size);
 		if(read_n_response.code[0] == FILE_NOT_EXISTS) break;
 		if(good_path){
-			chdir(dirname);
+			CHECKERRNO(chdir(dirname) < 0, "Errore chdir");
 			save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
-			chdir(current_dir);
+			CHECKERRNO(chdir(current_dir) < 0, "Errore chdir");
 		} 
 		clean_response(&read_n_response);
 		memset(&read_n_response, 0, sizeof read_n_response);
@@ -236,9 +236,9 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 			deserialize_response(&append_response, &buffer, buff_size);
 			if(append_response.size == 1 && append_response.code[0] == FILE_OPERATION_SUCCESS && append_response.data[0] == 0) break;
 			if(dirname){
-				chdir(dirname);
+				CHECKERRNO(chdir(dirname) < 0, "Errore chdir");
 				save_to_file(append_response.pathname, append_response.data, append_response.size);
-				chdir(current_dir);
+				CHECKERRNO(chdir(current_dir) < 0, "Errore chdir");
 			}
 			clean_response(&append_response);
 			memset(&append_response, 0, sizeof append_response);
@@ -292,9 +292,9 @@ int writeFile(const char* pathname, const char* dirname){
 			deserialize_response(&write_response, &buffer, buff_size);
 			if(write_response.size == 1 && write_response.code[0] == FILE_OPERATION_SUCCESS && write_response.data[0] == 0) break;
 			if(dirname){
-				chdir(dirname);
+				CHECKERRNO(chdir(dirname) < 0, "Errore chdir");
 				save_to_file(write_response.pathname, write_response.data, write_response.size);
-				chdir(current_dir);
+				CHECKERRNO(chdir(current_dir) < 0, "Errore chdir");
 			}
 			clean_response(&write_response);
 			memset(&write_response, 0, sizeof write_response);
@@ -419,12 +419,12 @@ int mkpath(const char* pathname){
 				chdir(original_dir);
 				return -1;
 			}
-			chdir(token);
+			CHECKERRNO(chdir(token) < 0, "Errore chdir");
 		}
 		token = strtok_r(NULL, "/", &tmpstr);
 	}
 	free(path);
-	chdir(original_dir);
+	CHECKERRNO(chdir(original_dir) < 0, "Errore chdir");
 	return 0;
 }
 
