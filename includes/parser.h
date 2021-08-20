@@ -18,5 +18,5 @@ typedef struct _config{
 } config;
 
 size_t strlen(const char *s);
-int parseConfig(FILE *conf, config *configuration);
-void freeConfig(config *configuration);
+int parse_config(FILE *conf, config *configuration);
+void free_config(config *configuration);

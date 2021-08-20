@@ -80,44 +80,44 @@ clean_all: clean clean_files
 gen_files:
 	./generate_file_init.sh
 	
-test1: clean client server
+test1: debug
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test1.sh bin/config1.txt
 	./statistiche.sh bin/server.log
 
-test2: clean client server
+test2: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test2.sh bin/config2.txt
 	./statistiche.sh bin/server.log
 
-test3: clean client server
+test3: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh bin/config3.txt
 	./statistiche.sh bin/server.log
 
 
-test1_un: clean client server
+test1_un: debug
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test1.sh bin/config1_un.txt
 	./statistiche.sh bin/server.log
 
-test3_un: clean client server
+test3_un: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh bin/config3_un.txt
 	./statistiche.sh bin/server.log
 	
-test3_un_quiet: clean client server
+test3_un_quiet: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh bin/config3_un_quiet.txt
 	./statistiche.sh bin/server.log
 	
-test3_quiet: clean client server
+test3_quiet: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh bin/config3_quiet.txt

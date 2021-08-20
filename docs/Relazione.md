@@ -218,3 +218,12 @@ Mentre, per `server_response` abbiamo:
 Ho deciso di serializzare le richieste, le risposte e gli interi, piuttosto che inviare campo per campo in modo da utilizzare un numero minore di read (una per la dimensione del pacchetto e una per il pacchetto stesso) e per rendere l'applicazione compatibile con la comunicazione via rete senza apportare troppe modifiche.
 In `serialization.c` e `serialization.h` si trova l'implementazione delle funzioni usate per la serializzazione.
 
+# Parti aggiuntive
+
+## Compressione
+
+## Interfaccia testuale
+
+## Politica lrfu
+
+## Opzioni -x -g

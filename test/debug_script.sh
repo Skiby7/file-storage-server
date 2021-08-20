@@ -8,7 +8,7 @@ for i in {1..15}; do
 done
  
 
-sleep 300
+sleep 30
 
 for i in "${stress_test_pids[@]}"; do
     kill -9 ${i} &> /dev/null

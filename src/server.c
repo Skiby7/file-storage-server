@@ -8,8 +8,7 @@
 
 
 config configuration; // Server config
-// volatile sig_atomic_t can_accept = 1;
-// volatile sig_atomic_t abort_connections = 0;
+
 bool can_accept = true;
 bool abort_connections = false;
 pthread_mutex_t ready_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -31,19 +30,6 @@ pthread_mutex_t free_threads_mtx = PTHREAD_MUTEX_INITIALIZER;
 extern fss_storage_t server_storage;
 extern pthread_cond_t start_victim_selector;
 
-
-// void signal_handler(int signum) {
-//     if (signum == SIGHUP) {
-//         can_accept = 0;
-//     }
-//     else{
-// 		can_accept = 0;
-// 		abort_connections = 1;
-// 	}
-// }
-        
-
-
 void func(clients_list *head){
 	while (head != NULL){
 		printf("%d -> ", head->com);
@@ -54,7 +40,7 @@ void func(clients_list *head){
 	
 }
 
-void print_textual_ui(char* SOCKETADDR){
+void print_tui_header(char* SOCKETADDR){
 	printf(ANSI_CLEAR_SCREEN);
 	PRINT_WELCOME;
 	printconf(SOCKETADDR);
@@ -67,8 +53,8 @@ int main(int argc, char* argv[]){
 		exit(EXIT_FAILURE);
 	}
 	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, clients_active = 0, max_clients_active = 0; // i = 0, ready_com = 0
-	char buffer[PIPE_BUF]; // Buffer per inviare messaggi sullo stato dell'accettazione al client
-	char SOCKETADDR[AF_UNIX_MAX_PATH]; // Indirizzo del socket
+	char buffer[PIPE_BUF] = {0}; // Buffer per inviare messaggi sullo stato dell'accettazione al client
+	char SOCKETADDR[AF_UNIX_MAX_PATH] = {0}; // Indirizzo del socket
 	char log_buffer[200] = {0};
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));
 	nfds_t com_count = 0;
@@ -78,33 +64,22 @@ int main(int argc, char* argv[]){
 
 
 	CHECKALLOC(com_fd, "pollfd");
-	// bool thread_finished = false;
 	pthread_t *workers;
 	pthread_t signal_handler_thread;
 	pthread_t use_stat_thread;
 	pthread_t tui_thread;
-	// struct sigaction sig_handler;
-	// memset(&sig_handler, 0, sizeof sig_handler);
-	// sig_handler.sa_handler = signal_handler;
+	
 	sigset_t signal_mask;
 	struct sockaddr_un sockaddress; // Socket init
-	// sigemptyset(&signal_mask);
-    // sigaddset(&signal_mask, SIGINT);
-    // sigaddset(&signal_mask, SIGHUP);
-    // sigaddset(&signal_mask, SIGQUIT);
-    // sig_handler.sa_mask = signal_mask;
-	// sigaction(SIGINT, &sig_handler, NULL);
-    // sigaction(SIGHUP, &sig_handler, NULL);
-    // sigaction(SIGQUIT, &sig_handler, NULL);
-	// Signal handler
+	
 	CHECKSCEXIT(sigfillset(&signal_mask), true, "Errore durante il settaggio di signal_mask");
 	CHECKSCEXIT(sigdelset(&signal_mask, SIGSEGV), true, "Errore durante il settaggio di signal_mask");
 	// CHECKSCEXIT(sigdelset(&signal_mask, SIGPIPE), true, "Errore durante il settaggio di signal_mask");
 	CHECKEXIT(pthread_sigmask(SIG_SETMASK, &signal_mask, NULL) != 0, false, "Errore durante il mascheramento dei segnali");
-	// END signal handler
+	
 	init(SOCKETADDR, argv[1]); // Configuration struct is now initialized
+	
 	open_log(configuration.log);
-
 	write_to_log("Segnali mascherati.");
 
 	init_table(configuration.files, configuration.mem, configuration.compression, configuration.compression_level);
@@ -112,19 +87,18 @@ int main(int argc, char* argv[]){
 
 	workers = (pthread_t *) malloc(configuration.workers*sizeof(pthread_t)); // Pool di workers
 	CHECKALLOC(workers, "workers array");
-	memset(workers, 0, configuration.workers*sizeof(pthread_t));
+	// memset(workers, 0, configuration.workers*sizeof(pthread_t));
 	write_to_log("Workers array inizializzato.");
 
 	free_threads = (bool *) malloc(configuration.workers*sizeof(bool));
 	memset(free_threads, true, configuration.workers*sizeof(bool));
-	CHECKALLOC(free_threads, "workers array");
+	CHECKALLOC(free_threads, "free_workers array");
 
 	memset(com_fd, -1, sizeof(struct pollfd));
-	memset(buffer, 0, PIPE_BUF);
 	CHECKSCEXIT((pipe(good_fd_pipe)), true, "Impossibile inizializzare la pipe");
 	CHECKSCEXIT((pipe(done_fd_pipe)), true, "Impossibile inizializzare la pipe");
 	CHECKSCEXIT((pipe(tui_pipe)), true, "Impossibile inizializzare la pipe");
-	write_to_log("Pipe inzializzata.");
+	write_to_log("Pipe inzializzate.");
 
 	strncpy(sockaddress.sun_path, SOCKETADDR, AF_UNIX_MAX_PATH-1);
 	sockaddress.sun_family = AF_UNIX;
@@ -141,7 +115,7 @@ int main(int argc, char* argv[]){
 	com_fd[2].fd = done_fd_pipe[0];
 	com_fd[2].events = POLLIN;
 	com_count = 3;
-	write_to_log("Polling struct inizializzata con il socket_fd su i = 0 e l'endpoint della pipe su i = 1.");
+
 	CHECKEXIT(pthread_create(&signal_handler_thread, NULL, &sig_wait_thread, NULL) != 0, false, "Errore di creazione del signal handler thread");
 	CHECKEXIT(pthread_create(&use_stat_thread, NULL, &use_stat_update, NULL) != 0, false, "Errore di creazione di use stat thread");
 	if(configuration.tui) {CHECKEXIT(pthread_create(&tui_thread, NULL, &print_tui, NULL) != 0, false, "Errore di creazione di use stat thread");}
@@ -152,7 +126,7 @@ int main(int argc, char* argv[]){
 	for (int i = 0; i < configuration.workers; i++)
 		CHECKEXIT(pthread_create(&workers[i], NULL, &worker, &whoami_list[i]), false, "Errore di creazione dei worker");
 	
-	if(configuration.tui) print_textual_ui(SOCKETADDR);
+	if(configuration.tui) print_tui_header(SOCKETADDR);
 	while(true){
 		SAFELOCK(abort_connections_mtx);
 		SAFELOCK(can_accept_mtx);
@@ -251,7 +225,7 @@ int main(int argc, char* argv[]){
 				SAFEUNLOCK(free_threads_mtx);
 				SAFELOCK(ready_queue_mtx);
 				if(ready_queue[0] != NULL){
-					pthread_cond_broadcast(&client_is_ready);
+					pthread_cond_signal(&client_is_ready);
 					SAFEUNLOCK(ready_queue_mtx);	
 					continue; 
 				}
@@ -264,7 +238,7 @@ int main(int argc, char* argv[]){
 		}
 		
 	}
-	puts("TEST FINITO");
+	// puts("TEST FINITO");
 	while(true){
 		for (size_t i = 0; i < configuration.workers; i++){
 			SAFELOCK(free_threads_mtx);
@@ -292,31 +266,29 @@ finish:
 		pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
 		SAFEUNLOCK(ready_queue_mtx);
 	}
-	// for (int i = 0; i < configuration.workers; i++)
-	// 	pthread_cancel(workers[i]);
-		
-
 	
 	for (int i = 0; i < configuration.workers; i++)
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
 	pthread_cancel(use_stat_thread);
 	
-	CHECKEXIT(pthread_join(use_stat_thread, NULL) != 0, false, "Errore durante la cancellazione dei workers attivi");
+	pthread_join(use_stat_thread, NULL);
 	for (size_t i = 0; i < com_size; i++){
 			if(com_fd[i].fd != 0)
 				close(com_fd[i].fd);
 	}
 	pthread_kill(signal_handler_thread, SIGUSR1);
 	pthread_join(signal_handler_thread, NULL);
-	strcpy(log_buffer, "QUIT");
-	CHECKERRNO(write(tui_pipe[1], log_buffer, 20) < 0, "Errore tui pipe");
+	if(configuration.tui){
+		strcpy(log_buffer, "QUIT");
+		CHECKERRNO(write(tui_pipe[1], log_buffer, 20) < 0, "Errore tui pipe");
+	}
 	sprintf(log_buffer, "Max size reached: %lu", server_storage.max_size_reached);
 	write_to_log(log_buffer);
 	sprintf(log_buffer, "Max file num reached: %d", server_storage.max_file_num_reached);
 	write_to_log(log_buffer);
 	sprintf(log_buffer, "Total evictions: %d", server_storage.total_evictions);
 	write_to_log(log_buffer);
-	sprintf(log_buffer, "Max clients active at same time: %d", max_clients_active);
+	sprintf(log_buffer, "Max clients active at the same time: %d", max_clients_active);
 	write_to_log(log_buffer);
 	close_log();
 	close(socket_fd);
@@ -327,7 +299,7 @@ finish:
 	close(tui_pipe[0]);
 	close(tui_pipe[1]);
 	print_summary();
-	freeConfig(&configuration);
+	free_config(&configuration);
 	clean_storage();
 	clean_ready_list(&ready_queue[0], &ready_queue[1]);
 	free(workers);
@@ -338,7 +310,7 @@ finish:
 	pthread_mutex_destroy(&log_access_mtx);
 	pthread_mutex_destroy(&free_threads_mtx);
 	pthread_cond_destroy(&client_is_ready);
-	puts("Server closed");
+	// puts("Server closed");
 	return 0;
 }
 
@@ -363,7 +335,7 @@ void init(char *sockname, char *config_file){
 		perror("Error while opening config file");
 		exit(EXIT_FAILURE);
 	}
-	if(parseConfig(conf, &configuration) < 0){
+	if(parse_config(conf, &configuration) < 0){
 		fprintf(stderr, ANSI_COLOR_RED "Error while parsing config.txt!\n" ANSI_COLOR_RESET);
 		exit(EXIT_FAILURE);
 	}

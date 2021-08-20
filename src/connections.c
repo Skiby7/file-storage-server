@@ -9,7 +9,6 @@
  
 pthread_mutex_t tui_mtx = PTHREAD_MUTEX_INITIALIZER;
 extern config configuration; // Server config
-// extern volatile sig_atomic_t can_accept;
 extern bool abort_connections;
 extern pthread_mutex_t abort_connections_mtx;
 extern clients_list *ready_queue[2];
@@ -31,10 +30,7 @@ ssize_t safe_write(int fd, void *ptr, size_t n);
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 
 void logger(char *log);
-// void add_line();
 
-// extern pthread_mutex_t lines_mtx;
-// extern int lines;
 
 
 bool get_ack(int com){
@@ -66,7 +62,6 @@ int sendback_client(int com, bool done){
 	if(done){ CHECKSCEXIT(write(done_fd_pipe[1], buffer, PIPE_BUF), true, "Errore write done_fd_pipe sendback_client"); }
 	else{ CHECKSCEXIT(write(good_fd_pipe[1], buffer, PIPE_BUF), true, "Errore write good_fd_pipe sendback_client"); }
 	free(buffer);
-	// if(done) printf("SENTBACK BROKEN COM %d\n", com);
 	return 0;
 }
 
@@ -110,9 +105,8 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	memset(&response, 0, sizeof(response));
 	sprintf(log_buffer, "[ Thread %d ] Serving client %d", thread, request->client_id);
 	logger(log_buffer);
-	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
 	if(configuration.tui){
-		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND || request->command & SET_LOCK){
+		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND){
 			strcpy(tui_buffer, "WRITE");
 			CHECKERRNO(write(tui_pipe[1], tui_buffer, TUI_BUFF) < 0, "Errore tui pipe");
 		}
@@ -270,7 +264,6 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		} 
 	}
 	else if(request->command & SET_LOCK){ // TEST THIS
-		// printf("REQUEST COMMAND: 0x%.2x\nREQUEST FLAGS: 0x%.2x\n", request->command, request->flags);
 		if(request->flags & O_LOCK){
 			exit_status = lock_file(request->pathname, request->client_id, true, true, &response);
 			if(exit_status == 0){
@@ -317,16 +310,9 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			}
 		} 
 	}
-
-	// if(configuration.tui){
-	// 	print_storage_info();
-	// 	add_line();
-	// } 
-	// puts("\n\n\n#####################\n\n");
-	// print_storage();
 	
 	if(configuration.tui){
-		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND || request->command & SET_LOCK){
+		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND){
 			strcpy(tui_buffer, "WRITE END");
 			CHECKERRNO(write(tui_pipe[1], tui_buffer, TUI_BUFF) < 0, "Errore tui pipe");
 		}
@@ -354,30 +340,10 @@ void* worker(void* args){
 	pthread_setcancelstate(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	while(true){
 		// Thread waits for work to be assigned
-		// SAFELOCK(abort_connections_mtx);
-		// if(abort_connections){
-		// 	SAFELOCK(free_threads_mtx);
-		// 	free_threads[whoami] = false;
-		// 	SAFEUNLOCK(free_threads_mtx);
-		// 	SAFEUNLOCK(abort_connections_mtx);
-		// 	return NULL;
-		// }
-		// SAFEUNLOCK(abort_connections_mtx);
 
 		SAFELOCK(ready_queue_mtx);
 		while(ready_queue[1] == NULL){
-			pthread_cond_wait(&client_is_ready, &ready_queue_mtx); 
-			// SAFELOCK(abort_connections_mtx);
-			// if(abort_connections){
-			// 	SAFELOCK(free_threads_mtx);
-			// 	free_threads[whoami] = false;
-			// 	SAFEUNLOCK(free_threads_mtx);
-			// 	SAFEUNLOCK(ready_queue_mtx);
-			// 	SAFEUNLOCK(abort_connections_mtx);
-
-			// 	return NULL;
-			// }
-			// SAFEUNLOCK(abort_connections_mtx);
+			CHECKEXIT(pthread_cond_wait(&client_is_ready, &ready_queue_mtx) != 0, false, "Errore cond_wait worker");
 		}
 		SAFELOCK(free_threads_mtx);
 		free_threads[whoami] = false;
@@ -391,14 +357,11 @@ void* worker(void* args){
 			continue;
 		}
 		if(com == -2){
-			// pthread_mutex_destroy(&tui_mtx);
 			SAFELOCK(free_threads_mtx);
 			free_threads[whoami] = false;
 			SAFEUNLOCK(free_threads_mtx);
 			return NULL;
 		}
-			
-		
 		memset(&request, 0, sizeof request);
 		read_status = read_all_buffer(com, &request_buffer, &request_buffer_size);
 		if(read_status < 0){
@@ -438,7 +401,6 @@ ssize_t safe_write(int fd, void *ptr, size_t n){
 	int exit_status = 0;
 	if((exit_status = writen(fd, ptr, n)) < 0){
 		sendback_client(fd, true);
-		// printf("Sentback %d from safe_write\n", fd);
 		return -1;
 	}
 	return exit_status;
@@ -466,13 +428,10 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	
 	if (safe_read(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
-	// for (size_t i = 0; i < 8; i++)
-	// 	printf("%d ", packet_size_buff[i]);
-	// puts("");
+
 	*buff_size = char_to_ulong(packet_size_buff);
 	
 	if(*buff_size == 0) {
-		// puts(ANSI_COLOR_BLUE"QUIT REQUEST"ANSI_COLOR_RESET);
 		sendback_client(com, true);
 		return -2;
 	}
@@ -482,8 +441,6 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	
 	
 	read_bytes = safe_read(com, *buffer, *buff_size);
-	// for (size_t i = 0; i < *buff_size; i++)
-	// 	printf("%.2x ", (*buffer)[i]);
 	
 	return read_bytes;
 }
@@ -494,6 +451,13 @@ void logger(char *log){
 	SAFEUNLOCK(log_access_mtx);
 }
 
+/**
+ * If enabled, this routine will print some informations on the stdout.
+ * This is more efficient than making each thread print the info everytime it completes a task, 
+ * because this way we access the storage to retreive the informations only when a write is finished.
+ * 
+*/
+
 void* print_tui(void *args){
 	struct pollfd *pipe_poll =  (struct pollfd *) malloc(sizeof(struct pollfd));
 	nfds_t count = 1;
@@ -502,11 +466,12 @@ void* print_tui(void *args){
 	pipe_poll[0].events = POLLIN;
 	char buffer[20] = {0};
 	char *stat_buff = NULL;
-	bool read_stat = false, write_stat = true;
+	bool read_stat = false, write_stat = false;
 	printf("\n\n\n");
 	stat_buff = print_storage_info();
 	while(true){
-		poll_val = poll(pipe_poll, count, -1);
+		poll_val = poll(pipe_poll, count, -1); 
+		if(poll_val < 0) continue;
 		if(pipe_poll[0].revents & POLLIN){
 			read_bytes = read(tui_pipe[0], buffer, sizeof buffer);
 			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
