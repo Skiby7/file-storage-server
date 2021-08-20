@@ -264,7 +264,7 @@ int main(int argc, char* argv[]){
 		}
 		
 	}
-	puts("TEST FINITO");
+	// puts("TEST FINITO");
 	while(true){
 		for (size_t i = 0; i < configuration.workers; i++){
 			SAFELOCK(free_threads_mtx);
@@ -338,7 +338,7 @@ finish:
 	pthread_mutex_destroy(&log_access_mtx);
 	pthread_mutex_destroy(&free_threads_mtx);
 	pthread_cond_destroy(&client_is_ready);
-	puts("Server closed");
+	// puts("Server closed");
 	return 0;
 }
 

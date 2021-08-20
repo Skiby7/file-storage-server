@@ -112,7 +112,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	logger(log_buffer);
 	// printf(ANSI_COLOR_CYAN"##### 0x%.2x #####\n"ANSI_COLOR_RESET, request->command);
 	if(configuration.tui){
-		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND || request->command & SET_LOCK){
+		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND){
 			strcpy(tui_buffer, "WRITE");
 			CHECKERRNO(write(tui_pipe[1], tui_buffer, TUI_BUFF) < 0, "Errore tui pipe");
 		}
@@ -326,7 +326,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	// print_storage();
 	
 	if(configuration.tui){
-		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND || request->command & SET_LOCK){
+		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND){
 			strcpy(tui_buffer, "WRITE END");
 			CHECKERRNO(write(tui_pipe[1], tui_buffer, TUI_BUFF) < 0, "Errore tui pipe");
 		}
@@ -507,6 +507,7 @@ void* print_tui(void *args){
 	stat_buff = print_storage_info();
 	while(true){
 		poll_val = poll(pipe_poll, count, -1);
+		if(poll_val < 0) continue;
 		if(pipe_poll[0].revents & POLLIN){
 			read_bytes = read(tui_pipe[0], buffer, sizeof buffer);
 			CHECKERRNO((read_bytes < 0), "Errore durante la lettura della pipe");
