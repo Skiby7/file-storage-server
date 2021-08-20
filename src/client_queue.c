@@ -20,9 +20,19 @@ int pop_client(clients_list **head, clients_list **tail){
 		return -1;
 
 	retval = (*tail)->com;
-	befree = (*tail);
-	if((*tail)->prev != NULL)
-		(*tail)->prev->next = NULL;
+	
+	// if((*tail)->prev != NULL){
+	// 	tmp = (*tail)->prev;
+	// 	free((*tail)->prev->next);
+	// 	(*tail) = tmp;
+	// 	(*tail)->prev->next = NULL;
+	// }
+	// else{
+	// 	(*head) = NULL;
+	// 	free((*tail));
+	// 	(*tail) = NULL;
+	// }
+		
 	
 	if(((*tail) = (*tail)->prev) == NULL)
 		(*head) = NULL;

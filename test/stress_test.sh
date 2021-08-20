@@ -21,6 +21,7 @@ do
 	if [[ $(($RANDOM % 10)) -eq 5 ]]
 	then
 		bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x &> /dev/null
+		bin/client -f /tmp/socket.sk -R 0 &> /dev/null
 	fi
 
 	if [[ $(($RANDOM % 3)) -eq 1 ]]

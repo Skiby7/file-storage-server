@@ -1076,8 +1076,21 @@ void* use_stat_update(void *args){
 	fss_file_t* file = NULL;
 	if(pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL) < 0) exit(EXIT_FAILURE);
 	while(true){
+		SAFELOCK(abort_connections_mtx);
+		if(abort_connections){
+			SAFEUNLOCK(abort_connections_mtx);
+			return NULL;
+		}
+		SAFEUNLOCK(abort_connections_mtx);
 		SAFELOCK(server_storage.storage_access_mtx);
 		pthread_cond_wait(&start_victim_selector, &server_storage.storage_access_mtx);
+		SAFELOCK(abort_connections_mtx);
+		if(abort_connections){
+			SAFEUNLOCK(abort_connections_mtx);
+			SAFEUNLOCK(server_storage.storage_access_mtx);
+			return NULL;
+		}
+		SAFEUNLOCK(abort_connections_mtx);
 		for(int i = 0; i < server_storage.table_size; i++){
 			if(server_storage.storage_table[i] == NULL) continue;
 

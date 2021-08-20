@@ -23,6 +23,5 @@ done
 kill -2 $SERVER
 wait $SERVER
 
-$(pidof client) | xargs kill -9 {} &> /dev/null
 
 exit 0

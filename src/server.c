@@ -269,8 +269,12 @@ finish:
 	
 	for (int i = 0; i < configuration.workers; i++)
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
-	pthread_cancel(use_stat_thread);
 	
+	SAFELOCK(server_storage.storage_access_mtx);
+	pthread_cond_signal(&start_victim_selector);
+	SAFEUNLOCK(server_storage.storage_access_mtx);
+
+
 	pthread_join(use_stat_thread, NULL);
 	for (size_t i = 0; i < com_size; i++){
 			if(com_fd[i].fd != 0)

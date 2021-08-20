@@ -493,11 +493,11 @@ void* print_tui(void *args){
 				
 			printf("\033[3A");
 			if(read_stat) 
-				printf("READ("ANSI_COLOR_CYAN"*"ANSI_COLOR_RESET")");
+				printf("READ("ANSI_COLOR_YELLOW"•"ANSI_COLOR_RESET")");
 			else printf("READ( )");
 			printf(" - ");
 			if(write_stat) 
-				printf("WRITE("ANSI_COLOR_CYAN"*"ANSI_COLOR_RESET")\n");
+				printf("WRITE("ANSI_COLOR_YELLOW"•"ANSI_COLOR_RESET")\n");
 			else printf("WRITE( )\n");
 			printf("%s",stat_buff);
 		}
