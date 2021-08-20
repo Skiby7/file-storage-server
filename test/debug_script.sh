@@ -15,7 +15,7 @@ for i in "${stress_test_pids[@]}"; do
     wait ${i} &> /dev/null
 done
 
-# kill -2 $(pidof server)
+kill -2 $(pidof server)
 
 
 exit 0
