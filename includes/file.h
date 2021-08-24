@@ -37,7 +37,8 @@ typedef struct fssFile_{
 	unsigned short writers;
 	unsigned int readers;
 	time_t create_time;
-	time_t last_modified;
+	time_t last_access;
+	pthread_mutex_t last_access_mtx;
 	pthread_mutex_t order_mutex;
 	pthread_mutex_t access_mutex;
 	pthread_cond_t go_cond;
@@ -63,8 +64,7 @@ typedef struct victim_{
 	char* pathname;
 	unsigned short use_stat;
 	unsigned long size;
-	time_t create_time;
-	time_t last_modified;
+	time_t last_access;
 } victim_t;
 
 

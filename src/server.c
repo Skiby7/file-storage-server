@@ -254,19 +254,29 @@ int main(int argc, char* argv[]){
 finish:
 	SAFELOCK(ready_queue_mtx);
 	clean_ready_list(&ready_queue[0], &ready_queue[0]);
-	for (int i = 0; i < configuration.workers; i++)
+	for (int i = 0; i < 2*configuration.workers; i++)
 		insert_client_list(-2, &ready_queue[0], &ready_queue[1]);
 	SAFEUNLOCK(ready_queue_mtx);
 	while(true){
 		SAFELOCK(ready_queue_mtx);
-		if(!ready_queue[1]){
-			SAFEUNLOCK(ready_queue_mtx);
-			break;
-		}
-		pthread_cond_broadcast(&client_is_ready); // sveglio tutti i thread
+		// if(!ready_queue[1]){
+		// 	SAFEUNLOCK(ready_queue_mtx);
+		// 	break;
+		// }
+		pthread_cond_signal(&client_is_ready); // sveglio tutti i thread
 		SAFEUNLOCK(ready_queue_mtx);
+		for(int i = 0; i < configuration.workers; i++){
+			SAFELOCK(free_threads_mtx);
+			if(free_threads[i]){
+				SAFEUNLOCK(free_threads_mtx);
+				break;
+			}
+			SAFEUNLOCK(free_threads_mtx);
+			if(i == configuration.workers-1) goto join_workers;
+		}
 	}
-	
+join_workers:
+puts("QUI");
 	for (int i = 0; i < configuration.workers; i++)
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
 	

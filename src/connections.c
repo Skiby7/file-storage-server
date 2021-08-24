@@ -352,7 +352,7 @@ void* worker(void* args){
 		SAFEUNLOCK(ready_queue_mtx);
 		if(com == -1){ // Falso allarme
 			SAFELOCK(free_threads_mtx);
-			free_threads[whoami] = false;
+			free_threads[whoami] = true;
 			SAFEUNLOCK(free_threads_mtx);
 			continue;
 		}
@@ -360,6 +360,7 @@ void* worker(void* args){
 			SAFELOCK(free_threads_mtx);
 			free_threads[whoami] = false;
 			SAFEUNLOCK(free_threads_mtx);
+			puts("RICEVUTO -2");
 			return NULL;
 		}
 		memset(&request, 0, sizeof request);

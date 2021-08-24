@@ -235,7 +235,7 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 			}
 			if(lock_file) file->whos_locking = client_id;
 		}
-		file->use_stat += 1;
+		// file->use_stat += 1;
 		SAFEUNLOCK(file->order_mutex);
 		SAFEUNLOCK(file->access_mutex);
 		// stop_write(file);
@@ -249,7 +249,11 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 		file->size = 0;
 		file->uncompressed_size = 0;
 		file->create_time = time(NULL);
-		file->last_modified = time(NULL);
+		file->last_access = time(NULL);
+		if(pthread_mutex_init(&file->last_access_mtx, NULL) != 0){
+		fprintf(stderr, "Errore di inizializzazione order mutex\n");
+		exit(EXIT_FAILURE);
+		}
 		if(pthread_mutex_init(&file->order_mutex, NULL) != 0){
 		fprintf(stderr, "Errore di inizializzazione order mutex\n");
 		exit(EXIT_FAILURE);
@@ -355,6 +359,7 @@ int delete_entry(int id, char *pathname, victim_queue** queue){
 	}
 	free(entry->name);
 	if(entry->data) free(entry->data);
+	CHECKSCEXIT(pthread_mutex_destroy(&entry->last_access_mtx), false, "Errore pthread_mutex_destroy");
 	CHECKSCEXIT(pthread_mutex_destroy(&entry->access_mutex), false, "Errore pthread_mutex_destroy");
 	CHECKSCEXIT(pthread_mutex_destroy(&entry->order_mutex), false, "Errore pthread_mutex_destroy");
 	CHECKSCEXIT(pthread_cond_destroy(&entry->go_cond), false, "Errore pthread_cond_destroy");
@@ -423,6 +428,9 @@ int read_file(char *filename, int client_id, server_response *response){
 		file->use_stat += 1;
 
 		/* QUI HO FINITO DI LEGGERE ED ESCO */
+		SAFELOCK(file->last_access_mtx);
+		file->last_access = time(NULL);
+		SAFEUNLOCK(file->last_access_mtx);
 		stop_read(file);
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		return 0;	
@@ -556,8 +564,8 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		file->size = size;
 		memcpy(file->data, server_storage.compression ? tmp : data, size);
 		file->uncompressed_size = length;
-		file->use_stat += 1;
-		file->last_modified = time(NULL);
+		file->use_stat += 2;
+		file->last_access = time(NULL);
 		server_storage.size += size;
 		if(server_storage.size > server_storage.max_size_reached)  server_storage.max_size_reached = server_storage.size;
 		/* QUI HO FINITO DI SCRIVERE ED ESCO */
@@ -645,8 +653,8 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 		file->size = new_size;
 		file->uncompressed_size += new_data_size;
 
-		file->use_stat += 1;
-		file->last_modified= time(NULL);
+		file->use_stat += 2;
+		file->last_access= time(NULL);
 
 		stop_write(file);
 		server_storage.size += bytes_to_append;
@@ -700,6 +708,7 @@ int lock_file(char *pathname, int client_id, bool server_mutex, bool file_mutex,
 	if(file->whos_locking == -1){
 		file->whos_locking = client_id;
 		file->use_stat += 1;
+		file->last_access = time(NULL);
 		if(file_mutex) stop_write(file);
 		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
@@ -846,6 +855,7 @@ void destroy_table_entry(fss_file_t* entry){
 	clean_attributes(entry, true);
 	if(entry->data) free(entry->data);
 	free(entry->name);
+	pthread_mutex_destroy(&entry->last_access_mtx);
 	pthread_mutex_destroy(&entry->access_mutex);
 	pthread_mutex_destroy(&entry->order_mutex);
 	pthread_cond_destroy(&entry->go_cond);
@@ -965,11 +975,10 @@ static void stop_write(fss_file_t* entry){
 
 static int compare(const void *a, const void *b) {
 	victim_t a1 = *(victim_t *)a, b1 = *(victim_t *)b; 
-	time_t now = time(NULL);
 	if((a1.use_stat - b1.use_stat) != 0)
-		return a1.use_stat - b1.use_stat; // sort by use stat
+		return a1.use_stat - b1.use_stat; // sort by use_stat
 
-	else return (now - a1.last_modified) - (now - b1.last_modified); // if use stat is the same, sort by age
+	else return b1.last_access - a1.last_access; // if use_stat is the same, sort by age
 }
 
 static void enqueue_victim(fss_file_t *entry, victim_queue **head){
@@ -1005,8 +1014,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 			victims[counter].pathname = (char*) calloc(strlen(entry->name)+1, sizeof(char));
 			CHECKALLOC(victims[counter].pathname, "Errore allocazione pathname select_victim");
 			strcpy(victims[counter].pathname, entry->name);
-			victims[counter].create_time = entry->create_time;
-			victims[counter].last_modified = entry->last_modified;
+			victims[counter].last_access = entry->last_access;
 			victims[counter].use_stat = entry->use_stat;
 			victims[counter].size = entry->size;
 			stop_read(entry);
@@ -1099,7 +1107,7 @@ void* use_stat_update(void *args){
 				start_write(file, false);
 				if(file->use_stat != 0)
 					file->use_stat -= 1;
-				if(file->use_stat == 0 && (file->last_modified - time(NULL)) > 120){
+				if(file->use_stat == 0 && (file->last_access - time(NULL)) > 120){
 					file->whos_locking = -1; // Automatic unlock if the file is not used for more than 2 minutes
 					lock_next(file->name, false, false); // Then next client in lock queue acquires lock
 				} 

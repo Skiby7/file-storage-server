@@ -222,8 +222,41 @@ In `serialization.c` e `serialization.h` si trova l'implementazione delle funzio
 
 ## Compressione
 
+Ho implementato la compressione dei file usando la libreria open-source `zlib`. Nel file di configurazione questa opzione può essere abilitata con impostando il parametro `COMPRESSION` su `y` e si può impostare il livello di compressione su un valore compreso fra 1, che è il minimo e 9, che è il massimo (il livello 0 è usato da `zlib` per creare un archivio di più file senza però comprimerli).
+La libreria è stata compilata con il flag `--const` e come libreria statica.
+
+### Copyright notice
+
+Direttamente dal README del [repository](https://github.com/madler/zlib) ufficiale:
+```
+ (C) 1995-2017 Jean-loup Gailly and Mark Adler
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+  Jean-loup Gailly        Mark Adler
+  jloup@gzip.org          madler@alumni.caltech.edu
+```
+
 ## Interfaccia testuale
 
-## Politica lrfu
+Per rendere più interattivo il test3 e per avere qualche informazione utile durante l'uso del server, ho implementato una semplice interfaccia testuale con la quale avere una panoramica sia della configurazione del server, che dell'uso delle risorse del server. Per ridurre al minimo l'impatto sulle performance, invece che far ridisegnare a ogni thread Worker l'intera schermata ogni volta che esegue un'operazione che modifichi i file in numero o in dimensione, ho preferito utilizzare un thread dedicato, il quale si mette in ascolto con una `poll()` su una pipe. La pipe viene utilizzata dai Worker per notificare l'inizio e la fine di un'operazione di `READ`/`READ END` o di `WRITE`/`WRITE END`, così che il thread possa ridisegnare l'interfaccia in base all'azione eseguita. L'accesso alle informazioni dello storage, quindi la lock della mutex globale dello storage, viene effettuato solo quando viene ricevuta una `WRITE END`. 
+
+## Politica di rimpiazzamento
+
+Per quanto riguarda la politica di rimpiazzamento ho deciso di utilizzare un approccio misto fra `LRU` e `LFU`: ogni file ha un contatore `use_stat`, inizializzato a 16, il quale viene incrementato di 2 punti ogni volta che il file viene scritto, mentre di 1 punto quando viene letto con una `READ` (non `READ_N`) o se viene bloccato con una `LOCK`; viene invece decrementato ogni volta che viene effettuata una `WRITE` o una `APPEND` all'interno del server, infatti, alla fine di una di queste operazioni, viene svegliato un thread che esegue la routine `use_stat_update()`, il quale scorre tutti i file, decrementando di 1 il campo `use_stat`. Ogni file, poi, ha un campo `last_accessed` (protetto dalla mutex `last_accessed_mtx`, in modo che possano modificarlo anche i lettori e non solo gli scrittori) che contiene il timestamp dell'ultimo accesso, aggiornato a ogni `WRITE`, `APPEND`, `LOCK` e `READ`. Quando si deve rimpiazzare un file, viene eseguita la funzione `select_victim()`, la quale scorre tutto lo storage e copia alcuni metadati dei file, eccetto il file che ha reso necessaria la chiamata, in un array di `victim_t`, il quale viene poi ordinato in ordine crescente di `use_stat` e, a parità di `use_stat`, in ordine decrescente di tempo accesso. Dopodiché, fino a che non si è liberata abbastanza memoria, vengono eliminati i file scorrendo l'array di vittime. 
 
 ## Opzioni -x -g
