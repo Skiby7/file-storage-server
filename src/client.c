@@ -27,18 +27,6 @@ void signal_handler(int signum){
 	exit(EXIT_SUCCESS);
 }
 
-void printconf(){
-	// printf(ANSI_CLEAR_SCREEN);
-
-	printf(ANSI_COLOR_CYAN"-> Connesso <-\n\n"ANSI_COLOR_RESET);
-	printf(ANSI_COLOR_GREEN CONF_LINE_TOP"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20ld"ANSI_COLOR_GREEN" │\n" CONF_LINE
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
-			"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM"\n"ANSI_COLOR_RESET, "Client ID:",
-			getpid(), "Interval:", config.interval, "Sockname:", 
-			config.sockname, "Verbosity:", config.verbose ? "Verbose" : "Quiet");
-}
-
 int main(int argc, char* argv[]){
 	
 	int opt;
@@ -177,18 +165,11 @@ int main(int argc, char* argv[]){
 			case '?':  // restituito se getopt trova una opzione non riconosciuta
 				printf("l'opzione '-%c' non e' gestita\n", optopt);
 				break;
-			case 'g':
-				config.tui = true;
-				break;
 			default:;
 		}
 	}
 
 	if(openConnection(config.sockname, 500, abstime) < 0) return -1;
-	if(config.tui){
-		printf(ANSI_CLEAR_SCREEN);
-		printconf();
-	}
 	do_work(&job_queue[0], &job_queue[1]);
 	CHECKERRNO(closeConnection(config.sockname) < 0, "Errore disconnessione");
 	

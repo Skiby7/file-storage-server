@@ -5,7 +5,6 @@
 
 typedef struct client_{
 	bool verbose;
-	bool tui;
 	time_t interval;
 	char sockname[AF_UNIX_MAX_PATH + 1];
 	char dirname[PATH_MAX + 1];

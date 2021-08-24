@@ -280,6 +280,7 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 		if(server_storage.file_count > server_storage.max_file_num_reached)
 			server_storage.max_file_num_reached += 1;
 	}
+	if(create_file) pthread_cond_signal(&start_victim_selector);
 	SAFEUNLOCK(server_storage.storage_access_mtx);
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	return 0;
@@ -978,7 +979,7 @@ static int compare(const void *a, const void *b) {
 	if((a1.use_stat - b1.use_stat) != 0)
 		return a1.use_stat - b1.use_stat; // sort by use_stat
 
-	else return b1.last_access - a1.last_access; // if use_stat is the same, sort by age
+	else return a1.last_access - b1.last_access; // if use_stat is the same, sort by age
 }
 
 static void enqueue_victim(fss_file_t *entry, victim_queue **head){

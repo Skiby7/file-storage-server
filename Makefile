@@ -17,28 +17,28 @@ all: clean server client binary_test
 debug: clean server client binary_test
 
 server:  libserver libcommon zlib
-	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./build -lserver -lcommon $(LIBS)
+	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./libs -lserver -lcommon $(LIBS)
 
 client: libclient libcommon
-	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./build -lclient -lcommon
+	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./libs -lclient -lcommon
 
 binary_test:
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/binary_test.c -o test/binary/binary_test
 
 libserver: parser.o client_queue.o log.o file.o
-	ar rvs build/libserver.a build/parser.o  build/client_queue.o build/log.o build/file.o
+	ar rvs libs/libserver.a build/parser.o  build/client_queue.o build/log.o build/file.o
 	rm build/parser.o
 	rm build/client_queue.o
 	rm build/log.o
 	rm build/file.o
 
 libclient: work.o fssApi.o 
-	ar rvs build/libclient.a build/work.o build/fssApi.o
+	ar rvs libs/libclient.a build/work.o build/fssApi.o
 	rm build/work.o
 	rm build/fssApi.o
 
 libcommon: connections.o serialization.o
-	ar rvs build/libcommon.a build/connections.o build/serialization.o	
+	ar rvs libs/libcommon.a build/connections.o build/serialization.o	
 	rm build/serialization.o
 	rm build/connections.o
 
@@ -70,7 +70,7 @@ zlib:
 	cd libs/zlib/ && ./configure --static --const && make -j
 
 clean: 
-	$(RM) build/* src/*.h.gch bin/client bin/server libs/zlib/libz.a test/binary_test/binary
+	$(RM) libs/*.a src/*.h.gch bin/client bin/server libs/zlib/libz.a test/binary_test/binary
 
 clean_files:
 	$(RM) test/large_files/* test/medium_files/* test/small_files/* test/test_2/*
