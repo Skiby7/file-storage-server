@@ -360,7 +360,7 @@ void* worker(void* args){
 			SAFELOCK(free_threads_mtx);
 			free_threads[whoami] = false;
 			SAFEUNLOCK(free_threads_mtx);
-			puts("RICEVUTO -2");
+			// puts("RICEVUTO -2");
 			return NULL;
 		}
 		memset(&request, 0, sizeof request);

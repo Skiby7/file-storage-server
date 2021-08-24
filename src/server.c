@@ -265,18 +265,19 @@ finish:
 		// }
 		pthread_cond_signal(&client_is_ready); // sveglio tutti i thread
 		SAFEUNLOCK(ready_queue_mtx);
-		for(int i = 0; i < configuration.workers; i++){
+		for(int i = 0, j = 0; i < configuration.workers; i++){
 			SAFELOCK(free_threads_mtx);
-			if(free_threads[i]){
+			if(!free_threads[i]){
+				// printf("%d -> %s\n", i+1, free_threads[i] ? "TRUE" : "FALSE" );
+				j++;
 				SAFEUNLOCK(free_threads_mtx);
-				break;
 			}
 			SAFEUNLOCK(free_threads_mtx);
-			if(i == configuration.workers-1) goto join_workers;
+			if(j == configuration.workers-1) goto join_workers;
 		}
 	}
 join_workers:
-puts("QUI");
+// puts("QUI");
 	for (int i = 0; i < configuration.workers; i++)
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
 	
