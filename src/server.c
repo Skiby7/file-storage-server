@@ -251,6 +251,9 @@ int main(int argc, char* argv[]){
 				goto finish;
 		}
 	}
+	SAFELOCK(abort_connections_mtx);
+	abort_connections = true;
+	SAFEUNLOCK(abort_connections_mtx);
 finish:
 	SAFELOCK(ready_queue_mtx);
 	clean_ready_list(&ready_queue[0], &ready_queue[0]);
@@ -339,7 +342,7 @@ void printconf(const char* socketaddr){
 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n", 
 		"Workers:",	configuration.workers, "Max Memory:", configuration.mem, "Max Files:", 
-		configuration.files, "Socket file:", socketaddr, "Log:", configuration.log, "Compression:", configuration.compression ? "Active" : "Disabled");
+		configuration.files, "Socket file:", basename(socketaddr), "Log:", configuration.log ? configuration.log : "Non disponibile", "Compression:", configuration.compression ? "Active" : "Disabled");
 	configuration.compression ? printf(CONF_LINE "│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM ANSI_COLOR_RESET_N, "Level:", configuration.compression_level) : printf(CONF_LINE_BOTTOM ANSI_COLOR_RESET_N);
 
 }
@@ -347,17 +350,21 @@ void printconf(const char* socketaddr){
 void init(char *sockname, char *config_file){
 	FILE *conf = NULL;
 	if((conf = fopen(config_file, "r")) == NULL){
-		perror("Error while opening config file");
+		perror("Errore apertura config file");
 		exit(EXIT_FAILURE);
 	}
-	if(parse_config(conf, &configuration) < 0){
-		fprintf(stderr, ANSI_COLOR_RED "Error while parsing config.txt!\n" ANSI_COLOR_RESET);
+	if(parse_config(conf, &configuration) < 0)
 		exit(EXIT_FAILURE);
-	}
 	fclose(conf);
 	memset(sockname, 0 , UNIX_MAX_PATH);
-	sprintf(sockname, "/tmp/");
-	strncat(sockname, configuration.sockname, AF_UNIX_MAX_PATH-1);
+	if(configuration.sockname[0] != '/'){
+		sprintf(sockname, "/tmp/");
+		strncat(sockname, configuration.sockname, AF_UNIX_MAX_PATH-7);
+	}
+	else
+		strncpy(sockname, configuration.sockname, AF_UNIX_MAX_PATH-1);
+	
+	
 }
 
 void insert_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){

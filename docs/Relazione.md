@@ -61,13 +61,15 @@ L'applicazione server consiste in un programma concorrente multithreaded che ges
 ## File di configurazione
 
 Il file di configurazione, passato come argomento da linea di comando all'avvio, è un generico file di testo contenente le seguenti parole chiave seguiti dal carattere ":" : `WORKERS`, `MAXMEM`, `MAXFILES`, `SOCKNAME`, `LOGFILE`, `TUI`, `COMPRESSION` e `COMPRESSION_LEVEL`.
-Le voci `LOGFILE` e `TUI` sono opzionali:
+Si può definire `SOCKNAME` come path assoluto o, altrimenti, semplicemente come il nome che si vuole dare al socket, che verrà creato in `/tmp`.
+Le voci `LOGFILE`, `COMPRESSION` e `TUI` sono opzionali:
 
-* Se `LOGFILE` non è definita non verrà prodotto il file di log
+* Se `LOGFILE` non è definito non verrà prodotto il file di log. Per specificare il file di log si può usare sia un path relativo che assoluto.
 
 * `TUI` (l'acronimo di *textual user interface*), indica se si vuole stampare sullo standard output un sommario della configurazione e visualizzare in tempo reale la quantità di file presenti nel server e la dimensione occupata. Se vale `y`, l'output verrà prodotto, altrimenti no.  
 
-Per attivare la compressione basta settare la voce `COMPRESSION` su `y`, specificando il livello di compressione settando `COMPRESSION_LEVEL` su un valore compreso fra 0-9 (dove 9 è il massimo della compressione).
+* Per attivare la compressione basta settare la voce `COMPRESSION` su `y`, specificando il livello di compressione settando `COMPRESSION_LEVEL` su un valore compreso fra 0-9 (dove 9 è il massimo della compressione) o, se non si specifica, verrà automaticamente impostato su 6.
+
 Se manca una voce non opzionale, o l'input di una voce non opzionale non è valido, il server non parte. Inoltre è possibile inserire linee vuote ed è possibile definire commenti con il carattere `#` (tutto quello che segue `#` verrà ignorato). L'implementazione del parser è contenuta in `parser.c` e `parser.h`.
 
 

@@ -19,6 +19,7 @@ extern bool abort_connections;
 fss_storage_t server_storage;
 pthread_cond_t start_victim_selector = PTHREAD_COND_INITIALIZER;
 
+// int check_input(char* pathname, client id)
 
 
 void init_table(int max_file_num, int max_size, bool compression, unsigned short compression_level){
