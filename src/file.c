@@ -1084,9 +1084,9 @@ static int check_count(){
 
 void* use_stat_update(void *args){
 	fss_file_t* file = NULL;
-	if(pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL) < 0) exit(EXIT_FAILURE);
 	while(true){
 		SAFELOCK(abort_connections_mtx);
+
 		if(abort_connections){
 			SAFEUNLOCK(abort_connections_mtx);
 			return NULL;

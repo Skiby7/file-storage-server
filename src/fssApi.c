@@ -180,7 +180,7 @@ int readNFile(int N, const char* dirname){
 	init_request(&read_n_request, getpid(), READ_N, 0, NULL);
 	read_n_request.files_to_read = N;
 	if(N <= 0) N = 0;
-	if(!good_path) puts(ANSI_COLOR_RED"Il path fornito non è assoluto: impossibile salvare i file!"ANSI_COLOR_RESET);
+	// if(!good_path) puts(ANSI_COLOR_RED"Il path fornito non è assoluto: impossibile salvare i file!"ANSI_COLOR_RESET);
 	handle_connection(read_n_request, &read_n_response);
 	if(read_n_response.code[0] == FILE_NOT_EXISTS) return i;
 	i++;
@@ -265,19 +265,18 @@ int writeFile(const char* pathname, const char* dirname){
 	CHECKEXIT(getcwd(current_dir, sizeof current_dir) == NULL, true, "Errore getcwd");
 	memset(&write_response, 0, sizeof(server_response));
 	if((file = open(pathname, O_RDONLY)) == -1){
-		perror("Errore durante l'apertura del file");
+		// perror("Errore durante l'apertura del file");
 		return -1;
 	}
 	if(fstat(file, &file_info) < 0){
-		perror("Errore fstat");
+		// perror("Errore fstat");
 		return -1;
 	}
 	size = file_info.st_size;
 	init_request(&write_request, getpid(), WRITE, 0, pathname);
 	write_request.data = (unsigned char *) calloc(size, sizeof(unsigned char));
 	CHECKALLOC(write_request.data, "Errore di allocazione writeFile");
-	if((read_bytes = read(file, write_request.data, size)) != size)
-		printf("read %lu, size %lu\n", read_bytes, size);
+	CHECKSCEXIT(read(file, write_request.data, size), true, "Errore lettura file");
 	write_request.size = size;
 	handle_connection(write_request, &write_response);
 	if(write_response.code[0] & FILE_OPERATION_FAILED){

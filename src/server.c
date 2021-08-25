@@ -238,6 +238,9 @@ int main(int argc, char* argv[]){
 		}
 		
 	}
+	SAFELOCK(abort_connections_mtx);
+	abort_connections = true;
+	SAFEUNLOCK(abort_connections_mtx);
 	// puts("TEST FINITO");
 	while(true){
 		for (size_t i = 0; i < configuration.workers; i++){
@@ -251,9 +254,7 @@ int main(int argc, char* argv[]){
 				goto finish;
 		}
 	}
-	SAFELOCK(abort_connections_mtx);
-	abort_connections = true;
-	SAFEUNLOCK(abort_connections_mtx);
+
 finish:
 	SAFELOCK(ready_queue_mtx);
 	clean_ready_list(&ready_queue[0], &ready_queue[0]);
@@ -333,7 +334,6 @@ join_workers:
 }
 
 void printconf(const char* socketaddr){
-
 	printf(ANSI_COLOR_GREEN CONF_LINE_TOP
 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE
 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE

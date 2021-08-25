@@ -1,3 +1,4 @@
+#include <libgen.h>
 #include "parser.h"
 
 
@@ -66,7 +67,7 @@ int parse_config(FILE *conf, config *configuration) {
 			tokenlen = strlen(token);
 			configuration->sockname = (char *) calloc(tokenlen + 1, sizeof(char));
 			strncpy(configuration->sockname, token, tokenlen);
-			tmp = (configuration->sockname[0] == '/') ? realpath(dirname(configuration->sockname), NULL) : NULL;
+			tmp = (token[0] == '/') ? realpath(dirname(token), NULL) : NULL; // Dirname does not guarantees that the input string is preserved, so I pass token instead of configuration->sockname
 			if (configuration->sockname[0] == '/' && !tmp){
 				fprintf(stderr, ANSI_COLOR_RED"Path SOCKNAME non valido, impossibile avviare il server!"ANSI_COLOR_RESET_N); 
 				free(tmp);

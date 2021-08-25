@@ -9,7 +9,7 @@ int handle_read_files(char *args, char *dirname){
 	int retval = 0;
 	char current_dir[PATH_MAX];
 	CHECKEXIT(getcwd(current_dir, sizeof current_dir) == NULL, true, "Errore getcwd");
-	if(!dirname) puts(ANSI_COLOR_RED"Non è stata specificata la cartella di destinazione, i file non verranno salvati!"ANSI_COLOR_RESET);
+	if(!dirname) if (config.verbose) puts(ANSI_COLOR_RED"Non è stata specificata la cartella di destinazione, i file non verranno salvati!"ANSI_COLOR_RESET);
 	
 	
 	token = strtok_r(args, DELIM, &tmpstr);
@@ -54,7 +54,7 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 			// 	continue;
 			// } 
 			if((file = open(token, O_RDONLY)) == -1){
-				perror("Errore durante l'apertura del file");
+				if (config.verbose) perror("Errore durante l'apertura del file");
 				// free(real_path);
 				// real_path = NULL;
 				token = strtok_r(NULL, DELIM, &tmpstr);
@@ -87,7 +87,7 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 					continue;
 				}
 				if(fstat(file, &st) < 0){
-					perror("Errore fstat");
+					if (config.verbose) perror("Errore fstat");
 					// free(real_path);
 					// real_path = NULL;	
 					token = strtok_r(NULL, DELIM, &tmpstr);
@@ -96,7 +96,7 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 				size = st.st_size;
 				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
 				if(read(file, buffer, size) < 0){
-					perror("Errore lettura del file");
+					if (config.verbose) perror("Errore lettura del file");
 					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
@@ -109,7 +109,7 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 				buffer = NULL;
 			}
 			else{
-				perror("Errore apertura file");
+				if (config.verbose) perror("Errore apertura file");
 				// free(real_path);
 				// real_path = NULL;
 				token = strtok_r(NULL, DELIM, &tmpstr);
@@ -195,15 +195,15 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked, const char
 			else if(open_file_val <= 0 && errno == EEXIST){
 				errno = 0;
 				if(openFile(real_path, 0) < 0){
-					perror("Errore apertura file!");
+					if (config.verbose) perror("Errore apertura file!");
 					continue;
 				}
 				if((file = open(real_path, O_RDONLY)) == -1){
-					perror("Errore durante l'apertura del file");
+					if (config.verbose) perror("Errore durante l'apertura del file");
 					continue;
 				}
 				if(fstat(file, &st) < 0){
-					perror("Errore fstat");
+					if (config.verbose) perror("Errore fstat");
 					continue;
 				}
 				size = st.st_size;
@@ -245,14 +245,14 @@ int write_dir(char *args, bool is_locked, const char* dirname){
 	dirname_to_write = strtok_r(args, DELIM, &tmpstr);
 	real_path = realpath(dirname_to_write, NULL);
 	if(!real_path){
-		puts(ANSI_COLOR_RED"Cartella non valida!"ANSI_COLOR_RESET);
+		if (config.verbose) puts(ANSI_COLOR_RED"Cartella non valida!"ANSI_COLOR_RESET);
 		return -1;
 	}
 	if((n = strtok_r(NULL, DELIM, &tmpstr))){
 		errno = 0;
 		N = strtol(n, NULL, 10);
 		if(errno){
-			perror("Errore: n non è valido! Default n = 0");
+			if (config.verbose) perror("Errore: n non è valido! Default n = 0");
 			N = 0;
 		}
 	}
@@ -278,7 +278,7 @@ void do_work(work_queue **head, work_queue **tail){
 			errno = 0;
 			N = strtol(args, NULL, 10);
 			if(errno != 0){
-				perror("Il numero inserito non è valido!");
+				if (config.verbose) perror("Il numero inserito non è valido!");
 				errno = 0;
 				continue;
 			}

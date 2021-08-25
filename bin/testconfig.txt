@@ -3,4 +3,4 @@ MAXMEM: 2050
 MAXFILES: 5
 SOCKNAME: prova.sock
 LOGFILE: bin/server.log
-TUI: y
+TUI: n
