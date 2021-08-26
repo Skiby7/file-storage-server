@@ -344,7 +344,6 @@ void printconf(const char* socketaddr){
 		"Workers:",	configuration.workers, "Max Memory:", configuration.mem, "Max Files:", 
 		configuration.files, "Socket file:", basename(socketaddr), "Log:", configuration.log ? configuration.log : "Non disponibile", "Compression:", configuration.compression ? "Active" : "Disabled");
 	configuration.compression ? printf(CONF_LINE "│ %-12s\t"ANSI_COLOR_YELLOW"%20d"ANSI_COLOR_GREEN" │\n" CONF_LINE_BOTTOM ANSI_COLOR_RESET_N, "Level:", configuration.compression_level) : printf(CONF_LINE_BOTTOM ANSI_COLOR_RESET_N);
-
 }
 	
 void init(char *sockname, char *config_file){

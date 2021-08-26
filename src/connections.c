@@ -52,8 +52,9 @@ int respond_to_client(int com, server_response response){
 	
 	if(get_ack(com)) exit_status = safe_write(com, serialized_response, response_size);
 	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
-	snprintf(log_buffer, LOG_BUFF, "Server sent %d bytes", response_size + sizeof packet_size_buff);
+	snprintf(log_buffer, LOG_BUFF, "Server sent %ld bytes", response_size + sizeof packet_size_buff);
 	logger(log_buffer);
+	free(log_buffer);
 	free(serialized_response);
 	return exit_status;
 }
@@ -158,7 +159,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			return -2;
 		}
 		if(exit_status == 0){
-			snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
+			snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes from %s", request->client_id, response.size, request->pathname);
 			logger(log_buffer);
 		}
 	}
@@ -170,7 +171,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 				free(log_buffer);
 				return -2;
 			}
-			snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes", request->client_id, response.size);
+			snprintf(log_buffer, LOG_BUFF, "Client %d Read %lu bytes from %s", request->client_id, response.size, response.pathname);
 			logger(log_buffer);
 			if(!get_ack(com)){
 				clean_response(&response);
@@ -195,8 +196,6 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			return -2;
 		}
 		clean_response(&response);
-		// snprintf(log_buffer, LOG_BUFF, "Client %d read %d files", request->client_id, files_read);
-		// logger(log_buffer);
 		
 		exit_status = 0;
 	
@@ -209,7 +208,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			return -2;
 		}
 		if(exit_status == 0){
-			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes", request->client_id, request->size);
+			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes in %s", request->client_id, request->size, request->pathname);
 			logger(log_buffer);
 			if(victims && get_ack(com)){
 				while(victims){
@@ -236,7 +235,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			return -2;
 		}
 		if(exit_status == 0){
-			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes", request->client_id, request->size);
+			snprintf(log_buffer, LOG_BUFF, "Client %d Wrote %lu bytes in %s", request->client_id, request->size, request->pathname);
 			logger(log_buffer);
 			if(victims && get_ack(com)){
 				while(victims){
@@ -448,8 +447,9 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	
 	read_bytes = safe_read(com, *buffer, *buff_size);
 	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
-	snprintf(log_buffer, LOG_BUFF, "Server received %d bytes", *buff_size + sizeof packet_size_buff);
+	snprintf(log_buffer, LOG_BUFF, "Server received %ld bytes", *buff_size + sizeof packet_size_buff);
 	logger(log_buffer);
+	free(log_buffer);
 	return read_bytes;
 }
 

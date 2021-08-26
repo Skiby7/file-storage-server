@@ -20,36 +20,22 @@ int pop_client(clients_list **head, clients_list **tail){
 		return -1;
 
 	retval = (*tail)->com;
-	
-	// if((*tail)->prev != NULL){
-	// 	tmp = (*tail)->prev;
-	// 	free((*tail)->prev->next);
-	// 	(*tail) = tmp;
-	// 	(*tail)->prev->next = NULL;
-	// }
-	// else{
-	// 	(*head) = NULL;
-	// 	free((*tail));
-	// 	(*tail) = NULL;
-	// }
-		
+	befree = (*tail);
+	if((*tail)->prev != NULL)
+		(*tail)->prev->next = NULL;
 	
 	if(((*tail) = (*tail)->prev) == NULL)
 		(*head) = NULL;
 	
-	if(befree){
-		free(befree);
-		befree = NULL;
-	}
-	
+	free(befree);
+	befree = NULL;
 	return retval;
-	
 } 
 
 void clean_ready_list(clients_list **head, clients_list **tail){
 	clients_list *befree = NULL;
-	while((*head)!=NULL){
-		close((*head)->com);
+	while((*head)){
+		if((*head)->com >= 0) close((*head)->com);
 		befree = (*head);
 		(*head) = (*head)->next;
 		free(befree);
