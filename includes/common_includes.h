@@ -35,9 +35,8 @@
 #define FILE_ALREADY_LOCKED 0x08
 #define FILE_LOCKED_BY_OTHERS 0x10
 #define FILE_NOT_LOCKED 0x20
-#define FILE_EXISTS 0x40
-#define FILE_NOT_EXISTS 0x80
-
+#define FILE_NOT_OPEN 0x40
+#define STOP 0x80
 
 
 #define UNIX_MAX_PATH 200

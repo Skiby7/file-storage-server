@@ -44,12 +44,16 @@ int respond_to_client(int com, server_response response){
 	unsigned char* serialized_response = NULL;
 	unsigned long response_size = 0;
 	unsigned char packet_size_buff[sizeof(unsigned long)];
+	char *log_buffer = NULL;
 	serialize_response(response, &serialized_response, &response_size);
 	ulong_to_char(response_size, packet_size_buff);
 	if (safe_write(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
 	
 	if(get_ack(com)) exit_status = safe_write(com, serialized_response, response_size);
+	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
+	snprintf(log_buffer, LOG_BUFF, "Server sent %d bytes", response_size + sizeof packet_size_buff);
+	logger(log_buffer);
 	free(serialized_response);
 	return exit_status;
 }
@@ -179,7 +183,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 		}
 		if(files_read == request->files_to_read){
 			clean_response(&response);
-			response.code[0] = FILE_NOT_EXISTS;
+			response.code[0] = STOP;
 		}
 		if(last_file){
 			free(last_file);
@@ -424,6 +428,7 @@ bool send_ack(int com){
 
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
+	char* log_buffer = NULL;
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	memset(packet_size_buff, 0, sizeof(unsigned long));
 	
@@ -442,7 +447,9 @@ ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	
 	
 	read_bytes = safe_read(com, *buffer, *buff_size);
-	
+	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
+	snprintf(log_buffer, LOG_BUFF, "Server received %d bytes", *buff_size + sizeof packet_size_buff);
+	logger(log_buffer);
 	return read_bytes;
 }
 

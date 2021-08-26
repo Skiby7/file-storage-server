@@ -80,19 +80,19 @@ clean_all: clean clean_files
 gen_files:
 	./generate_file_init.sh
 	
-test1: debug
+test1: debug gen_files
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test1.sh bin/config1.txt
 	./statistiche.sh bin/server.log
 
-test2: all
+test2: all gen_files
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test2.sh bin/config2.txt
 	./statistiche.sh bin/server.log
 
-test3: all
+test3: all gen_files
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh bin/config3.txt

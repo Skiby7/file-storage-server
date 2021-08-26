@@ -30,7 +30,7 @@ typedef struct fssFile_{
 	unsigned char *data;
 	unsigned short use_stat;
 	open_file_client_list *clients_open;
-	lock_file_queue *lock_waiters;
+	lock_file_queue *waiting_lock;
 	int whos_locking;
 	unsigned long size;
 	unsigned long uncompressed_size;

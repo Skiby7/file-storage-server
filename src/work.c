@@ -1,5 +1,73 @@
 #include "work.h"
 extern client_conf config;
+extern unsigned char errno_summary;
+void print_errno_summary(){
+	switch (errno_summary){
+		case FILE_ALREADY_OPEN:
+			fprintf(stderr, ANSI_COLOR_YELLOW"Il file era già aperto!"ANSI_COLOR_RESET_N);
+			break;
+		case FILE_ALREADY_LOCKED:
+			fprintf(stderr, ANSI_COLOR_YELLOW"Il file era già stato bloccato!"ANSI_COLOR_RESET_N);
+			break;
+		case FILE_LOCKED_BY_OTHERS:
+			fprintf(stderr, ANSI_COLOR_YELLOW"Il file è già stato bloccato da un altro client!"ANSI_COLOR_RESET_N);
+			break;
+		case FILE_NOT_LOCKED:
+			fprintf(stderr, ANSI_COLOR_YELLOW"Il file non è stato bloccato prima di eseguire l'operazione!"ANSI_COLOR_RESET_N);
+			break;
+		case FILE_NOT_OPEN:
+			fprintf(stderr, ANSI_COLOR_YELLOW"Il file non è stato aperto prima di eseguire l'operazione!"ANSI_COLOR_RESET_N);
+			break;
+		
+		default:
+			break;
+	}
+	errno_summary = 0;
+}
+
+void check_errno(int retval, unsigned char op, int flag){
+	if (retval >= 0) return;
+	switch (op){
+		case OPEN: 
+			fprintf(stderr, ANSI_COLOR_RED"Errore openFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+			break;
+		case CLOSE: 
+			fprintf(stderr, ANSI_COLOR_RED"Errore closeFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+			break;
+		case READ: 
+			fprintf(stderr, ANSI_COLOR_RED"Errore readFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+			break;
+		case READ_N: 
+			fprintf(stderr, ANSI_COLOR_RED"Errore readNFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+			break;
+		case WRITE: 
+			fprintf(stderr, ANSI_COLOR_RED"Errore writeToFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+			break;
+		case APPEND: 
+			fprintf(stderr, ANSI_COLOR_RED"Errore appeoFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+			break;
+		case REMOVE: 
+			fprintf(stderr, ANSI_COLOR_RED"Errore removeFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+			break;
+		case SET_LOCK: 
+			switch (flag){
+				case 0:
+					fprintf(stderr, ANSI_COLOR_RED"Errore unlockFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+					break;
+				case O_LOCK:
+					fprintf(stderr, ANSI_COLOR_RED"Errore lockFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+					break;
+				
+				default:
+					break;
+			}
+			break;
+		default:
+			break;
+		}
+	print_errno_summary();
+
+}
 
 int handle_read_files(char *args, char *dirname){
 	char *tmpstr = NULL;
@@ -15,18 +83,18 @@ int handle_read_files(char *args, char *dirname){
 	token = strtok_r(args, DELIM, &tmpstr);
 	while(token){
 		retval = openFile(token, 0);
-		if(config.verbose) CHECKERRNO(retval < 0, "Errore openFile!");
+		if(config.verbose) check_errno(retval, OPEN, 0);
 		if(retval>= 0){
 			retval = readFile(token, (void **)&buffer, &buff_size);
-			if(config.verbose) CHECKERRNO(retval < 0, "Errore readFile!");
+			if(config.verbose) check_errno(retval, READ, 0);
 			if(config.verbose && retval >= 0) printf("Letti %lu bytes da %s\n", buff_size, token);
 			retval = closeFile(token);
-			if(config.verbose) CHECKERRNO(retval < 0, "Errore closeFile!");
+			if(config.verbose) check_errno(retval, CLOSE, 0);
 		}
 		if(dirname){
-			CHECKERRNO(chdir(dirname) < 0, "Errore chdir");
+			if(config.verbose) CHECKERRNO(chdir(dirname) < 0, "Errore chdir");
 			save_to_file(token, buffer, buff_size);
-			CHECKERRNO(chdir(current_dir) < 0, "Errore chdir");
+			if(config.verbose) CHECKERRNO(chdir(current_dir) < 0, "Errore chdir");
 		}
 		free(buffer);
 		token = strtok_r(NULL, DELIM, &tmpstr);
@@ -46,17 +114,9 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 	
 	while(token){
 		errno = 0;
-		if(command & WRITE_FILES){ 
-			// real_path = realpath(token, NULL);
-			// if(!real_path){
-			// 	fprintf(stderr, ANSI_COLOR_RED"Pathname %s non valido!"ANSI_COLOR_RESET_N, token);
-			// 	token = strtok_r(NULL, DELIM, &tmpstr);
-			// 	continue;
-			// } 
+		if(command & WRITE_FILES){  
 			if((file = open(token, O_RDONLY)) == -1){
-				if (config.verbose) perror("Errore durante l'apertura del file");
-				// free(real_path);
-				// real_path = NULL;
+				if (config.verbose) perror("Errore durante l'apertura del file in locale");
 				token = strtok_r(NULL, DELIM, &tmpstr);
 				continue;
 			}
@@ -64,23 +124,26 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 			open_file_val = openFile(token, O_CREATE | O_LOCK);
 			if(open_file_val >= 0){
 				retval = writeFile(token, dirname);
-				if(config.verbose) CHECKERRNO(retval < 0, "Errore scrittura file");
+				if(config.verbose) check_errno(retval, WRITE, 0);
 				retval = closeFile(token);
-				if(config.verbose) CHECKERRNO(retval < 0, "Errore chiusura file");
+				if(config.verbose) check_errno(retval, CLOSE, 0);
 				stat(token, &st);
 				if(config.verbose) printf("Scritti %lu bytes (file: %s)\n", st.st_size, token);
 			}
 			else if(open_file_val <= 0 && errno == EEXIST){
 				errno = 0;
 				if(openFile(token, 0) < 0){
-					if(config.verbose) perror("Errore apertura file");
+					if(config.verbose){
+						fprintf(stderr, ANSI_COLOR_RED"Errore openFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+						print_errno_summary();
+					} 
 					// free(real_path);
 					// real_path = NULL;
 					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
 				if((file = open(token, O_RDONLY)) == -1){
-					if(config.verbose) perror("Errore durante l'apertura del file");
+					if(config.verbose) perror("Errore durante l'apertura del file in locale");
 					// free(real_path);
 					// real_path = NULL;
 					token = strtok_r(NULL, DELIM, &tmpstr);
@@ -101,15 +164,15 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 					continue;
 				}
 				retval = appendToFile(token, buffer, size, dirname);
-				if(config.verbose) CHECKERRNO(retval < 0, "Errore scrittura file");
+				if(config.verbose) check_errno(retval, APPEND, 0);
+				if(config.verbose && retval >= 0) printf("Appended %lu bytes (file: %s)\n", st.st_size, token);
 				retval = closeFile(token);
-				if(config.verbose) CHECKERRNO(retval < 0, "Errore chiusura file");
-				if(config.verbose) printf("Appended %lu bytes (file: %s)\n", st.st_size, token);
+				if(config.verbose) check_errno(retval, CLOSE, 0);
 				free(buffer);
 				buffer = NULL;
 			}
 			else{
-				if (config.verbose) perror("Errore apertura file");
+				if (config.verbose) check_errno(open_file_val, OPEN, 0);
 				// free(real_path);
 				// real_path = NULL;
 				token = strtok_r(NULL, DELIM, &tmpstr);
@@ -118,23 +181,19 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 		}
 		else if(command & LOCK_FILES){ 
 			retval = lockFile(token);
-			if(config.verbose) CHECKERRNO(retval < 0, "Errore lock file");
-			if(config.verbose && retval == 0) printf("Locked %s\n", token);
+			if(config.verbose) check_errno(retval, SET_LOCK, O_LOCK);
+			if(config.verbose && retval >= 0) printf("Locked %s\n", token);
 
 		}
 		else if(command & UNLOCK_FILES){
-			if(unlockFile(token) < 0){
-				if(config.verbose) fprintf(stderr, "Errore unlock file: %s -> %s\n", token, strerror(errno));
-				token = strtok_r(NULL, DELIM, &tmpstr);
-				continue;
-			}
-			if(config.verbose) printf("Unlocked %s\n", token);
-
+			retval = unlockFile(token);
+			if(config.verbose) check_errno(retval, SET_LOCK, 0);
+			if(config.verbose && retval >= 0) printf("Unocked %s\n", token);
 		}
 		else if(command & DELETE_FILES){ 
 			retval = removeFile(token);
-			if(config.verbose) CHECKERRNO(retval < 0, "Errore remove file");
-			if(config.verbose) printf("Rimosso %s\n", token);
+			if(config.verbose) check_errno(retval, REMOVE, 0);
+			if(config.verbose && retval >= 0) printf("Rimosso %s\n", token);
 		}
 		if(real_path){
 			free(real_path);
@@ -182,24 +241,27 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked, const char
 			open_file_val = openFile(real_path, O_CREATE | O_LOCK);
 			if(open_file_val >= 0){
 				retval = writeFile(real_path, dirname);
-				if(config.verbose) CHECKERRNO(retval < 0, "Errore scrittura file");
+				if(config.verbose) check_errno(retval, WRITE, 0);
 				if(!locked){
 					retval = unlockFile(real_path);
-					if(config.verbose) CHECKERRNO(retval < 0, "Errore unlock file");
+					if(config.verbose) check_errno(retval, SET_LOCK, 0);
 				} 
 				retval = closeFile(real_path);
-				if(config.verbose) CHECKERRNO(retval < 0, "Errore chiusura file");
+				if(config.verbose) check_errno(retval, CLOSE, 0);
 				stat(real_path, &st);
-				if(config.verbose) printf("Scritti %lu bytes (file: %s)\n", st.st_size, real_path);
+				if(config.verbose && retval >= 0) printf("Scritti %lu bytes (file: %s)\n", st.st_size, real_path);
 			}
 			else if(open_file_val <= 0 && errno == EEXIST){
 				errno = 0;
 				if(openFile(real_path, 0) < 0){
-					if (config.verbose) perror("Errore apertura file!");
+					if(config.verbose){
+						fprintf(stderr, ANSI_COLOR_RED"Errore openFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
+						print_errno_summary();
+					} 
 					continue;
 				}
 				if((file = open(real_path, O_RDONLY)) == -1){
-					if (config.verbose) perror("Errore durante l'apertura del file");
+					if (config.verbose) perror("Errore durante l'apertura del file in locale");
 					continue;
 				}
 				if(fstat(file, &st) < 0){
@@ -209,21 +271,20 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked, const char
 				size = st.st_size;
 				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
 				if(read(file, buffer, size) < 0){
-					if(config.verbose) CHECKERRNO(true, "Errore read dal file");
+					if(config.verbose) CHECKERRNO(true, "Errore read dal file locale");
 					free(buffer);
 					buffer = NULL;
-
 				}
 				retval = appendToFile(real_path, buffer, size, dirname);
-				if(config.verbose) CHECKERRNO(retval < 0, "Errore scrittura file");
+				if(config.verbose) check_errno(retval, APPEND, 0);
 				retval = closeFile(real_path);
-				if(config.verbose) CHECKERRNO(retval < 0, "Errore chiusura file");
-				if(config.verbose) printf("Appended %lu bytes (file: %s)\n", st.st_size, real_path);
+				if(config.verbose) check_errno(retval, CLOSE, 0);
+				if(config.verbose && retval >= 0) printf("Appended %lu bytes (file: %s)\n", st.st_size, real_path);
 				free(buffer);
 				buffer = NULL;
 			}
 			else{
-				if(config.verbose) perror("Errore apertura file!");
+				if(config.verbose) check_errno(open_file_val, OPEN, 0);
 				continue;
 			}
 			files_written++;

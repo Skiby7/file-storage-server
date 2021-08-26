@@ -26,9 +26,9 @@ Sono state sviluppate delle parti opzionali quali:
 
 * È stato realizzato un algoritmo di rimpiazzamento più avanzato rispetto a quello FIFO
 
-* Le opzioni -x e -g per il client (verranno documentate in seguito essendo un'aggiunta alla specifica)
+* L'opzione -x per il client (verranno documentate in seguito essendo un'aggiunta alla specifica)
 
-* Lo script `generate_files.sh` per generare file testuali di dimensione diversa usati per testare le funzionalità del server
+* La compressione dei file presenti nel server
 
 
 # Compilazione ed esecuzione
@@ -50,13 +50,13 @@ Oltre a quelli definiti nella specifica, è possibile usare anche i seguenti tar
 
 * `clean_all`: esegue `clean` e `clean_files`
 
-* `gen_files`: genera i file di testo usati per i test
+* `gen_files`: genera i file testuali usati per i test
 
-* `test1_un` e `test3_un`: per eseguire il test 1 e 3 con la compressione disabilita. 
+* `test3_un`, `test3_quiet`, `test3_un_quiet`: per eseguire il test 3 rispettivamente con la compressione disabilita, con il parametro TUI del file di configurazione disabilitato e, infine, con la compressione e TUI disabilitati. . 
 
 # Server
 
-L'applicazione server consiste in un programma concorrente multithreaded che gestisce più richieste contemporanee di connessione da parte di client diversi. I client comunicano col server tramite un'API, la cui implementazione si trova in `fssApi.c`, e dopodiché vengono serviti da un worker del server il quale esegue un'operazione per poi rimettersi in attesa.
+L'applicazione `server` consiste in un programma multithreaded che gestisce più richieste contemporanee di connessione da parte di client diversi. I client comunicano col server tramite un'API, la cui implementazione si trova in `fssApi.c`, e dopodiché vengono serviti da un worker del server il quale esegue un'operazione per poi rimettersi in attesa.
 
 ## File di configurazione
 
@@ -170,8 +170,8 @@ Ho deciso di definire dei codici di errore per estendere gli errori riportati in
 |                        	|        	| o modificare è bloccato da un altro client         	|
 | FILE_NOT_LOCKED        	|  `0x20`  	| Il file non è stato bloccato prima di              	|
 |                        	|        	| un'operazione che richiede la lock                 	|
-| FILE_EXISTS            	|  `0x40`  	| Il file esiste già, pertanto non può essere creato 	|
-| FILE_NOT_EXISTS        	|  `0x80`  	| Il file non esiste (`ENOENT`)							|
+| FILE_NOT_OPEN        	|  `0x40`  	| Il file non è stato aperto 	|
+| STOP        	|  `0x80`  	| Segnale di stop per la `READ_N`							|
 
 
 ## `client_request` e `server_response`

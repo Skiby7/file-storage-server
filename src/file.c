@@ -101,15 +101,15 @@ int insert_lock_file_list(char *pathname, int id, int com){
 	} 
 	
 	start_write(file, true);
-	if(check_client_id_lock(file->lock_waiters, id) == -1){
+	if(check_client_id_lock(file->waiting_lock, id) == -1){
 		stop_write(file);
 		return -1;
 	}
 	lock_file_queue *new = (lock_file_queue *) malloc(sizeof(lock_file_queue));
 	new->id = id;
 	new->com = com;
-	new->next = file->lock_waiters;
-	file->lock_waiters = new;	
+	new->next = file->waiting_lock;
+	file->waiting_lock = new;	
 	stop_write(file);
 	return 0;
 }
@@ -133,7 +133,7 @@ int pop_lock_file_list(char *pathname, int *id, int *com, bool server_mutex, boo
 		return -1;
 	} 
 	if(file_mutex) start_write(file, false);
-	scanner = file->lock_waiters;
+	scanner = file->waiting_lock;
 	if(scanner == NULL){
 		if(file_mutex) stop_write(file);
 		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
@@ -143,7 +143,7 @@ int pop_lock_file_list(char *pathname, int *id, int *com, bool server_mutex, boo
 		*id = scanner->id;
 		*com = scanner->com;
 		free(scanner);	
-		file->lock_waiters = NULL;
+		file->waiting_lock = NULL;
 		if(file_mutex) stop_write(file);
 		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
 		return 0;
@@ -202,13 +202,14 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 	
 	if(file && create_file){
 		SAFEUNLOCK(server_storage.storage_access_mtx);
-		response->code[0] = FILE_OPERATION_FAILED | FILE_EXISTS;
+		response->code[0] = FILE_OPERATION_FAILED;
+		response->code[1] = EEXIST;
 		return -1;
 	}
 	
 	if(!file && !create_file){
 		SAFEUNLOCK(server_storage.storage_access_mtx);
-		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
+		response->code[0] = FILE_OPERATION_FAILED;
 		response->code[1] = ENOENT;
 		return -1;
 	}
@@ -223,6 +224,7 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 			SAFEUNLOCK(file->access_mutex);
 			SAFEUNLOCK(server_storage.storage_access_mtx);
 			response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
+			response->code[1] = EBUSY;
 			return -1;
 		}
 		else {
@@ -231,7 +233,8 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 				SAFEUNLOCK(file->order_mutex);
 				SAFEUNLOCK(file->access_mutex);
 				SAFEUNLOCK(server_storage.storage_access_mtx);
-				response->code[0] = FILE_ALREADY_OPEN;
+				response->code[0] = FILE_OPERATION_FAILED | FILE_ALREADY_OPEN;
+				response->code[1] = EPERM;
 				return -1;
 			}
 			if(lock_file) file->whos_locking = client_id;
@@ -302,7 +305,7 @@ int close_file(char *filename, int client_id, server_response *response){
 	fss_file_t* file = search_file(filename);
 	if(!file){
 		SAFEUNLOCK(server_storage.storage_access_mtx);
-		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
+		response->code[0] = FILE_OPERATION_FAILED;
 		response->code[1] = ENOENT;
 		return -1; 
 	}
@@ -310,20 +313,18 @@ int close_file(char *filename, int client_id, server_response *response){
 
 	if(file->whos_locking != client_id && file->whos_locking != -1){
 		stop_write(file);
-		// SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
-		response->code[1] = EACCES;
+		response->code[1] = EBUSY;
 		return -1; 
 	}
 	
 	if(remove_client_file_list(&file->clients_open, client_id) < 0){
 		stop_write(file);
-		// SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_FAILED;
+		response->code[1] = EPERM;
 		return -1; 
 	}
 	stop_write(file);
-	// SAFEUNLOCK(server_storage.storage_access_mtx);
 	response->code[0] = FILE_OPERATION_SUCCESS;
 	return 0;
 }
@@ -387,11 +388,11 @@ int remove_file(char *filename, int client_id,  server_response *response){
 
 	if(exit_status == -1){
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
-		response->code[1] = EACCES;
+		response->code[1] = EBUSY;
 		return -1; 
 	}
 	if(exit_status == -2){
-		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
+		response->code[0] = FILE_OPERATION_FAILED;
 		response->code[1] = ENOENT;
 		return -1; 
 	}
@@ -414,13 +415,11 @@ int read_file(char *filename, int client_id, server_response *response){
 	fss_file_t* file = search_file(filename);
 	if(!file){
 		SAFEUNLOCK(server_storage.storage_access_mtx);
-		response->code[0] = FILE_NOT_EXISTS | FILE_OPERATION_FAILED;
+		response->code[0] = FILE_OPERATION_FAILED;
 		response->code[1] = ENOENT;
 		return -1;
 	}
-	/* QUI INIZIA IL LETTORE */
 	start_read(file, true);
-	/* QUI INIZIO A LEGGERE */
 	if(check_client_id(file->clients_open, client_id) == -1 && (file->whos_locking == -1 || file->whos_locking == client_id)){
 		response->data = (unsigned char *) calloc(file->uncompressed_size, sizeof(unsigned char));
 		CHECKALLOC(response->data, "Errore allocazione memoria read_file");
@@ -429,7 +428,6 @@ int read_file(char *filename, int client_id, server_response *response){
 		else memcpy(response->data, file->data, response->size);
 		file->use_stat += 1;
 
-		/* QUI HO FINITO DI LEGGERE ED ESCO */
 		SAFELOCK(file->last_access_mtx);
 		file->last_access = time(NULL);
 		SAFEUNLOCK(file->last_access_mtx);
@@ -439,12 +437,12 @@ int read_file(char *filename, int client_id, server_response *response){
 	}
 	if(file->whos_locking != -1 && file->whos_locking != client_id){
 		stop_read(file);
-		response->code[1] = EACCES;
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
+		response->code[1] = EBUSY;
 		return -1;
 	}
 	stop_read(file);
-	response->code[0] = FILE_OPERATION_FAILED;
+	response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_OPEN;
 	response->code[1] = EACCES;
 	return -1;
 
@@ -510,7 +508,7 @@ int read_n_file(char **last_file, int client_id, server_response* response){
 	
 no_more_files:
 	SAFEUNLOCK(server_storage.storage_access_mtx);
-	response->code[0] = FILE_NOT_EXISTS;
+	response->code[0] = STOP;
 	return 1;
 }
 
@@ -534,8 +532,8 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 	fss_file_t* file = search_file(pathname);
 	if(!file){
 		SAFEUNLOCK(server_storage.storage_access_mtx);
+		response->code[0] = FILE_OPERATION_FAILED;
 		response->code[1] = ENOENT;
-		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
 		return -1;
 	}
 	/* QUI INIZIA LO SCRITTORE */
@@ -551,8 +549,8 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		}
 		else size = length;
 		if(check_memory(size, 0, pathname, victims) < 0){
-			response->code[1] = EFBIG;
 			response->code[0] = FILE_OPERATION_FAILED;
+			response->code[1] = EFBIG;
 			stop_write(file);
 			SAFEUNLOCK(server_storage.storage_access_mtx);
 			free(tmp);
@@ -579,10 +577,24 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		free(tmp);
 		return 0;
 	}
+	else if(file->data){
+		stop_write(file);
+		SAFEUNLOCK(server_storage.storage_access_mtx);
+		response->code[0] = FILE_OPERATION_FAILED;
+		response->code[1] = EPERM;
+		return -1;
+	}
+	else if(file->whos_locking != client_id){
+		stop_write(file);
+		SAFEUNLOCK(server_storage.storage_access_mtx);
+		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_LOCKED;
+		response->code[1] = EBUSY;
+		return -1;
+	}
 	stop_write(file);
 	SAFEUNLOCK(server_storage.storage_access_mtx);
+	response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_OPEN;
 	response->code[1] = EACCES;
-	response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_LOCKED;
 	return -1;
 }
 
@@ -607,12 +619,11 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 	fss_file_t* file = search_file(pathname);
 	if(!file){
 		SAFEUNLOCK(server_storage.storage_access_mtx);
-		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
+		response->code[0] = FILE_OPERATION_FAILED;
 		response->code[1] = ENOENT;
 		return -1;
 	}
 	
-	/* QUI INIZIA LO SCRITTORE */
 	start_write(file, false);
 
 	if(check_client_id(file->clients_open, client_id) == -1 && (file->whos_locking == -1 || file->whos_locking == client_id)){
@@ -638,8 +649,8 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 				free(tmp);
 				free(uncompressed_buffer);
 			}
-			response->code[1] = EFBIG;
 			response->code[0] = FILE_OPERATION_FAILED;
+			response->code[1] = EFBIG;
 			stop_write(file);
 			SAFEUNLOCK(server_storage.storage_access_mtx);
 			return -1;
@@ -670,17 +681,17 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 		}
 		return 0;
 	}
-	if(file->whos_locking == -1 || file->whos_locking == client_id){
+	if(file->whos_locking != -1 && file->whos_locking != client_id){
 		stop_write(file);
 		SAFEUNLOCK(server_storage.storage_access_mtx);
-		response->code[1] = EBUSY;
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
+		response->code[1] = EBUSY;
 		return -1;
 	}
 	stop_write(file);
 	SAFEUNLOCK(server_storage.storage_access_mtx);
-	response->code[1] = EACCES;
 	response->code[0] = FILE_OPERATION_FAILED;
+	response->code[1] = EACCES;
 	return -1;
 
 }
@@ -700,11 +711,10 @@ int lock_file(char *pathname, int client_id, bool server_mutex, bool file_mutex,
 	fss_file_t* file = search_file(pathname);
 	if(!file){
 		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
-		response->code[0] = FILE_NOT_EXISTS | FILE_OPERATION_FAILED;
+		response->code[0] = FILE_OPERATION_FAILED;
 		response->code[1] = ENOENT;
 		return -1;
 	}
-	/* QUI INIZIA LO SCRITTORE */
 	if(file_mutex) start_write(file, false);
 
 	if(file->whos_locking == -1){
@@ -719,13 +729,13 @@ int lock_file(char *pathname, int client_id, bool server_mutex, bool file_mutex,
 	else if(file->whos_locking == client_id){
 		if(file_mutex) stop_write(file);
 		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
-		response->code[0] = FILE_ALREADY_LOCKED | FILE_OPERATION_FAILED;
+		response->code[0] = FILE_OPERATION_FAILED | FILE_ALREADY_LOCKED;
 		response->code[1] = EINVAL;
 		return -1;
 	}
 	if(file_mutex) stop_write(file);
 	if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
-	response->code[0] = FILE_LOCKED_BY_OTHERS | FILE_OPERATION_FAILED;
+	response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
 	response->code[1] = EBUSY;
 	return -1;
 }
@@ -745,7 +755,7 @@ int unlock_file(char *pathname, int client_id, server_response *response){
 	fss_file_t* file = search_file(pathname);
 	if(!file){
 		SAFEUNLOCK(server_storage.storage_access_mtx);
-		response->code[0] = FILE_NOT_EXISTS | FILE_OPERATION_FAILED;
+		response->code[0] = FILE_OPERATION_FAILED;
 		response->code[1] = ENOENT;
 		return -1;
 	}
@@ -755,20 +765,18 @@ int unlock_file(char *pathname, int client_id, server_response *response){
 	if(file->whos_locking == client_id){
 		file->whos_locking = -1;
 		stop_write(file);
-		// SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_SUCCESS;
 		return 0;
 	}
 	else if(file->whos_locking != client_id){
 		stop_write(file);
-		// SAFEUNLOCK(server_storage.storage_access_mtx);
 		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
 		response->code[1] = EBUSY;
 		return -1;
 	}
 	stop_write(file);
-	// SAFEUNLOCK(server_storage.storage_access_mtx);
-	response->code[0] = FILE_NOT_LOCKED | FILE_OPERATION_FAILED;
+	response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_LOCKED;
+	response->code[1] = EINVAL;
 	return -1;
 }
 
@@ -1132,18 +1140,18 @@ void clean_attributes(fss_file_t *entry, bool close_com){
 		free(befree);
 	}
 	memset(&response, 0, sizeof response);
-	response.code[0] = FILE_OPERATION_FAILED | FILE_NOT_EXISTS;
+	response.code[0] = FILE_OPERATION_FAILED;
 	response.code[1] = ENOENT;
 
-	while (entry->lock_waiters != NULL){
+	while (entry->waiting_lock != NULL){
 		response.pathlen = strlen(entry->name) + 1;
 		response.pathname = (char *) calloc(response.pathlen, sizeof(char));
 		strcpy(response.pathname, entry->name);
-		respond_to_client(entry->lock_waiters->com, response);
-		if(close_com) close(entry->lock_waiters->com);
-		else sendback_client(entry->lock_waiters->com, false);
-		befree1 = entry->lock_waiters;
-		entry->lock_waiters = entry->lock_waiters->next;
+		respond_to_client(entry->waiting_lock->com, response);
+		if(close_com) close(entry->waiting_lock->com);
+		else sendback_client(entry->waiting_lock->com, false);
+		befree1 = entry->waiting_lock;
+		entry->waiting_lock = entry->waiting_lock->next;
 		free(befree1);
 		free(response.pathname);
 	}

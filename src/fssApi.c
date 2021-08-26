@@ -6,6 +6,7 @@
 #include "serialization.h"
 
 extern int socket_fd;
+unsigned char errno_summary;
 char open_connection_name[AF_UNIX_MAX_PATH] = "None";
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
 void clean_request(client_request* request);
@@ -19,18 +20,8 @@ bool send_ack(int com){
 }
 
 static int check_error(unsigned char *code){
-	if(code[1] != 0)
-		return code[1];
-	if(code[0] & FILE_ALREADY_LOCKED)
-		return EPERM;
-	if(code[0] & FILE_LOCKED_BY_OTHERS)
-		return EBUSY;
-	if(code[0] & FILE_EXISTS)
-		return EEXIST;
-	if(code[0] & FILE_NOT_EXISTS)
-		return ENOENT;
-	
-	return 0;
+	errno_summary = code[0];
+	return code[1];
 }
 
 static int check_path(const char* pathname, char* op){
@@ -182,7 +173,7 @@ int readNFile(int N, const char* dirname){
 	if(N <= 0) N = 0;
 	// if(!good_path) puts(ANSI_COLOR_RED"Il path fornito non è assoluto: impossibile salvare i file!"ANSI_COLOR_RESET);
 	handle_connection(read_n_request, &read_n_response);
-	if(read_n_response.code[0] == FILE_NOT_EXISTS) return i;
+	if(read_n_response.code[0] == STOP) return i;
 	i++;
 	if(good_path){
 		CHECKERRNO(chdir(dirname) < 0, "Errore chdir");
@@ -194,7 +185,7 @@ int readNFile(int N, const char* dirname){
 		send_ack(socket_fd);
 		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
 		deserialize_response(&read_n_response, &buffer, buff_size);
-		if(read_n_response.code[0] == FILE_NOT_EXISTS) break;
+		if(read_n_response.code[0] == STOP) break;
 		if(good_path){
 			CHECKERRNO(chdir(dirname) < 0, "Errore chdir");
 			save_to_file(read_n_response.pathname, read_n_response.data, read_n_response.size);
