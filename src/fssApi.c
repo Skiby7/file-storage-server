@@ -247,7 +247,7 @@ int writeFile(const char* pathname, const char* dirname){
 	if(check_path(pathname, "writeFile") < 0) return -1;
 	struct stat file_info;
 	int file;
-	size_t size = 0, read_bytes = 0;
+	size_t size = 0;
 	client_request write_request;
 	server_response write_response;
 	unsigned char* buffer = NULL;

@@ -212,7 +212,17 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			logger(log_buffer);
 			if(victims && get_ack(com)){
 				while(victims){
-					respond_to_client(com, victims->victim);
+					if(respond_to_client(com, response) < 0){
+						clean_response(&victims->victim);
+						clean_response(&response);
+						free(log_buffer);
+						while(victims){
+							befree = victims;
+							victims = victims->next;
+							free(befree);
+						}
+						return -2;
+					}
 					clean_response(&victims->victim);
 					befree = victims;
 					victims = victims->next;
@@ -223,7 +233,11 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 				response.code[0] = FILE_OPERATION_SUCCESS;
 				response.data = (unsigned char *) calloc(1, sizeof(unsigned char));
 				response.size = 1;
-				respond_to_client(com, response);
+				if(respond_to_client(com, response) < 0){
+					clean_response(&response);
+					free(log_buffer);
+					return -2;
+				}
 			}		
 		} 
 	}
@@ -239,7 +253,17 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			logger(log_buffer);
 			if(victims && get_ack(com)){
 				while(victims){
-					respond_to_client(com, victims->victim);
+					if(respond_to_client(com, response) < 0){
+						clean_response(&victims->victim);
+						clean_response(&response);
+						free(log_buffer);
+						while(victims){
+							befree = victims;
+							victims = victims->next;
+							free(befree);
+						}
+						return -2;
+					}
 					clean_response(&victims->victim);
 					befree = victims;
 					victims = victims->next;
@@ -250,7 +274,11 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 				response.code[0] = FILE_OPERATION_SUCCESS;
 				response.data = (unsigned char *) calloc(1, sizeof(unsigned char));
 				response.size = 1;
-				respond_to_client(com, response);
+				if(respond_to_client(com, response) < 0){
+					clean_response(&response);
+					free(log_buffer);
+					return -2;
+				}
 			}
 		} 
 	}
