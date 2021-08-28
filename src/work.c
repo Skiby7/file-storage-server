@@ -188,7 +188,7 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 		else if(command & UNLOCK_FILES){
 			retval = unlockFile(token);
 			if(config.verbose) check_errno(retval, SET_LOCK, 0);
-			if(config.verbose && retval >= 0) printf("Unocked %s\n", token);
+			if(config.verbose && retval >= 0) printf("Unlocked %s\n", token);
 		}
 		else if(command & DELETE_FILES){ 
 			retval = removeFile(token);

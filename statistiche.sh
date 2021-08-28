@@ -43,16 +43,16 @@ grep -w "Max size reached" $1 | awk '{print $NF}'
 echo -e -n "Numero massimo di files presenti nello storage -> "
 grep -w "Max file num reached" $1 | awk '{print $NF}'
 
-echo -n "Dimensione media WRITE -> "
+echo -n "Dimensione media WRITE/APPEND -> "
 grep -w "Wrote" $1 | awk '{SUM += $(NF-3); COUNT += 1} END {print (COUNT==0) ? "0 bytes" : int(SUM/COUNT) " bytes"}'
 
 echo -n "Dimensione media READ/READ_N -> "
 grep -w "Read" $1 | awk '{SUM += $(NF-3); COUNT += 1} END {print (COUNT==0) ? "0 bytes" : int(SUM/COUNT) " bytes"}'
 
-echo -n "Dimensione media messaggi inviati al client -> "
+echo -n "Dimensione media dei messaggi inviati al client -> "
 grep -w "sent" $1 | awk '{SUM += $(NF-1); COUNT += 1} END {print (COUNT==0) ? "0 bytes" : int(SUM/COUNT) " bytes"}'
 
-echo -n "Dimensione media messaggi ricevuti dal client -> "
+echo -n "Dimensione media dei messaggi ricevuti dal client -> "
 grep -w "received" $1 | awk '{SUM += $(NF-1); COUNT += 1} END {print (COUNT==0) ? "0 bytes" : int(SUM/COUNT) " bytes"}'
 
 

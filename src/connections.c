@@ -212,7 +212,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			logger(log_buffer);
 			if(victims && get_ack(com)){
 				while(victims){
-					if(respond_to_client(com, response) < 0){
+					if(respond_to_client(com, victims->victim) < 0){
 						clean_response(&victims->victim);
 						clean_response(&response);
 						free(log_buffer);
@@ -253,7 +253,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			logger(log_buffer);
 			if(victims && get_ack(com)){
 				while(victims){
-					if(respond_to_client(com, response) < 0){
+					if(respond_to_client(com, victims->victim) < 0){
 						clean_response(&victims->victim);
 						clean_response(&response);
 						free(log_buffer);
@@ -262,6 +262,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 							victims = victims->next;
 							free(befree);
 						}
+						free(log_buffer);
 						return -2;
 					}
 					clean_response(&victims->victim);
