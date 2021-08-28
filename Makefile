@@ -70,7 +70,7 @@ zlib:
 	cd libs/zlib/ && ./configure --static --const && make -j
 
 clean: 
-	$(RM) libs/*.a src/*.h.gch bin/client bin/server libs/zlib/libz.a test/binary_test/binary
+	$(RM) libs/*.a src/*.h.gch bin/client bin/server libs/zlib/libz.a test/binary/binary_test
 
 clean_files:
 	$(RM) test/large_files/* test/medium_files/* test/small_files/* test/test_2/*
