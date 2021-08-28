@@ -10,11 +10,12 @@ typedef struct _config{
 	int workers;
 	int mem;
 	int files;
-	unsigned short compression_level;
 	char *sockname;
 	char *log;
 	bool tui;
 	bool compression;
+	unsigned short compression_level;
+	unsigned char replacement_algo;
 } config;
 
 size_t strlen(const char *s);

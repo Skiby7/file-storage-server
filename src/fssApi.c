@@ -19,8 +19,8 @@ bool send_ack(int com){
 	return true;
 }
 
-static int check_error(unsigned char *code){
-	errno_summary = code[0];
+int set_errno(unsigned char *code){
+	errno_summary = code[0] ^ FILE_OPERATION_FAILED;
 	return code[1];
 }
 
@@ -100,7 +100,7 @@ int openFile(const char *pathname, int flags){
 	handle_connection(open_request, &open_response);
 	clean_request(&open_request);
 	if(open_response.code[0] & FILE_OPERATION_FAILED){
-		errno = check_error(open_response.code);
+		errno = set_errno(open_response.code);
 		clean_response(&open_response);
 		return -1;
 	}
@@ -117,7 +117,7 @@ int closeFile(const char *pathname){
 	handle_connection(close_request, &close_response);
 	clean_request(&close_request);
 	if(close_response.code[0] & FILE_OPERATION_FAILED){
-		errno = check_error(close_response.code);
+		errno = set_errno(close_response.code);
 		clean_response(&close_response);
 		return -1;
 	}
@@ -127,6 +127,10 @@ int closeFile(const char *pathname){
 
 int readFile(const char *pathname, void **buf, size_t *size){
 	if(check_path(pathname, "readFile") < 0) return -1;
+	if(!buf){
+		errno = EINVAL;
+		return -1;
+	}
 	client_request read_request;
 	server_response read_response;
 	unsigned char *data = NULL;
@@ -148,7 +152,7 @@ int readFile(const char *pathname, void **buf, size_t *size){
 		}
 	}
 	else{
-		errno = check_error(read_response.code);
+		errno = set_errno(read_response.code);
 		clean_request(&read_request);
 		clean_response(&read_response);
 		return -1;
@@ -203,6 +207,10 @@ int readNFile(int N, const char* dirname){
 
 int appendToFile(const char *pathname, void *buf, size_t size, const char *dirname){
 	if(check_path(pathname, "appendToFile") < 0) return -1;
+	if(!buf){
+		errno = EINVAL;
+		return -1;
+	}
 	client_request append_request;
 	server_response append_response;
 	unsigned char* buffer = NULL;
@@ -216,7 +224,7 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 	memcpy(append_request.data, buf, size);
 	handle_connection(append_request, &append_response);
 	if(append_response.code[0] & FILE_OPERATION_FAILED){
-		errno = check_error(append_response.code);
+		errno = set_errno(append_response.code);
 		clean_request(&append_request);
 		clean_response(&append_response);
 		return -1;
@@ -271,7 +279,7 @@ int writeFile(const char* pathname, const char* dirname){
 	write_request.size = size;
 	handle_connection(write_request, &write_response);
 	if(write_response.code[0] & FILE_OPERATION_FAILED){
-		errno = check_error(write_response.code);
+		errno = set_errno(write_response.code);
 		clean_request(&write_request);
 		clean_response(&write_response);
 		return -1;
@@ -306,7 +314,7 @@ int removeFile(const char* pathname){
 	handle_connection(remove_request, &remove_response);
 	clean_request(&remove_request);
 	if(remove_response.code[0] & FILE_OPERATION_FAILED){
-		errno = check_error(remove_response.code);
+		errno = set_errno(remove_response.code);
 		clean_response(&remove_response);
 		return -1;
 	}
@@ -324,7 +332,7 @@ int lockFile(const char* pathname){
 	handle_connection(lock_request, &lock_response);
 	clean_request(&lock_request);
 	if(lock_response.code[0] & FILE_OPERATION_FAILED){
-		errno = check_error(lock_response.code);
+		errno = set_errno(lock_response.code);
 		clean_response(&lock_response);
 		return -1;
 	}
@@ -342,7 +350,7 @@ int unlockFile(const char* pathname){
 	handle_connection(unlock_request, &unlock_response);
 	clean_request(&unlock_request);
 	if(unlock_response.code[0] & FILE_OPERATION_FAILED){
-		errno = check_error(unlock_response.code);
+		errno = set_errno(unlock_response.code);
 		clean_response(&unlock_response);
 		return -1;
 	}

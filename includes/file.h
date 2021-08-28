@@ -7,6 +7,8 @@
 #define CONNECTIONS_H_
 #include "connections.h"
 #endif
+
+
 #define BITS_IN_int     ( sizeof(int) * CHAR_BIT )
 #define THREE_QUARTERS  ((int) ((BITS_IN_int * 3) / 4))
 #define ONE_EIGHTH      ((int) (BITS_IN_int / 8))
@@ -36,7 +38,7 @@ typedef struct fssFile_{
 	unsigned long uncompressed_size;
 	unsigned short writers;
 	unsigned int readers;
-	time_t create_time;
+	time_t created_time;
 	time_t last_access;
 	pthread_mutex_t last_access_mtx;
 	pthread_mutex_t order_mutex;
@@ -48,6 +50,7 @@ typedef struct fssFile_{
 typedef struct storage_{
 	fss_file_t **storage_table;	
 	bool compression;
+	unsigned char replacement_algo;
 	unsigned short compression_level;
 	unsigned int file_count;
 	unsigned int file_limit;
@@ -65,13 +68,14 @@ typedef struct victim_{
 	unsigned short use_stat;
 	unsigned long size;
 	time_t last_access;
+	time_t created_time;
 } victim_t;
 
 
 
 
 
-void init_table(int max_file_num, int max_size, bool compression, unsigned short compression_level);
+void init_table(int max_file_num, int max_size, bool compression, unsigned short compression_level, unsigned char replacement_algo);
 void clean_storage();
 int open_file(char *filename, int flags, int client_id, server_response *response);
 int close_file(char *filename, int client_id, server_response *response);

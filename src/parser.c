@@ -106,6 +106,18 @@ int parse_config(FILE *conf, config *configuration) {
 			if(level < 0 || level > 9) fprintf(stderr, ANSI_COLOR_RED"Il livello di compressione deve essere compreso fra 0 e 9, impostato livello di default 6!"ANSI_COLOR_RESET_N);
 		}
 
+		else if(strcmp(token, "REPLACEMENT_ALGO") == 0){
+			token = strtok_r(NULL, " ", &tmpstr);
+			remove_char(token);
+			for(int i = 0; token[i]; i++) token[i] = tolower(token[i]);
+			if(strncmp(token, "lru", strlen(token)) == 0)
+				configuration->replacement_algo = LRU;
+			if(strncmp(token, "lfu", strlen(token)) == 0)
+				configuration->replacement_algo = LFU;
+			if(strncmp(token, "lrfu", strlen(token)) == 0)
+				configuration->replacement_algo = LRFU;			
+		}
+
 		else{
 			fprintf(stderr, ANSI_COLOR_RED"Impostazione %s non riconosciuta!"ANSI_COLOR_RESET_N, token);
 			free(buff);
@@ -114,7 +126,7 @@ int parse_config(FILE *conf, config *configuration) {
 	}
 
 	if (!c_level_set && configuration->compression) configuration->compression_level = 6;
-			
+	if (! configuration->replacement_algo) configuration->replacement_algo = FIFO;
 	if (!configuration->sockname){
 		fprintf(stderr, ANSI_COLOR_RED"SOCKNAME non definito, impossibile avviare il server!"ANSI_COLOR_RESET_N); 
 		return -1;

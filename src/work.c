@@ -4,19 +4,19 @@ extern unsigned char errno_summary;
 void print_errno_summary(){
 	switch (errno_summary){
 		case FILE_ALREADY_OPEN:
-			fprintf(stderr, ANSI_COLOR_YELLOW"Il file era già aperto!"ANSI_COLOR_RESET_N);
+			fprintf(stderr, ANSI_COLOR_RED"└"ANSI_COLOR_YELLOW"Il file era già aperto!"ANSI_COLOR_RESET_N);
 			break;
 		case FILE_ALREADY_LOCKED:
-			fprintf(stderr, ANSI_COLOR_YELLOW"Il file era già stato bloccato!"ANSI_COLOR_RESET_N);
+			fprintf(stderr, ANSI_COLOR_RED"└"ANSI_COLOR_YELLOW"Il file era già stato bloccato!"ANSI_COLOR_RESET_N);
 			break;
 		case FILE_LOCKED_BY_OTHERS:
-			fprintf(stderr, ANSI_COLOR_YELLOW"Il file è già stato bloccato da un altro client!"ANSI_COLOR_RESET_N);
+			fprintf(stderr, ANSI_COLOR_RED"└"ANSI_COLOR_YELLOW"Il file è bloccato da un altro client!"ANSI_COLOR_RESET_N);
 			break;
 		case FILE_NOT_LOCKED:
-			fprintf(stderr, ANSI_COLOR_YELLOW"Il file non è stato bloccato prima di eseguire l'operazione!"ANSI_COLOR_RESET_N);
+			fprintf(stderr, ANSI_COLOR_RED"└"ANSI_COLOR_YELLOW"Il file non è stato bloccato prima di eseguire l'operazione!"ANSI_COLOR_RESET_N);
 			break;
 		case FILE_NOT_OPEN:
-			fprintf(stderr, ANSI_COLOR_YELLOW"Il file non è stato aperto prima di eseguire l'operazione!"ANSI_COLOR_RESET_N);
+			fprintf(stderr, ANSI_COLOR_RED"└"ANSI_COLOR_YELLOW"Il file non è stato aperto prima di eseguire l'operazione!"ANSI_COLOR_RESET_N);
 			break;
 		
 		default:
@@ -41,7 +41,7 @@ void check_errno(char* pathname, int retval, unsigned char op, int flag){
 			fprintf(stderr, ANSI_COLOR_RED"Errore readNFile %s -> %s"ANSI_COLOR_RESET_N, pathname, strerror(errno));
 			break;
 		case WRITE: 
-			fprintf(stderr, ANSI_COLOR_RED"Errore writeToFile %s -> %s"ANSI_COLOR_RESET_N, pathname, strerror(errno));
+			fprintf(stderr, ANSI_COLOR_RED"Errore writeFile %s -> %s"ANSI_COLOR_RESET_N, pathname, strerror(errno));
 			break;
 		case APPEND: 
 			fprintf(stderr, ANSI_COLOR_RED"Errore appendToFile %s -> %s"ANSI_COLOR_RESET_N, pathname, strerror(errno));
@@ -66,7 +66,6 @@ void check_errno(char* pathname, int retval, unsigned char op, int flag){
 			break;
 		}
 	print_errno_summary();
-
 }
 
 int handle_read_files(char *args, char *dirname){

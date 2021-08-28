@@ -309,7 +309,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 			}
 			else if(response.code[0] & FILE_LOCKED_BY_OTHERS){
 				insert_lock_file_list(request->pathname, request->client_id, com);
-				snprintf(log_buffer, LOG_BUFF, "Client %d waiting on %s", request->client_id, request->pathname);
+				snprintf(log_buffer, LOG_BUFF, "Client %d waiting lock on %s", request->client_id, request->pathname);
 				logger(log_buffer);
 				free(log_buffer);
 				return 0;

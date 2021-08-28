@@ -38,6 +38,11 @@
 #define FILE_NOT_OPEN 0x40
 #define STOP 0x80
 
+// REPLACEMENTS ALGOS
+#define FIFO 0x01
+#define LRU 0x02
+#define LFU 0x03
+#define LRFU 0x04
 
 #define UNIX_MAX_PATH 200
 #define AF_UNIX_MAX_PATH 108
@@ -63,6 +68,7 @@
 #else
 	#define PIPE_BUF 20
 #endif
+
 
 
 					

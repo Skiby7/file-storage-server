@@ -22,7 +22,7 @@ pthread_cond_t start_victim_selector = PTHREAD_COND_INITIALIZER;
 // int check_input(char* pathname, client id)
 
 
-void init_table(int max_file_num, int max_size, bool compression, unsigned short compression_level){
+void init_table(int max_file_num, int max_size, bool compression, unsigned short compression_level, unsigned char replacement_algo){
 	server_storage.file_limit = max_file_num; // nbuckets
 	server_storage.size_limit = max_size;
 	server_storage.size = 0;
@@ -34,6 +34,7 @@ void init_table(int max_file_num, int max_size, bool compression, unsigned short
 	server_storage.storage_table = (fss_file_t **) calloc(server_storage.table_size, sizeof(fss_file_t *));
 	server_storage.compression = compression;
 	server_storage.compression_level = compression_level;
+	server_storage.replacement_algo = replacement_algo;
 	pthread_mutex_init(&server_storage.storage_access_mtx, NULL);
 }
 
@@ -252,7 +253,7 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 		insert_client_file_list(&file->clients_open, client_id);
 		file->size = 0;
 		file->uncompressed_size = 0;
-		file->create_time = time(NULL);
+		file->created_time = time(NULL);
 		file->last_access = time(NULL);
 		if(pthread_mutex_init(&file->last_access_mtx, NULL) != 0){
 		fprintf(stderr, "Errore di inizializzazione order mutex\n");
@@ -336,7 +337,7 @@ int delete_entry(int id, char *pathname, victim_queue** queue){
 	for (entry = server_storage.storage_table[index]; entry; prev = entry, entry = entry->next){
 		if(strncmp(pathname, entry->name, strlen(pathname)) == 0){
 			start_write(entry, false);
-			if(entry->whos_locking == id || id == -2 || entry->whos_locking == -1){
+			if(entry->whos_locking == id || id == -2){
 				if(queue && entry->uncompressed_size) enqueue_victim(entry, queue);
 				entry->name = (char *) realloc(entry->name, 11);
 				strcpy(entry->name, "deleted");
@@ -985,10 +986,20 @@ static void stop_write(fss_file_t* entry){
 
 static int compare(const void *a, const void *b) {
 	victim_t a1 = *(victim_t *)a, b1 = *(victim_t *)b; 
-	if((a1.use_stat - b1.use_stat) != 0)
-		return a1.use_stat - b1.use_stat; // sort by use_stat
+	switch (server_storage.replacement_algo){
+		case FIFO:
+			return a1.created_time - b1.created_time;
+		case LRU:
+			return a1.last_access - b1.last_access;
+		case LFU:
+			return a1.use_stat - b1.use_stat;
+		case LRFU:
+			if((a1.use_stat - b1.use_stat) != 0)
+				return a1.use_stat - b1.use_stat; // sort by use_stat
 
-	else return a1.last_access - b1.last_access; // if use_stat is the same, sort by age
+			else return a1.last_access - b1.last_access; // if use_stat is the same, sort by age	
+	}
+	return a1.created_time - b1.created_time; // If not specified, use FIFO
 }
 
 static void enqueue_victim(fss_file_t *entry, victim_queue **head){
@@ -1025,6 +1036,7 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
 			CHECKALLOC(victims[counter].pathname, "Errore allocazione pathname select_victim");
 			strcpy(victims[counter].pathname, entry->name);
 			victims[counter].last_access = entry->last_access;
+			victims[counter].created_time = entry->created_time;
 			victims[counter].use_stat = entry->use_stat;
 			victims[counter].size = entry->size;
 			stop_read(entry);
