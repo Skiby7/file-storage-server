@@ -25,6 +25,8 @@ bin/client -f /tmp/socket.sk -r ${CWD}/medium_files/medium_0.txt -d ${CWD}/test_
 
 bin/client -f /tmp/socket.sk -l ${CWD}/medium_files/medium_0.txt -u ${CWD}/medium_files/medium_0.txt -p -t 2000 &
 
+sleep 1
+
 bin/client -f /tmp/socket.sk -l ${CWD}/medium_files/medium_0.txt -c ${CWD}/medium_files/medium_0.txt -p -t 200 
 
 echo -e "\n\x1b[33mEseguo un file binario prima di inviarlo al server\x1b[0m"
