@@ -188,25 +188,35 @@ bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_file_2.txt -D ${CWD}/test
 
 sleep 1
 
-echo -e "\n${MAGENTA}Leggo initial_file_0.txt 15 aspetto 5 secondi e leggo eviction_file_0.txt${RESET}\n"
+echo -e "\n${MAGENTA}Leggo initial_file_0.txt 15 volte e aspetto 5 secondi e leggo eviction_file_0.txt${RESET}\n"
 sleep 2
 for i in {0..14}
 do
 	bin/client -f /tmp/socket.sk -r ${CWD}/test_2/initial_file_0.txt -p 2> /dev/null 
 done
 
-for i in {0..6}
+for i in {0..4}
 do
-	bin/client -f /tmp/socket.sk -r ${CWD}/test_2/eviction_file_0.txt -p 2> /dev/null  
-
+	echo -n "."
+	sleep 1
 done
+echo ""
+
+bin/client -f /tmp/socket.sk -r ${CWD}/test_2/eviction_file_0.txt -p 2> /dev/null  
+
+
 
 
 echo -e "\n${MAGENTA}Provoco la prima espulsione scrivendo in eviction_file_1.txt${RESET}\n"
 bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_file_1.txt -D ${CWD}/test_output -p  
 bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_file_1.txt -D ${CWD}/test_output -p  
-bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_file_1.txt -D ${CWD}/test_output -p  
-bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_file_1.txt -D ${CWD}/test_output -p  
 sleep 1
+
+echo -e "\n\n${MAGENTA}Espulso eviction_file_0.txt (output ls -l):${RESET}"
+ls -l ${CWD}/test_output/${CWD}/test_2
+echo ""
+echo ""
+sleep 2
+
 
 exit 0
