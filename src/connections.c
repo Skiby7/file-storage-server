@@ -223,6 +223,8 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 						}
 						return -2;
 					}
+					snprintf(log_buffer, LOG_BUFF, "Sent victim %s to client %d", victims->victim.pathname, request->client_id);
+					logger(log_buffer);
 					clean_response(&victims->victim);
 					befree = victims;
 					victims = victims->next;
@@ -265,6 +267,8 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 						free(log_buffer);
 						return -2;
 					}
+					snprintf(log_buffer, LOG_BUFF, "Sent victim %s to client %d", victims->victim.pathname, request->client_id);
+					logger(log_buffer);
 					clean_response(&victims->victim);
 					befree = victims;
 					victims = victims->next;

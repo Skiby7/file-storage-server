@@ -89,8 +89,8 @@ test1: debug gen_files
 test2: all gen_files
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
-	./test/test2.sh bin/config2.txt
-	./statistiche.sh bin/server.log
+	./test/test2.sh
+	
 
 test3: all gen_files
 	$(RM) -r ./test/test_output/*

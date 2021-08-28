@@ -766,18 +766,19 @@ int unlock_file(char *pathname, int client_id, server_response *response){
 	if(file->whos_locking == client_id){
 		file->whos_locking = -1;
 		stop_write(file);
-		response->code[0] = FILE_OPERATION_SUCCESS;
+		response->code[0] = FILE_OPERATION_SUCCESS ;
 		return 0;
 	}
-	else if(file->whos_locking != client_id){
+	else if(file->whos_locking == -1){
 		stop_write(file);
-		response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
-		response->code[1] = EBUSY;
+		response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_LOCKED;
+		response->code[1] = EINVAL;
 		return -1;
 	}
+
 	stop_write(file);
-	response->code[0] = FILE_OPERATION_FAILED | FILE_NOT_LOCKED;
-	response->code[1] = EINVAL;
+	response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
+	response->code[1] = EBUSY;
 	return -1;
 }
 

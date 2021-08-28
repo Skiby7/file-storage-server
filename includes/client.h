@@ -15,7 +15,8 @@ typedef struct client_{
 			"-p\t\tAbilita le stampe di ogni operazione sullo standard output\n\n" \
 			"-f filename\tSpecifica il nome del socket a cui connettersi\n\n" \
 			"-w dirname[n=0]\tInvia al server n file della cartella 'dirname'.\n               \tSe n = 0 o non specificato, si invierà il maggior\n               \tnumero di file che il server riesce a gestire.\n\n" \
-			"-D dirname\tNon ho capito per ora\n\n" \
+			"-x dirname\tSblocca automaticamente i file inviati al server con -w\n\n" \
+			"-D dirname\tSpecifica la cartella dove salvare i file espulsi in seguito a una APPEND o WRITE\n\n" \
 			"-R [n = 0]\tQuesta opzione permettere di leggere n file qualsiasi memorizzati sul server.\n          \tSe n non è specificato, si leggeranno tutti i file presenti sul server.\n\n" \
 			"-d dirname\tSpecifica dove salvare i file letti da server.\n"ANSI_COLOR_RED"          \tSe non viene specificata la cartella, i file non verranno salvati!\n\n" ANSI_COLOR_RESET \
 			"-t time\t\tTempo in millisecondi che intercorre fra l'invio di due richieste successive al server.\n       \t\tSe non specificato (-t 0), non si ha delay fra le richieste\n\n" \

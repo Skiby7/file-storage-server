@@ -7,7 +7,7 @@ void print_errno_summary(){
 			fprintf(stderr, ANSI_COLOR_RED"└"ANSI_COLOR_YELLOW"Il file era già aperto!"ANSI_COLOR_RESET_N);
 			break;
 		case FILE_ALREADY_LOCKED:
-			fprintf(stderr, ANSI_COLOR_RED"└"ANSI_COLOR_YELLOW"Il file era già stato bloccato!"ANSI_COLOR_RESET_N);
+			fprintf(stderr, ANSI_COLOR_RED"└"ANSI_COLOR_YELLOW"Il file è già stato bloccato!"ANSI_COLOR_RESET_N);
 			break;
 		case FILE_LOCKED_BY_OTHERS:
 			fprintf(stderr, ANSI_COLOR_RED"└"ANSI_COLOR_YELLOW"Il file è bloccato da un altro client!"ANSI_COLOR_RESET_N);
@@ -76,7 +76,7 @@ int handle_read_files(char *args, char *dirname){
 	int retval = 0;
 	char current_dir[PATH_MAX];
 	CHECKEXIT(getcwd(current_dir, sizeof current_dir) == NULL, true, "Errore getcwd");
-	if(!dirname) if (config.verbose) puts(ANSI_COLOR_RED"Non è stata specificata la cartella di destinazione, i file non verranno salvati!"ANSI_COLOR_RESET);
+	if(!dirname) if (config.verbose) fprintf(stderr, ANSI_COLOR_RED"Non è stata specificata la cartella di destinazione, i file non verranno salvati!"ANSI_COLOR_RESET_N);
 	
 	
 	token = strtok_r(args, DELIM, &tmpstr);
@@ -115,7 +115,7 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 		errno = 0;
 		if(command & WRITE_FILES){  
 			if((file = open(token, O_RDONLY)) == -1){
-				if (config.verbose) perror("Errore durante l'apertura del file in locale");
+				if (config.verbose) fprintf(stderr, "Errore durante l'apertura del file in locale %s -> %s\n", token, strerror(errno));
 				token = strtok_r(NULL, DELIM, &tmpstr);
 				continue;
 			}
@@ -142,7 +142,7 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 					continue;
 				}
 				if((file = open(token, O_RDONLY)) == -1){
-					if(config.verbose) perror("Errore durante l'apertura del file in locale");
+					if(config.verbose) fprintf(stderr, "Errore durante l'apertura del file in locale %s -> %s\n", token, strerror(errno));
 					// free(real_path);
 					// real_path = NULL;
 					token = strtok_r(NULL, DELIM, &tmpstr);
@@ -158,7 +158,7 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 				size = st.st_size;
 				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
 				if(read(file, buffer, size) < 0){
-					if (config.verbose) perror("Errore lettura del file");
+					if (config.verbose) fprintf(stderr, "Errore durante la lettura del file in locale %s -> %s\n", token, strerror(errno));
 					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
@@ -305,7 +305,7 @@ int write_dir(char *args, bool is_locked, const char* dirname){
 	dirname_to_write = strtok_r(args, DELIM, &tmpstr);
 	real_path = realpath(dirname_to_write, NULL);
 	if(!real_path){
-		if (config.verbose) puts(ANSI_COLOR_RED"Cartella non valida!"ANSI_COLOR_RESET);
+		if (config.verbose) fprintf(stderr, ANSI_COLOR_RED"Cartella non valida!"ANSI_COLOR_RESET_N);
 		return -1;
 	}
 	if((n = strtok_r(NULL, DELIM, &tmpstr))){

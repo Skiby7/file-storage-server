@@ -48,19 +48,17 @@ done
 chmod 777 -R ${CWD}/test/large_files
 echo ""
 mkdir ${CWD}/test/test_2 &> /dev/null
+for i in {0..9}
+do
+	if [[ -f ${CWD}/test/large_files/eviction_file_${i}.txt ]]
+	then
+		continue
+	fi
+	base64 /dev/urandom | head -c 100000 > ${CWD}/test/test_2/eviction_file_${i}.txt
+	
+	
+done
 
-if ! [[ -f ${CWD}/test/test_2/eviction_file_0.txt ]]
-then
-	base64 /dev/urandom | head -c 400000 > ${CWD}/test/test_2/eviction_file_0.txt	
-fi
-if ! [[ -f ${CWD}/test/test_2/eviction_file_1.txt ]]
-then
-	base64 /dev/urandom | head -c 400000 > ${CWD}/test/test_2/eviction_file_1.txt	
-fi
-if ! [[ -f ${CWD}/test/test_2/eviction_file_2.txt ]]
-then
-	base64 /dev/urandom | head -c 400000 > ${CWD}/test/test_2/eviction_file_2.txt	
-fi
 if ! [[ -f ${CWD}/test/test_2/initial_file_0.txt ]]
 then
 	base64 /dev/urandom | head -c 400000 > ${CWD}/test/test_2/initial_file_0.txt	
