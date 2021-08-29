@@ -42,7 +42,7 @@ bool get_ack(int com){
 int respond_to_client(int com, server_response response){
 	int exit_status = -1;
 	unsigned char* serialized_response = NULL;
-	unsigned long response_size = 0;
+	size_t response_size = 0;
 	unsigned char packet_size_buff[sizeof(unsigned long)];
 	char *log_buffer = NULL;
 	serialize_response(response, &serialized_response, &response_size);
