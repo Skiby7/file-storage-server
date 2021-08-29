@@ -67,7 +67,7 @@
 	#define PIPE_BUF 20
 #else
 	#define PIPE_BUF 20
-#endif                                                  \n"\ */
+#endif                                                  
 
 #define WELCOME_MESSAGE  "\n _              __                        \n"\
 						 "|_ o |  _      (_ _|_  _  ._ _.  _   _    \n"\
