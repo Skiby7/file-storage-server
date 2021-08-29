@@ -206,10 +206,8 @@ ssize_t readn(int fd, void *ptr, size_t n){
 	ssize_t nread;
 	unsigned char *pointer = ptr;
 	nleft = n;
-	while (nleft > 0)
-	{
-		if ((nread = read(fd, pointer, nleft)) < 0)
-		{
+	while (nleft > 0){
+		if ((nread = read(fd, pointer, nleft)) < 0){
 			if (nleft == n){
 				ptr = pointer;
 				return -1; /* error, return -1 */
@@ -232,10 +230,8 @@ ssize_t writen(int fd, void *ptr, size_t n){
 	ssize_t nwritten;
 	unsigned char *pointer = ptr;
 	nleft = n;
-	while (nleft > 0)
-	{
-		if ((nwritten = write(fd, pointer, nleft)) < 0)
-		{
+	while (nleft > 0){
+		if ((nwritten = write(fd, pointer, nleft)) < 0){
 			if (nleft == n){
 				ptr = pointer;
 				return -1; /* error, return -1 */

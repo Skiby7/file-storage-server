@@ -12,9 +12,9 @@ test1: CFLAGS = -Wall -pedantic -std=c99 -g3
 test1_un: CFLAGS = -Wall -pedantic -std=c99 -g3
 debug: CFLAGS = -Wall -pedantic -std=c99 -g3
 
-all: clean server client binary_test
+all: clean server client binary_test gen_files
 
-debug: clean server client binary_test
+debug: clean server client binary_test gen_files
 
 server:  libserver libcommon zlib
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/server.c -o bin/server  -lpthread -L ./libs -lserver -lcommon $(LIBS)
@@ -80,19 +80,19 @@ clean_all: clean clean_files
 gen_files:
 	./generate_file_init.sh
 	
-test1: debug gen_files
+test1: debug
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test1.sh bin/config1.txt
 	./statistiche.sh bin/server.log
 
-test2: all gen_files
+test2: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test2.sh
 	
 
-test3: all gen_files
+test3: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh bin/config3.txt

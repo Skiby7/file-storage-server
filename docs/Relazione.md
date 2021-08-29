@@ -21,24 +21,24 @@ title: Relazione file storage server
 # Introduzione
 
 Il progetto è stato testato sulla macchina virtuale fornita dai docenti con 2 cores e **almeno** 2GB di ram.
-È possibile consultare il repository di git al [seguente link](https://github.com/Skiby7/file-storage-server), tuttavia i file usati per i test non sono presenti in quanto Github limita la dimensione dei file a 50 MB.\
+È possibile consultare il repository di git al [seguente link](https://github.com/Skiby7/file-storage-server),
 Sono state sviluppate delle parti opzionali quali:
 
-* È stato realizzato un algoritmo di rimpiazzamento più avanzato rispetto a quello FIFO
+* Sono stati realizzati più algoritmi di rimpiazzamento (vedere sezione numero)
 
-* L'opzione -x per il client (verranno documentate in seguito essendo un'aggiunta alla specifica)
+* L'opzione -x per il client
 
 * La compressione dei file presenti nel server
 
 
 # Compilazione ed esecuzione
 
-Una volta scompattato l'archivio, sarà necessario spostarsi dentro la root del progetto e dare il comando `make gen_files` in modo da creare i file che verranno usati dai test. L'operazione richiederà qualche secondo, a seconda delle prestazioni del processore su cui si esegue lo script.
-Completata l'operazione, sarà possibile testare il progetto con i comandi `make testX` dove `X` è il numero del test che si vuole eseguire. 
+Una volta scompattato l'archivio, sarà sufficiente spostarsi dentro la root del progetto, compilare il progetto con il comando `make` o `make -j`, dopodiché i file eseguibili si troveranno dentro `bin`. Inoltre, è possibile testare il progetto con i comandi `make testX` dove `X` è il numero del test che si vuole eseguire. 
 Nel caso si volesse clonare il progetto direttamente da Github, è necessario usare l'opzione `--recursive` per scaricare anche il sorgente di zlib, necessario per la compilazione del progetto:
 ```bash
 git clone https://github.com/Skiby7/file-storage-server --recursive
 ```
+Inoltre, appena scaricato il progetto da Github, non sono presenti i file necessari per eseguire i test, perciò la compilazione richiederà qualche minuto, in quanto verrà eseguito uno script che genererà dei file di testo. 
 
 ## Makefile targets
 
@@ -52,7 +52,7 @@ Oltre a quelli definiti nella specifica, è possibile usare anche i seguenti tar
 
 * `gen_files`: genera i file testuali usati per i test
 
-* `test3_un`, `test3_quiet`, `test3_un_quiet`: per eseguire il test 3 rispettivamente con la compressione disabilita, con il parametro TUI del file di configurazione disabilitato e, infine, con la compressione e TUI disabilitati. . 
+* `test3_un`, `test3_quiet`, `test3_un_quiet`: per eseguire il test 3 rispettivamente con la compressione disabilita, con il parametro `TUI` del file di configurazione disabilitato (*vedere sezione 3.1*) e, infine, con la compressione e `TUI` disabilitati. 
 
 # Server
 
@@ -60,11 +60,13 @@ L'applicazione `server` consiste in un programma multithreaded che gestisce più
 
 ## File di configurazione
 
-Il file di configurazione, passato come argomento da linea di comando all'avvio, è un generico file di testo contenente le seguenti parole chiave seguiti dal carattere ":" : `WORKERS`, `MAXMEM`, `MAXFILES`, `SOCKNAME`, `LOGFILE`, `TUI`, `COMPRESSION` e `COMPRESSION_LEVEL`.
+Il file di configurazione, passato come argomento da linea di comando all'avvio, è un generico file di testo contenente le seguenti parole chiave seguiti dal carattere `':'` : `WORKERS`, `MAXMEM`, `MAXFILES`, `SOCKNAME`, `LOGFILE`, `TUI`, `REPLACEMENT_ALGO`, `COMPRESSION` e `COMPRESSION_LEVEL`.
 Si può definire `SOCKNAME` come path assoluto o, altrimenti, semplicemente come il nome che si vuole dare al socket, che verrà creato in `/tmp`.
-Le voci `LOGFILE`, `COMPRESSION` e `TUI` sono opzionali:
+Le voci `LOGFILE`, `REPLACEMENT_ALGO`, `COMPRESSION` e `TUI` sono opzionali:
 
 * Se `LOGFILE` non è definito non verrà prodotto il file di log. Per specificare il file di log si può usare sia un path relativo che assoluto.
+
+* `REPLACEMENT_ALGO` può essere impostato sui valori `FIFO`, `LRU`, `LFU`, `LRFU`. Se non specificato, viene usato l'algoritmo `FIFO`
 
 * `TUI` (l'acronimo di *textual user interface*), indica se si vuole stampare sullo standard output un sommario della configurazione e visualizzare in tempo reale la quantità di file presenti nel server e la dimensione occupata. Se vale `y`, l'output verrà prodotto, altrimenti no.  
 
@@ -85,34 +87,61 @@ In `server.c` è possibile consultare l'implementazione del thread Master e del 
 
 ## Signal handling e terminazione
 
-La gestione dei segnali è demandata a un thread dedicato, in modo da non far interferire i segnali stessi con la `poll()` e le altre chiamate di sistema. All'avvio del server, infatti, vengono mascherati tutti i segnali ad eccezione di `SIGSEGV` e viene poi avviato il thread `signal_handler_thread` sulla routine  `sig_wait_thread()`. Qui, il thread si mette in ascolto dei seguenti segnali:
+La gestione dei segnali è demandata a un thread dedicato, in modo da non far interferire i segnali stessi con la `poll()` e le altre chiamate di sistema. All'avvio del server, infatti, vengono mascherati tutti i segnali ad eccezione di `SIGSEGV` e viene poi avviato il thread `signal_handler_thread` sulla routine `sig_wait_thread()`. Qui, il thread si mette in ascolto dei seguenti segnali:
 
 * `SIGINT` e `SIGQUIT`: alla ricezione di uno di questi due segnali, il flag globale `abort_connections` viene settato su `true`, mentre `can_accept` viene settato su `false`. Dopodiché viene inviata la stringa *termina* al thread Master tramite `good_fd_pipe`, così che, nel caso fosse in attesa sulla `poll()`, si svegli e termini.
 
 * `SIGHUP`: in questo caso il thread handler setta solo `can_accept` su `true`, in modo che il Master non accetti più connessioni e attenda che il counter dei client attivi arrivi a `0` per poi terminare.
 
-* `SIGUSR1`: questo segnale è dedicato alla terminazione del thread handler, infatti gli viene inviato dal thread Master prima di terminare.
+* `SIGUSR1`: questo segnale è dedicato alla terminazione di `signal_handler_thread`, infatti gli viene inviato dal thread Master prima di terminare.
 
-Il thread master, una volta uscito dal loop principale, svuota la coda dei lavori e la riempie con il valore `-2` per poi svegliare i thread Worker e farli terminare. Dopodiché cancella il thread `use_stat_thread`, invia il segnale `SIGUSR1` al `signal_handler_thread`, logga gli ultimi dati ed infine pulisce la memoria allocata dinamicamente.
+Il thread master, una volta uscito dal loop principale, svuota la coda dei lavori e la riempie con il valore `-2` per poi svegliare i thread Worker e farli terminare. Dopodiché cancella il thread `use_stat_thread`, invia il segnale `SIGUSR1` al `signal_handler_thread`, logga gli ultimi dati ed infine libera la memoria allocata dinamicamente.
 
 ## Storage
 
 L'implementazione dello storage vero e proprio può essere consultata nei file `file.c` e `file.h`, dove sono definite le funzioni che i workers possono usare per modificare i dati all'interno del server. Ho deciso di implementare lo storage con una tabella hash con liste di trabocco, la cui dimensione è 1,33 volte il numero massimo di file che il server può gestire, così da mantenere il fattore di carico sotto il 75% e avere delle buone prestazioni (come da letteratura). Per il calcolo dell'hash ho usato l'algoritmo di Peter Jay Weinberger (la cui [implementazione](http://didawiki.cli.di.unipi.it/lib/exe/fetch.php/informatica/sol/laboratorio21/esercitazionib/icl_hash.tgz) è stata fornita a laboratorio). \
-Le strutture che definiscono la memoria del server, `fssFile` e `storage`, sono consultabili in `file.h`:
+Le strutture che definiscono la memoria del server, `fss_file_t` e `fss_storage_t`, sono consultabili in `file.h`:
 
-* `fssFile` contiene, oltre che i metadati e i dati del file stesso, due mutex, una *condition variable* e due contatori `readers` e `writers` con le quali ho implementato la procedura *lettore-scrittore* vista a lezione. La struttura contiene, inoltre, il timestamp dell'ultimo accesso e un contatore di utilizzo `use_stat`, che vedremo in seguito nella sezione dedicata all'algoritmo di rimpiazzamento.
+* `fss_file_t` contiene, oltre che i metadati e i dati del file stesso, due mutex, una *condition variable* e due contatori `readers` e `writers` con i quali ho implementato la procedura *lettore-scrittore* vista a lezione. La struttura contiene, inoltre, il timestamp dell'ultimo accesso, il timestamp della creazione e un contatore di utilizzo `use_stat`, che vedremo in seguito nella sezione dedicata all'algoritmo di rimpiazzamento.
 
-* `storage` contiene, oltre alla tabella hash, la dimensione della tabella stessa e i parametri di configurazione, una mutex per garantire l'accesso mutualmente esclusivo all'intera tabella e delle variabili in cui salvare i dati per generare le statistiche al termine dell'esecuzione.
+* `fss_storage_t` contiene, oltre alla tabella hash, la dimensione della tabella stessa e i parametri di configurazione, una mutex per garantire l'accesso mutualmente esclusivo all'intera tabella e delle variabili in cui salvare i dati per generare le statistiche al termine dell'esecuzione.
 
 ## Rimpiazzamento dei file
 
+Come detto prima, ogni file ha un contatore `use_stat` il quale viene impostato a 16 al momento della creazione e varia fra 0 e 32. Viene quindi aumentato ogni volta che il file viene letto, scritto (solo in questo caso di 2 punti) o bloccato e viene decrementato da un thread dedicato che viene svegliato ogniqualvolta viene effettuata una scrittura o viene creato un nuovo file.
+Inoltre, ogni volta che si accede a un file, viene aggiornato il suo campo `last_access`.
+Una volta che si deve liberare dello spazio in memoria, viene chiamata la funzione `select_victim()`, che non fa altro che scorrere tutta la tabella e copiare i metadati dei file (eccetto del file che ha causato la chiamata di `select_victim()`) in un array di tipo `victim_t`. Questo array viene poi ordinato con `qsort()` e, finché non viene liberata abbastanza memoria, si elimina il file con pathname uguale a `victims[i].pathname`.
+Di seguito la funzione compare:
+
+```c
+static int compare(const void *a, const void *b) {
+	victim_t a1 = *(victim_t *)a, b1 = *(victim_t *)b; 
+	switch (server_storage.replacement_algo){
+		case FIFO:
+			return a1.created_time - b1.created_time;
+		case LRU: 
+			return a1.last_access - b1.last_access;
+		case LFU:
+			return a1.use_stat - b1.use_stat;
+		case LRFU:
+			if((a1.use_stat - b1.use_stat) != 0)
+				return a1.use_stat - b1.use_stat;
+
+			else return a1.last_access - b1.last_access;
+	}
+	return a1.created_time - b1.created_time;
+}
+```
+Come si può vedere, nel caso di una politica `FIFO`, ordino gli elementi solo in base al tempo di creazione, con una politica `LRU` in base all'ultimo accesso effettuato, con una politica `LFU` in base al valore di `use_stat`, mentre con una politica `LRFU` si ordina prima in base a `use_stat` e, se questo è uguale per i due file, si confronta chi è stato usato più recentemente.
+Il thread `use_stat_thread`, che esegue la routine `use_stat_update()`, inoltre, si occupa di sbloccare eventuali file rimasti inutilizzati con `use_stat` uguale 0, passando la lock ai client in attesa. 
+<!-- 
 Ogni volta che avviene una scrittura (sia `WRITE`, che `APPEND`) viene controllato che lo storage non abbia raggiunto il numero massimo di file che può contenere né che il file sia troppo grande né che non ci sia abbastanza spazio libero. Se la condizione non è soddisfatta, si va alla ricerca della vittima: viene allocato un array di `victim_t`, ovvero una struttura in cui verranno copiate le statistiche di utilizzo `use_stat`, il timestamp dell'ultimo accesso al file, la dimensione e il nome di ogni file presente nello storage. Dopo aver inizializzato l'array con i metadati di tutti i file, questo, viene ordinato con `qsort()` in base al campo `use_stat` e, nel caso questo fosse uguale per due file, in ordine crescente rispetto all'ultimo accesso. Questo approccio permette di rimuovere dallo storage i file meno usati e fra questi, a parità di utilizzo, scegliere in base all'ultimo accesso.\
 
-Il contatore `use_stat` viene incrementato di 2 unità ogni volta che il file viene scritto, mentre di 1 punto quando viene letto con una `READ` (non `READ_N`) o se viene bloccato con una `LOCK`. Viene invece decrementato da un thread dedicato `use_stat_update` che, ogniqualvolta viene eseguita un'operazione di scrittura o di una open-create, visita tutto lo storage diminuendo di una unità il contatore. Il contatore di ogni file viene inizializzato a 16, ha un valore massimo di 32 e, una volta che ha raggiunto lo 0, se sul file era stata eseguita la lock, questo, se non viene utilizzato da più di 2 minuti, viene sbloccato automaticamente e la lock viene passata ad un eventuale client in attesa.
+Il contatore `use_stat` viene incrementato di 2 unità ogni volta che il file viene scritto, mentre di 1 punto quando viene letto con una `READ` (non `READ_N`) o se viene bloccato con una `LOCK`. Viene invece decrementato da un thread dedicato `use_stat_update` che, ogniqualvolta viene eseguita un'operazione di scrittura o di una open-create, visita tutto lo storage diminuendo di una unità il contatore. Il contatore di ogni file viene inizializzato a 16, ha un valore massimo di 32 e, una volta che ha raggiunto lo 0, se sul file era stata eseguita la lock, questo, se non viene utilizzato da più di 2 minuti, viene sbloccato automaticamente e la lock viene passata ad un eventuale client in attesa. -->
 
 # Client
 
-Dal momento che gli fd lato server usati per la comunicazione con il client non sono univoci, ma vengono riciclati, ogni client viene identificato dal server tramite il suo PID, che invece, con avendo come limite superiore 2^22^, si può considerare univoco. Un possibile sviluppo del progetto potrebbe essere introdurre un flag (ad esempio `-n`) col quale specificare un token o un nome con cui autenticarsi in modo da poter lavorare sui file in sessioni diverse.
+Dal momento che i *file descriptor* lato server usati per la comunicazione con il client non sono univoci, ma vengono riciclati, ogni client viene identificato dal server tramite il suo PID, che invece, avendo come limite superiore 2^22^, si può considerare univoco. Un possibile sviluppo del progetto potrebbe essere introdurre un flag (ad esempio `-n`) col quale specificare un *token* o un nome univoco con cui autenticarsi in modo da poter lavorare sugli stessi file, magari lasciandoli anche bloccati, in sessioni diverse.
 
 ## Utilizzo dei path
 

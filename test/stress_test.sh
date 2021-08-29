@@ -6,7 +6,7 @@ do
 	SMALL_FILE_NUM=$((RANDOM % 100))
 	MEDIUM_FILE_NUM=$((RANDOM % 10))
 	LARGE_FILE_NUM=$((RANDOM % 5))
-	bin/client -f /tmp/socket.sk -W ${CWD}/small_files/small_${SMALL_FILE_NUM}.txt -D ${CWD}/test_output/EVICTION_OUTPUT -u ${CWD}/small_files/small_${SMALL_FILE_NUM}.txt -R 5 -d ${CWD}/test_output/READ_OUTPUT -W ${CWD}/medium_files/medium_${MEDIUM_FILE_NUM}.txt -D ${CWD}/test_output/EVICTION_OUTPUT -u ${CWD}/medium_files/medium_${MEDIUM_FILE_NUM}.txt -W ${CWD}/test_2/initial_file_0.txt -D ${CWD}/test_output/EVICTION_OUTPUT -u ${CWD}/test_2/initial_file_0.txt -l ${CWD}/test_2/initial_file_0.txt -c ${CWD}/test_2/initial_file_0.txt -t 0 &> /dev/null
+	bin/client -f /tmp/socket.sk -W ${CWD}/small_files/small_${SMALL_FILE_NUM}.txt -D ${CWD}/output_stress_test/EVICTION_OUTPUT -u ${CWD}/small_files/small_${SMALL_FILE_NUM}.txt -R 5 -d ${CWD}/output_stress_test/READ_OUTPUT -W ${CWD}/medium_files/medium_${MEDIUM_FILE_NUM}.txt -D ${CWD}/output_stress_test/EVICTION_OUTPUT -u ${CWD}/medium_files/medium_${MEDIUM_FILE_NUM}.txt -W ${CWD}/test_2/initial_file_0.txt -D ${CWD}/output_stress_test/EVICTION_OUTPUT -u ${CWD}/test_2/initial_file_0.txt -l ${CWD}/test_2/initial_file_0.txt -c ${CWD}/test_2/initial_file_0.txt -t 0 &> /dev/null
 	
 	if [[ $(($RANDOM % 2)) -eq 0 ]]
 	then
@@ -17,18 +17,18 @@ do
 
 	if [[ $(($RANDOM % 10)) -eq 5 ]]
 	then
-		bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x -D ${CWD}/test_output/EVICTION_OUTPUT &> /dev/null
-		bin/client -f /tmp/socket.sk -R 0 -d ${CWD}/test_output/READ_OUTPUT &> /dev/null
+		bin/client -f /tmp/socket.sk -w ${CWD}/medium_files -x -D ${CWD}/output_stress_test/EVICTION_OUTPUT &> /dev/null
+		bin/client -f /tmp/socket.sk -R 0 -d ${CWD}/output_stress_test/READ_OUTPUT &> /dev/null
 	fi
 
 	if [[ $(($RANDOM % 3)) -eq 1 ]]
 	then
-		bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x -D ${CWD}/test_output/EVICTION_OUTPUT &> /dev/null
+		bin/client -f /tmp/socket.sk -w ${CWD}/small_files -x -D ${CWD}/output_stress_test/EVICTION_OUTPUT &> /dev/null
 	fi
 
 	if [[ $(($RANDOM % 100)) -eq 50 ]]
 	then
-		bin/client -f /tmp/socket.sk -W ${CWD}/large_files/large_${LARGE_FILE_NUM}.txt -D ${CWD}/test_output/EVICTION_OUTPUT -u ${CWD}/large_files/large_${LARGE_FILE_NUM}.txt &> /dev/null
+		bin/client -f /tmp/socket.sk -W ${CWD}/large_files/large_${LARGE_FILE_NUM}.txt -D ${CWD}/output_stress_test/EVICTION_OUTPUT -u ${CWD}/large_files/large_${LARGE_FILE_NUM}.txt &> /dev/null
 	fi
 
 

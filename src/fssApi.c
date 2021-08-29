@@ -8,7 +8,7 @@
 extern int socket_fd;
 unsigned char errno_summary;
 char open_connection_name[AF_UNIX_MAX_PATH] = "None";
-ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
+ssize_t read_from_server(int com, unsigned char **buffer, size_t* buff_size);
 void clean_request(client_request* request);
 void clean_response(server_response* response);
 int handle_connection(client_request request, server_response *response);
@@ -185,7 +185,7 @@ int readNFile(int N, const char* dirname){
 	clean_response(&read_n_response);
 	while(true){
 		send_ack(socket_fd);
-		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
+		if(read_from_server(socket_fd, &buffer, &buff_size) < 0) return -1;
 		deserialize_response(&read_n_response, &buffer, buff_size);
 		if(read_n_response.code[0] == STOP) break;
 		if(good_path){
@@ -230,7 +230,7 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 	if(append_response.has_victim){
 		while(true){
 			send_ack(socket_fd);
-			if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
+			if(read_from_server(socket_fd, &buffer, &buff_size) < 0) return -1;
 			deserialize_response(&append_response, &buffer, buff_size);
 			if(append_response.size == 1 && append_response.code[0] == FILE_OPERATION_SUCCESS && append_response.data[0] == 0) break;
 			if(dirname){
@@ -286,7 +286,7 @@ int writeFile(const char* pathname, const char* dirname){
 	if(write_response.has_victim){
 		while(true){
 			send_ack(socket_fd);
-			if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
+			if(read_from_server(socket_fd, &buffer, &buff_size) < 0) return -1;
 			deserialize_response(&write_response, &buffer, buff_size);
 			if(write_response.size == 1 && write_response.code[0] == FILE_OPERATION_SUCCESS && write_response.data[0] == 0) break;
 			if(dirname){
@@ -357,10 +357,9 @@ int unlockFile(const char* pathname){
 }
 
 
-ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
+ssize_t read_from_server(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
-	unsigned char packet_size_buff[sizeof(uint64_t)];
-	memset(packet_size_buff, 0, sizeof(uint64_t));
+	unsigned char packet_size_buff[sizeof(uint64_t)] = {0};
 	if (readn(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
 	*buff_size = char_to_ulong(packet_size_buff);
@@ -386,7 +385,7 @@ int handle_connection(client_request request, server_response *response){
 	if(get_ack(socket_fd)){
 		writen(socket_fd, buffer, buff_size);
 		reset_buffer(&buffer, &buff_size);
-		if(read_all_buffer(socket_fd, &buffer, &buff_size) < 0) return -1;
+		if(read_from_server(socket_fd, &buffer, &buff_size) < 0) return -1;
 		deserialize_response(response, &buffer, buff_size);
 		return 0;
 	}

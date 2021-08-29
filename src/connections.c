@@ -27,7 +27,7 @@ extern int tui_pipe[2];
 extern void func(clients_list *head);
 ssize_t safe_read(int fd, void *ptr, size_t n);
 ssize_t safe_write(int fd, void *ptr, size_t n);
-ssize_t read_all_buffer(int com, unsigned char **buffer, size_t* buff_size);
+ssize_t read_from_client(int com, unsigned char **buffer, size_t* buff_size);
 
 void logger(char *log);
 
@@ -400,7 +400,7 @@ void* worker(void* args){
 			return NULL;
 		}
 		memset(&request, 0, sizeof request);
-		read_status = read_all_buffer(com, &request_buffer, &request_buffer_size);
+		read_status = read_from_client(com, &request_buffer, &request_buffer_size);
 		if(read_status < 0){
 			if(read_status == -1){
 				sprintf(log_buffer,"[Thread %d] Error handling client with fd %d request", whoami, com);
@@ -458,11 +458,10 @@ bool send_ack(int com){
 	return true;
 }
 
-ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
+ssize_t read_from_client(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
 	char* log_buffer = NULL;
-	unsigned char packet_size_buff[sizeof(uint64_t)];
-	memset(packet_size_buff, 0, sizeof(uint64_t));
+	unsigned char packet_size_buff[sizeof(uint64_t)] = {0};
 	
 	if (safe_read(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;

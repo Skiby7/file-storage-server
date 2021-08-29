@@ -216,13 +216,9 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 	}
 
 	else if(file){
-		// start_write(file, "open");
-		SAFELOCK(file->order_mutex);
-		SAFELOCK(file->access_mutex);
+		start_write(file, false);
 		if(file->whos_locking != client_id && file->whos_locking > 0){
-			// stop_write(file);
-			SAFEUNLOCK(file->order_mutex);
-			SAFEUNLOCK(file->access_mutex);
+			stop_write(file);
 			SAFEUNLOCK(server_storage.storage_access_mtx);
 			response->code[0] = FILE_OPERATION_FAILED | FILE_LOCKED_BY_OTHERS;
 			response->code[1] = EBUSY;
@@ -230,9 +226,7 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 		}
 		else {
 			if(insert_client_file_list(&file->clients_open, client_id) < 0){
-				// stop_write(file);
-				SAFEUNLOCK(file->order_mutex);
-				SAFEUNLOCK(file->access_mutex);
+				stop_write(file);
 				SAFEUNLOCK(server_storage.storage_access_mtx);
 				response->code[0] = FILE_OPERATION_FAILED | FILE_ALREADY_OPEN;
 				response->code[1] = EPERM;
@@ -240,10 +234,7 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 			}
 			if(lock_file) file->whos_locking = client_id;
 		}
-		// file->use_stat += 1;
-		SAFEUNLOCK(file->order_mutex);
-		SAFEUNLOCK(file->access_mutex);
-		// stop_write(file);
+		stop_write(file);
 	}
 
 	else if(!file){
@@ -336,38 +327,33 @@ int delete_entry(int id, char *pathname, victim_queue** queue){
 	fss_file_t* prev = NULL;
 	for (entry = server_storage.storage_table[index]; entry; prev = entry, entry = entry->next){
 		if(strncmp(pathname, entry->name, strlen(pathname)) == 0){
-			start_write(entry, false);
+			start_write(entry, false); // I have to wait that readers have finished to read the file 
 			if(entry->whos_locking == id || id == -2){
-				if(queue && entry->uncompressed_size) enqueue_victim(entry, queue);
-				entry->name = (char *) realloc(entry->name, 11);
-				strcpy(entry->name, "deleted");
+				if(queue && entry->uncompressed_size) enqueue_victim(entry, queue); // If the file is empty I skip equeuing it
+				// entry->name = (char *) realloc(entry->name, 11);
+				// strcpy(entry->name, "deleted");
 				stop_write(entry);
 				server_storage.file_count -= 1;
 				server_storage.size -= entry->size;
 				
 				if(!prev) server_storage.storage_table[index] = entry->next;
-				else{
-					// start_write(prev, false);
-					prev->next = entry->next;
-					// stop_write(prev);
-				}
+				else prev->next = entry->next; // Operations that access this field are blocked on server_storage.storage_access_mtx, so it's safe to do this without write
 				break;
 			}
 			stop_write(entry);
 			return -1; // EACCESS
 		}
-		// stop_write(entry);
 	}
 	if(!entry){
 		return -2; // ENOENT
 	}
+	clean_attributes(entry, false);
 	free(entry->name);
 	if(entry->data) free(entry->data);
 	CHECKSCEXIT(pthread_mutex_destroy(&entry->last_access_mtx), false, "Errore pthread_mutex_destroy");
 	CHECKSCEXIT(pthread_mutex_destroy(&entry->access_mutex), false, "Errore pthread_mutex_destroy");
 	CHECKSCEXIT(pthread_mutex_destroy(&entry->order_mutex), false, "Errore pthread_mutex_destroy");
 	CHECKSCEXIT(pthread_cond_destroy(&entry->go_cond), false, "Errore pthread_cond_destroy");
-	clean_attributes(entry, false);
 	free(entry);
 	return 0;
 }

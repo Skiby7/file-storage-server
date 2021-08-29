@@ -253,12 +253,6 @@ echo ""
 echo ""
 sleep 2
 
-echo -e "\n${MAGENTA}Provoco un'altra espulsione scrivendo ancora in eviction_file_2.txt${RESET}"
-bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_file_2.txt -D ${CWD}/test_output -p  
-bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_file_2.txt -D ${CWD}/test_output -p  
-sleep 1
-
-
 kill -1 $SERVER
 wait $SERVER
 
