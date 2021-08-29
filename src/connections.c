@@ -461,8 +461,8 @@ bool send_ack(int com){
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
 	char* log_buffer = NULL;
-	unsigned char packet_size_buff[sizeof(unsigned long)];
-	memset(packet_size_buff, 0, sizeof(unsigned long));
+	unsigned char packet_size_buff[sizeof(uint64_t)];
+	memset(packet_size_buff, 0, sizeof(uint64_t));
 	
 	if (safe_read(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
@@ -498,7 +498,6 @@ void logger(char *log){
  * because this way we access the storage to retreive the informations only when a write is finished.
  * 
 */
-
 void* print_tui(void *args){
 	struct pollfd *pipe_poll =  (struct pollfd *) malloc(sizeof(struct pollfd));
 	nfds_t count = 1;

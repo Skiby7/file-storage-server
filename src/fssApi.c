@@ -26,12 +26,10 @@ int set_errno(unsigned char *code){
 
 static int check_path(const char* pathname, char* op){
 	if(!pathname){
-		// printf(ANSI_COLOR_RED"Errore API: pathname non specificato!\n"ANSI_COLOR_RESET);
 		errno = EINVAL;
 		return -1;
 	}
 	if(pathname[0] != '/'){
-		// printf(ANSI_COLOR_RED"Errore API: il pathname %s non è assoluto. %s non completata, fornire pathname assoluto!\n"ANSI_COLOR_RESET, pathname, op);
 		errno = EINVAL;
 		return -1;
 	}

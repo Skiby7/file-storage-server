@@ -1,12 +1,12 @@
 #include "serialization.h"
 
-void ulong_to_char(uint64_t integer, unsigned char *array){
+void ulong_to_char(uint64_t long_integer, unsigned char *array){
 	int n = sizeof(uint64_t);
 	memset(array, 0, n);
 	n *= 8;
 	n -= 8;
 	for(int i = 0; i < sizeof(uint64_t); i++, n -= 8)
-		array[i] = (integer >> n) & 0xff;
+		array[i] = (long_integer >> n) & 0xff;
 }
 
 
@@ -78,8 +78,6 @@ int serialize_request(client_request request, unsigned char** buffer, uint64_t* 
 	increment += sizeof(request.size);
 
 	if(request.size) memcpy(*buffer + increment, request.data, request.size);
-	// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
-	
 	
 	return 0;
 }
@@ -106,7 +104,7 @@ int deserialize_request(client_request *request, unsigned char** buffer, uint64_
 	memset(tmp_int, 0, sizeof tmp_int);
 	memcpy(tmp_int, *buffer + increment,  sizeof(request->files_to_read));
 	if(tmp_int[0] == 0xff && tmp_int[1] == 0xff && tmp_int[2] == 0xff && tmp_int[3] == 0xff) request->files_to_read = 0;
-	else request->files_to_read = (int) char_to_uint(tmp_int);
+	else request->files_to_read = (int32_t) char_to_uint(tmp_int);
 	increment += sizeof(request->files_to_read);
 
 	memset(tmp_int, 0, sizeof tmp_int);
@@ -206,7 +204,7 @@ int deserialize_response(server_response *response, unsigned char** buffer, uint
 ssize_t readn(int fd, void *ptr, size_t n){
 	size_t nleft;
 	ssize_t nread;
-	uint8_t *pointer = ptr;
+	unsigned char *pointer = ptr;
 	nleft = n;
 	while (nleft > 0)
 	{
@@ -232,7 +230,7 @@ ssize_t readn(int fd, void *ptr, size_t n){
 ssize_t writen(int fd, void *ptr, size_t n){
 	size_t nleft;
 	ssize_t nwritten;
-	uint8_t *pointer = ptr;
+	unsigned char *pointer = ptr;
 	nleft = n;
 	while (nleft > 0)
 	{

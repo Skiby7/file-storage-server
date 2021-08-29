@@ -67,27 +67,7 @@
 	#define PIPE_BUF 20
 #else
 	#define PIPE_BUF 20
-#endif
-
-
-
-					
-/*// #define WELCOME_MESSAGE "            __ _ _             _                             \n"\
-// "           / _(_) |           | |                            \n"\
-// "          | |_ _| | ___    ___| |_ ___  _ __ __ _  __ _  ___ \n"\
-// "          |  _| | |/ _ \\  / __| __/ _ \\| '__/ _` |/ _` |/ _ \\\n"\
-// "          | | | | |  __/  \\__ \\ || (_) | | | (_| | (_| |  __/\n"\
-// "          |_| |_|_|\\___|  |___/\\__\\___/|_|  \\__,_|\\__, |\\___|\n"\
-// "                                                  __/ |     \n"\
-// "                                                 |___/      \n"\
-// "                                                  \n"\
-// "                                                  \n"\
-// "                    ___  ___ _ ____   _____ _ __ \n"\
-// "                   / __|/ _ \\ '__\\ \\ / / _ \\ '__|\n"\
-// "                   \\__ \\  __/ |   \\ V /  __/ |   \n"\
-// "                   |___/\\___|_|    \\_/ \\___|_|   \n"\
-// "                                                  \n"\
-// "                                                  \n"\ */
+#endif                                                  \n"\ */
 
 #define WELCOME_MESSAGE  "\n _              __                        \n"\
 						 "|_ o |  _      (_ _|_  _  ._ _.  _   _    \n"\
@@ -100,19 +80,6 @@
 						
 #define PRINT_WELCOME printf(ANSI_CLEAR_SCREEN ANSI_COLOR_CYAN"%s"ANSI_COLOR_RESET, WELCOME_MESSAGE); 
 
-#define PRINT_POLLING(increment) \
-	switch(increment){ \
-		case 0: \
-		increment += 1; \
-		printf(ANSI_COLOR_YELLOW"* "ANSI_COLOR_RESET);  \
-		break; \
-		case 1: \
-		increment = 0; \
-		printf(ANSI_COLOR_YELLOW" *"ANSI_COLOR_RESET);  \
-		break; \
-	}\
-	printf("\033[2D");
-	
 
 
 #define CHECKEXIT(condizione, printErrno, msg)			\
@@ -156,14 +123,3 @@
 		exit(EXIT_FAILURE);			\
 	}
 	
-#define CHECKRW(call, size, msg)			\
-	if(call < 0){							\
-		perror("Errore -> "msg);		\
-		fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__);			\
-		exit(EXIT_FAILURE);				\
-	} \
-	else if(call != size){ \
-		fprintf(stderr, "Errore, non tutti i bytes sono stati scritti -> "msg);		\
-		fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__);			\
-		exit(EXIT_FAILURE);				\
-	}
