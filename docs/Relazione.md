@@ -21,7 +21,7 @@ title: Relazione file storage server
 # Introduzione
 
 Il progetto è stato testato sulla macchina virtuale fornita dai docenti con 2 cores e **almeno** 2GB di ram.
-Il repository di git è consultabile [qui](https://github.com/Skiby7/file-storage-server), tuttavia i file usati per i test non sono presenti in quanto Github limita la dimensione dei file a 50 MB.\
+È possibile consultare il repository di git al [seguente link](https://github.com/Skiby7/file-storage-server), tuttavia i file usati per i test non sono presenti in quanto Github limita la dimensione dei file a 50 MB.\
 Sono state sviluppate delle parti opzionali quali:
 
 * È stato realizzato un algoritmo di rimpiazzamento più avanzato rispetto a quello FIFO
@@ -33,8 +33,8 @@ Sono state sviluppate delle parti opzionali quali:
 
 # Compilazione ed esecuzione
 
-Una volta scompattato l'archivio, sarà necessario spostarsi dentro la root del progetto e dare il comando `make gen_files` in modo da creare i file che verranno usati dai test. L'operazione richiederà qualche secondo, a seconda delle prestazioni della processore su cui si esegue lo script.
-Completata l'operazione, sarà possibile testare il progetto con in comandi `make testX` dove `X` è il numero del test che si vuole eseguire. 
+Una volta scompattato l'archivio, sarà necessario spostarsi dentro la root del progetto e dare il comando `make gen_files` in modo da creare i file che verranno usati dai test. L'operazione richiederà qualche secondo, a seconda delle prestazioni del processore su cui si esegue lo script.
+Completata l'operazione, sarà possibile testare il progetto con i comandi `make testX` dove `X` è il numero del test che si vuole eseguire. 
 Nel caso si volesse clonare il progetto direttamente da Github, è necessario usare l'opzione `--recursive` per scaricare anche il sorgente di zlib, necessario per la compilazione del progetto:
 ```bash
 git clone https://github.com/Skiby7/file-storage-server --recursive
@@ -70,12 +70,18 @@ Le voci `LOGFILE`, `COMPRESSION` e `TUI` sono opzionali:
 
 * Per attivare la compressione basta settare la voce `COMPRESSION` su `y`, specificando il livello di compressione settando `COMPRESSION_LEVEL` su un valore compreso fra 0-9 (dove 9 è il massimo della compressione) o, se non si specifica, verrà automaticamente impostato su 6.
 
-Se manca una voce non opzionale, o l'input di una voce non opzionale non è valido, il server non parte. Inoltre è possibile inserire linee vuote ed è possibile definire commenti con il carattere `#` (tutto quello che segue `#` verrà ignorato). L'implementazione del parser è contenuta in `parser.c` e `parser.h`.
+Se manca una voce non opzionale o l'input di una voce non opzionale non è valido, il server non parte. Inoltre è possibile inserire linee vuote e definire commenti con il carattere `#` (tutto quello che segue `#` verrà ignorato). L'implementazione del parser è contenuta in `parser.c` e `parser.h`.
 
 
 ## Polling
 
-In `server.c` è possibile consultare l'implementazione del thread Master e del signal handler. Una volta fatto partire il server, il thread main si mette in ascolto della `struct pollfd com_fd`(la quale viene creata con dimensione `DEFAULTFDS` (definito sempre in `server.c`) e riallocata dinamicamente una volta che i client connessi aumentano) con una `poll()`: nelle prime tre posizioni di `com_fd` si ha, in ordine, il socket su cui eseguire l'`accept()`, una pipe sulla quale i thread Worker restituiscono i file descriptor dei client ancora connessi (`good_fd_pipe`) e un'altra pipe su cui, sempre i thread Worker, restituiscono i file descriptor dei client che hanno effettuato la disconnessione o che sono crashati o con un fd corrotto (`done_fd_pipe`), così da chiuderli e aggiornare il numero di client connessi (`clients_active`).
+In `server.c` è possibile consultare l'implementazione del thread Master e del signal handler. Una volta fatto partire il server, il thread main si mette in ascolto della `struct pollfd com_fd` (la quale viene creata con dimensione `DEFAULTFDS` e riallocata dinamicamente una volta che i client connessi aumentano) con una `poll()`. Le prime 3 posizioni di `com_fd` sono riservate come segue:
+
+0. il socket su cui eseguire l'`accept()`
+
+1. la pipe sulla quale i thread Worker restituiscono i file descriptor dei client ancora connessi (`good_fd_pipe`) 
+
+2. la pipe su cui, sempre i thread Worker, restituiscono i file descriptor dei client che hanno effettuato la disconnessione, che sono crashati o che hanno con un fd corrotto (`done_fd_pipe`), così da chiuderli e aggiornare il numero di client connessi (`clients_active`).
 
 ## Signal handling e terminazione
 
@@ -106,12 +112,13 @@ Il contatore `use_stat` viene incrementato di 2 unità ogni volta che il file vi
 
 # Client
 
-Dal momento che gli fd lato server usati per la comunicazione con il client non sono univoci, ma vengono riciclati, ogni client viene identificato dal server tramite il suo PID, che invece, con avendo come limite superiore 2^22^, si può considerare univoco. Un possibile sviluppo del progetto potrebbe essere introdurre un flag (ad esempio `-n`) col quale specificare un token o un nome cpn cui autenticarsi in modo da poter lavorare sui file in sessioni diverse.
+Dal momento che gli fd lato server usati per la comunicazione con il client non sono univoci, ma vengono riciclati, ogni client viene identificato dal server tramite il suo PID, che invece, con avendo come limite superiore 2^22^, si può considerare univoco. Un possibile sviluppo del progetto potrebbe essere introdurre un flag (ad esempio `-n`) col quale specificare un token o un nome con cui autenticarsi in modo da poter lavorare sui file in sessioni diverse.
 
 ## Utilizzo dei path
 
+DA RISCRIVERE
 Il compito di fornire il path assoluto per eseguire le operazioni sui file spetta all'utente, che riceverà un errore dalle API del client in caso il pathname non sia valido o sia relativo. Ho deciso di non permettere di usare un path relativo per l'operazione `-W` per mantenere una consistenza nell'uso del client e nella denominazione dei file lato client e lato server, sebbene, operando su file in locale, questo non sarebbe stato un problema, in quanto i file vengono identificati da un path relativo univoco rispetto alla directory da cui eseguo il client. È comunque possibile usare il comando `$(pwd)/path/to/file` per specificare solo il path relativo. \
-Le opzioni, invece, che non richiedono un path assoluto sono `-d`, `-D` e `-w` in quanto prendono in input il path, non di un file, ma di una directory che non ha una corrispondenza lato server.
+Le opzioni, invece, che non richiedono un path assoluto sono `-d`, `-D` e `-w` in quanto prendono in input il path non di un file, ma di una directory che non ha una corrispondenza lato server.
 
 ## Salvataggio dei file sul disco
 
@@ -129,13 +136,13 @@ La comunicazione fra il client (C) e il server (S) avviene tramite il protocollo
 
 4. S: Riceve la richiesta, la processa, serializza la risposta e invia la dimensione della risposta
 
-5. C: Legge la lunghezza della risposta invia un byte di acknowledge e alloca la memoria per leggere la risposta e processa la risposta
+5. C: Legge la lunghezza della risposta invia un byte di acknowledge e alloca la memoria per leggere e processare la risposta
 
 6. S: Il thread worker invia il descrittore del socket del client al thread dispatcher e si rimette in attesa
 
-Tutti i dati, sia la lunghezza del pacchetto che il pacchetto, vengono inviati come stringa di byte (`unsigned char *`). L'implementazione della conversione da `unsigned int` e `unsigned long` ad array di byte e la serializzazione/deserializzazione delle richieste può essere consultata in `serialization.c` e `serialization.h`
+Tutti i dati, sia la lunghezza del pacchetto che il pacchetto, vengono inviati come stringa di byte (`unsigned char *`). L'implementazione della conversione da `unsigned int` e `unsigned long` ad array di byte e la serializzazione/deserializzazione delle richieste possono essere consultate in `serialization.c` e `serialization.h`
 
-Ho deciso poi di condensare sia i comandi che i codici di errore in un byte per semplicità e per usare il minor spazio possibiles.
+Ho deciso poi di condensare sia i comandi che i codici di errore in un byte per semplicità e per usare il minor spazio possibile.
 
 ## Comandi
 
@@ -170,8 +177,8 @@ Ho deciso di definire dei codici di errore per estendere gli errori riportati in
 |                        	|        	| o modificare è bloccato da un altro client         	|
 | FILE_NOT_LOCKED        	|  `0x20`  	| Il file non è stato bloccato prima di              	|
 |                        	|        	| un'operazione che richiede la lock                 	|
-| FILE_NOT_OPEN        	|  `0x40`  	| Il file non è stato aperto 	|
-| STOP        	|  `0x80`  	| Segnale di stop per la `READ_N`							|
+| FILE_NOT_OPEN        		|  `0x40`  	| Il file non è stato aperto 							|
+| STOP        				|  `0x80`  	| Segnale di stop per la `READ_N`						|
 
 
 ## `client_request` e `server_response`
@@ -200,7 +207,7 @@ typedef struct server_response_{
 } server_response;
 ```
 
-I campi in comune per la richiesta e la risposta sono: `pathlen` che indica la lunghezza della stringa `pathname` (compreso `\0`) e `size` che indica la lunghezza del campo `data`, che contiene i dati del file (non compressi) inviato/ricevuto. Per quanto riguarda `client_request`, partendo dall'alto si trova:
+I campi in comune per la richiesta e la risposta sono: `pathlen` che indica la lunghezza della stringa `pathname` (compreso `\0`) e `size` il quale indica la lunghezza del campo `data`, che a sua volta contiene i dati del file (non compressi) inviato/ricevuto. Per quanto riguarda `client_request`, partendo dall'alto si trova:
 
 * `client_id`: PID del processo che invia la richiesta
 
@@ -218,14 +225,14 @@ Mentre, per `server_response` abbiamo:
 
 ## Serializzazione e deserializzazione
 
-Ho deciso di serializzare le richieste, le risposte e gli interi, piuttosto che inviare campo per campo in modo da utilizzare un numero minore di read (una per la dimensione del pacchetto e una per il pacchetto stesso) e per rendere l'applicazione compatibile con la comunicazione via rete senza apportare troppe modifiche.
+Ho deciso di serializzare le richieste, le risposte e gli interi, piuttosto che inviare campo per campo in modo da utilizzare un numero minore di read (una per la dimensione del pacchetto e una per il pacchetto stesso) e in modo tale da rendere l'applicazione compatibile con la comunicazione via rete senza apportare troppe modifiche.
 In `serialization.c` e `serialization.h` si trova l'implementazione delle funzioni usate per la serializzazione.
 
 # Parti aggiuntive
 
 ## Compressione
 
-Ho implementato la compressione dei file usando la libreria open-source `zlib`. Nel file di configurazione questa opzione può essere abilitata con impostando il parametro `COMPRESSION` su `y` e si può impostare il livello di compressione su un valore compreso fra 1, che è il minimo e 9, che è il massimo (il livello 0 è usato da `zlib` per creare un archivio di più file senza però comprimerli).
+Ho implementato la compressione dei file usando la libreria open-source `zlib`. Nel file di configurazione questa opzione può essere abilitata impostando il parametro `COMPRESSION` su `y` e si può impostare il livello di compressione su un valore compreso fra 1, che è il minimo e 9, che è il massimo (il livello 0 è usato da `zlib` per creare un archivio di più file senza però comprimerli).
 La libreria è stata compilata con il flag `--const` e come libreria statica.
 
 ### Copyright notice
