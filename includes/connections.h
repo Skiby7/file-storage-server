@@ -5,22 +5,22 @@
 
 
 typedef struct client_request_{
-	unsigned int client_id;
+	uint32_t client_id;
 	unsigned char command;
 	unsigned char flags;
 	int files_to_read; // Serialized to 0xff 0xff 0xff 0xff
-	unsigned int pathlen; // PATHLEN INCLUDES THE END CHARACTER
+	uint32_t pathlen; // PATHLEN INCLUDES THE END CHARACTER
 	char *pathname;
-	unsigned long size;
+	uint64_t size;
 	unsigned char* data;
 } client_request;
 
 typedef struct server_response_{
-	unsigned int pathlen; // PATHLEN INCLUDES THE END CHARACTER
+	uint32_t pathlen; // PATHLEN INCLUDES THE END CHARACTER
 	char *pathname;
 	unsigned char has_victim;
 	unsigned char code[2]; // 1 -> RESULT 2 -> ERRNO
-	unsigned long size;
+	uint64_t size;
 	unsigned char* data;
 } server_response;
 

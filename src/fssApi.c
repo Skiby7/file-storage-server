@@ -84,7 +84,7 @@ int closeConnection(const char *sockname){
 		errno = EINVAL;
 		return -1;
 	}
-	unsigned char packet_size_buff[sizeof(unsigned long)];
+	unsigned char packet_size_buff[sizeof(uint64_t)];
 	ulong_to_char(0, packet_size_buff);	
 	writen(socket_fd, packet_size_buff, sizeof packet_size_buff);
 	return close(socket_fd);
@@ -361,8 +361,8 @@ int unlockFile(const char* pathname){
 
 ssize_t read_all_buffer(int com, unsigned char **buffer, size_t *buff_size){
 	ssize_t read_bytes = 0;
-	unsigned char packet_size_buff[sizeof(unsigned long)];
-	memset(packet_size_buff, 0, sizeof(unsigned long));
+	unsigned char packet_size_buff[sizeof(uint64_t)];
+	memset(packet_size_buff, 0, sizeof(uint64_t));
 	if (readn(com, packet_size_buff, sizeof packet_size_buff) < 0)
 		return -1;
 	*buff_size = char_to_ulong(packet_size_buff);
@@ -380,8 +380,8 @@ bool get_ack(int com){
 
 int handle_connection(client_request request, server_response *response){
 	unsigned char *buffer = NULL;
-	unsigned long buff_size = 0;
-	unsigned char packet_size_buff[sizeof(unsigned long)];
+	uint64_t buff_size = 0;
+	unsigned char packet_size_buff[sizeof(uint64_t)];
 	serialize_request(request, &buffer, &buff_size);
 	ulong_to_char(buff_size, packet_size_buff);
 	writen(socket_fd, packet_size_buff, sizeof packet_size_buff);

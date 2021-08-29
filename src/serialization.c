@@ -1,48 +1,48 @@
 #include "serialization.h"
 
-void ulong_to_char(unsigned long integer, unsigned char *array){
-	int n = sizeof(unsigned long);
+void ulong_to_char(uint64_t integer, unsigned char *array){
+	int n = sizeof(uint64_t);
 	memset(array, 0, n);
 	n *= 8;
 	n -= 8;
-	for(int i = 0; i < sizeof(unsigned long); i++, n -= 8)
+	for(int i = 0; i < sizeof(uint64_t); i++, n -= 8)
 		array[i] = (integer >> n) & 0xff;
 }
 
 
-void uint_to_char(unsigned int integer, unsigned char *array){
-	int n = sizeof(unsigned int);
+void uint_to_char(uint32_t integer, unsigned char *array){
+	int n = sizeof(uint32_t);
 	memset(array, 0, n);
 	n *= 8;
 	n -= 8;
-	for(int i = 0; i < sizeof(unsigned int); i++, n -= 8)
+	for(int i = 0; i < sizeof(uint32_t); i++, n -= 8)
 		array[i] = (integer >> n) & 0xff;
 }
 
-unsigned int char_to_uint(unsigned char *array){
-	int n = sizeof(unsigned int) * 8;
+uint32_t char_to_uint(unsigned char *array){
+	int n = sizeof(uint32_t) * 8;
 	n -= 8;
-	unsigned int integer = 0;
-	for(int i = 0; i < sizeof(unsigned int); i++, n -= 8)
+	uint32_t integer = 0;
+	for(int i = 0; i < sizeof(uint32_t); i++, n -= 8)
 		integer |= (array[i] << n);
 	
 	return integer;	 
 }
 
-unsigned long char_to_ulong(unsigned char *array){
-	int n = sizeof(unsigned long) * 8;
+uint64_t char_to_ulong(unsigned char *array){
+	int n = sizeof(uint64_t) * 8;
 	n -= 8;
-	unsigned long long_ = 0;
-	for(int i = 0; i < sizeof(unsigned long); i++, n -= 8)
+	uint64_t long_ = 0;
+	for(int i = 0; i < sizeof(uint64_t); i++, n -= 8)
 		long_ |= (array[i] << n);
 
 	return long_;
 }
 
-int serialize_request(client_request request, unsigned char** buffer, unsigned long* buffer_len){
+int serialize_request(client_request request, unsigned char** buffer, uint64_t* buffer_len){
 	int increment = 0;
-	unsigned char tmp_int[sizeof(unsigned int)];
-	unsigned char tmp_long[sizeof(unsigned long)];
+	unsigned char tmp_int[sizeof(uint32_t)];
+	unsigned char tmp_long[sizeof(uint64_t)];
 	// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
 	*buffer_len = sizeof(request.client_id) + sizeof(request.command) + sizeof(request.flags) + sizeof(request.files_to_read) + sizeof(request.pathlen) + request.pathlen + sizeof(request.size) + request.size;
 	(*buffer) = (unsigned char *) calloc(*buffer_len, sizeof(unsigned char));
@@ -58,7 +58,7 @@ int serialize_request(client_request request, unsigned char** buffer, unsigned l
 	increment += sizeof(request.flags);
 
 	if(request.files_to_read <= 0) memset(tmp_int, 0xff, sizeof tmp_int);
-	else uint_to_char((unsigned int)request.files_to_read, tmp_int);
+	else uint_to_char((uint32_t)request.files_to_read, tmp_int);
 	memcpy(*buffer + increment, tmp_int, sizeof(request.files_to_read));
 	increment += sizeof(request.files_to_read);
 
@@ -84,14 +84,14 @@ int serialize_request(client_request request, unsigned char** buffer, unsigned l
 	return 0;
 }
 
-int deserialize_request(client_request *request, unsigned char** buffer, unsigned long buffer_len){
+int deserialize_request(client_request *request, unsigned char** buffer, uint64_t buffer_len){
 
-	// int increment = sizeof(unsigned long);
+	// int increment = sizeof(uint64_t);
 	int increment = 0;
-	unsigned char tmp_int[sizeof(unsigned int)];
-	unsigned char tmp_long[sizeof(unsigned long)];
+	unsigned char tmp_int[sizeof(uint32_t)];
+	unsigned char tmp_long[sizeof(uint64_t)];
 	
-	memset(tmp_int, 0, sizeof(unsigned int));
+	memset(tmp_int, 0, sizeof(uint32_t));
 	
 	memcpy(tmp_int, *buffer,  sizeof(request->client_id));
 	request->client_id = char_to_uint(tmp_int);
@@ -134,10 +134,10 @@ int deserialize_request(client_request *request, unsigned char** buffer, unsigne
 	return 0;
 }
 
-int serialize_response(server_response response, unsigned char** buffer, unsigned long* buffer_len){
+int serialize_response(server_response response, unsigned char** buffer, uint64_t* buffer_len){
 	int increment = 0;
-	unsigned char tmp_int[sizeof(unsigned int)];
-	unsigned char tmp_long[sizeof(unsigned long)];
+	unsigned char tmp_int[sizeof(uint32_t)];
+	unsigned char tmp_long[sizeof(uint64_t)];
 	*buffer_len = sizeof(response.pathlen) + response.pathlen + sizeof(response.code) + sizeof(response.size) + response.size;
 	*buffer = (unsigned char *) calloc(*buffer_len, sizeof(unsigned char));
 
@@ -165,14 +165,14 @@ int serialize_response(server_response response, unsigned char** buffer, unsigne
 	return 0;
 }
 
-int deserialize_response(server_response *response, unsigned char** buffer, unsigned long buffer_len){
+int deserialize_response(server_response *response, unsigned char** buffer, uint64_t buffer_len){
 
-	// int increment = sizeof(unsigned long);
+	// int increment = sizeof(uint64_t);
 	int increment = 0;
-	unsigned char tmp_int[sizeof(unsigned int)];
-	unsigned char tmp_long[sizeof(unsigned long)];
-	memset(tmp_int, 0, sizeof(unsigned int));
-	memset(tmp_long, 0, sizeof(unsigned long));
+	unsigned char tmp_int[sizeof(uint32_t)];
+	unsigned char tmp_long[sizeof(uint64_t)];
+	memset(tmp_int, 0, sizeof(uint32_t));
+	memset(tmp_long, 0, sizeof(uint64_t));
 
 	memcpy(tmp_int, *buffer,  sizeof(response->pathlen));
 	response->pathlen = char_to_uint(tmp_int);

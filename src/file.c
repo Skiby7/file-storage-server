@@ -3,7 +3,7 @@
 
 static fss_file_t* search_file(const char* pathname);
 static unsigned int hash_pjw(const void* key);
-static int check_memory(unsigned long bytes_to_write, unsigned long old_size, char* caller, victim_queue **queue);
+static int check_memory(uint64_t bytes_to_write, uint64_t old_size, char* caller, victim_queue **queue);
 static int check_count();
 static void clean_attributes(fss_file_t *entry, bool close_com);
 static void enqueue_victim(fss_file_t *entry, victim_queue **head);
@@ -528,7 +528,7 @@ no_more_files:
  */
 int write_to_file(unsigned char *data, int length, char *pathname, int client_id, server_response *response, victim_queue** victims){
 	unsigned char* tmp = NULL;
-	unsigned long size = 0;
+	uint64_t size = 0;
 	SAFELOCK(server_storage.storage_access_mtx);
 	fss_file_t* file = search_file(pathname);
 	if(!file){
@@ -1017,11 +1017,11 @@ static void enqueue_victim(fss_file_t *entry, victim_queue **head){
 	(*head) = new;
 }
 
-static int select_victim(char* caller, int files_to_delete, unsigned long memory_to_free, victim_queue **queue) {
+static int select_victim(char* caller, int files_to_delete, uint64_t memory_to_free, victim_queue **queue) {
 	victim_t* victims = NULL;
 	fss_file_t* entry = NULL;
 	int counter = 0, j = 0;
-	unsigned long memory_freed = 0;
+	uint64_t memory_freed = 0;
 	victims = (victim_t *) calloc(server_storage.file_count, sizeof(victim_t));
 	server_storage.total_evictions += 1;
 	for (size_t i = 0; i < server_storage.table_size; i++){
@@ -1081,8 +1081,8 @@ static int select_victim(char* caller, int files_to_delete, unsigned long memory
  * @returns 0 if the operation is successful, -1 if the file is too big or there are no locked files to remove
  *
  */
-static int check_memory(unsigned long bytes_to_write, unsigned long old_size, char* caller, victim_queue **queue){
-	unsigned long size_used = 0; // never unlock fss_storage_t mtx before finishing select victim, this must be performed atomically
+static int check_memory(uint64_t bytes_to_write, uint64_t old_size, char* caller, victim_queue **queue){
+	uint64_t size_used = 0; // never unlock fss_storage_t mtx before finishing select victim, this must be performed atomically
 	int retval = 0;
 	size_used = server_storage.size;
 	if(bytes_to_write + old_size > server_storage.size_limit)
