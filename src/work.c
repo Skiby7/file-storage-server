@@ -157,6 +157,7 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 				}
 				size = st.st_size;
 				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
+				CHECKALLOC(buffer);
 				if(read(file, buffer, size) < 0){
 					if (config.verbose) fprintf(stderr, "Errore durante la lettura del file in locale %s -> %s\n", token, strerror(errno));
 					token = strtok_r(NULL, DELIM, &tmpstr);
@@ -269,6 +270,7 @@ int recursive_visit(char *start_dir, int files_to_write, bool locked, const char
 				}
 				size = st.st_size;
 				buffer =  (unsigned char *) calloc(size, sizeof(unsigned char));
+				CHECKALLOC(buffer);
 				if(read(file, buffer, size) < 0){
 					if(config.verbose) CHECKERRNO(true, "Errore read dal file locale");
 					free(buffer);
@@ -358,9 +360,10 @@ void do_work(work_queue **head, work_queue **tail){
 
 void enqueue_work(unsigned char command, char *args, work_queue **head, work_queue **tail){
 	work_queue* new = (work_queue*) malloc(sizeof(work_queue));
-	CHECKALLOC(new, "Errore inserimento nella lista pronti");
+	CHECKALLOC(new);
 	new->command = command;
 	new->args = (char *) calloc((strlen(args)+1), sizeof(char));
+	CHECKALLOC(new->args);
 	strcpy(new->args, args);
 	new->is_locked = true;
 	new->next = (*head);
@@ -380,10 +383,12 @@ int dequeue_work(unsigned char* command, char **args, char **dirname, bool *is_l
 
 	*command = (*tail)->command;
 	*args = (char *) calloc((strlen((*tail)->args))+1, sizeof(char));
+	CHECKALLOC(*args);
 	*is_locked = (*tail)->is_locked;
 	strcpy(*args, (*tail)->args);
 	if((*tail)->working_dir){
 		*dirname = (char *)calloc((strlen((*tail)->working_dir)) + 1, sizeof(char));
+		CHECKALLOC(*dirname);
 		strcpy(*dirname, (*tail)->working_dir);
 		free((*tail)->working_dir);
 		(*tail)->working_dir = NULL;

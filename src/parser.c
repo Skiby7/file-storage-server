@@ -21,6 +21,7 @@ int parse_config(FILE *conf, config *configuration) {
 
 	char *tmpstr = NULL, *token = NULL, *tmp = NULL;
 	char *buff = (char *) calloc(MAX_BUFFER_LEN, 1);
+	CHECKALLOC(buff);
 	int tokenlen = 0;
 	bool c_level_set = false;
 	while(fgets(buff, MAX_BUFFER_LEN-1, conf) != NULL){
@@ -66,6 +67,7 @@ int parse_config(FILE *conf, config *configuration) {
 			remove_char(token);
 			tokenlen = strlen(token);
 			configuration->sockname = (char *) calloc(tokenlen + 1, sizeof(char));
+			CHECKALLOC(configuration->sockname);
 			strncpy(configuration->sockname, token, tokenlen);
 			tmp = (token[0] == '/') ? realpath(dirname(token), NULL) : NULL; // Dirname does not guarantees that the input string is preserved, so I pass token instead of configuration->sockname
 			if (configuration->sockname[0] == '/' && !tmp){
@@ -81,6 +83,7 @@ int parse_config(FILE *conf, config *configuration) {
 			remove_char(token);
 			tokenlen = strlen(token);
 			configuration->log = (char *) malloc(tokenlen + 1);
+			CHECKALLOC(configuration->log);
 			memset(configuration->log, 0, tokenlen + 1);
 			strncpy(configuration->log, token, tokenlen);
 		}

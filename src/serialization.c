@@ -46,7 +46,7 @@ int serialize_request(client_request request, unsigned char** buffer, uint64_t* 
 	// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
 	*buffer_len = sizeof(request.client_id) + sizeof(request.command) + sizeof(request.flags) + sizeof(request.files_to_read) + sizeof(request.pathlen) + request.pathlen + sizeof(request.size) + request.size;
 	(*buffer) = (unsigned char *) calloc(*buffer_len, sizeof(unsigned char));
-
+	CHECKALLOC(*buffer);
 	uint_to_char(request.client_id, tmp_int);
 	memcpy(*buffer, tmp_int, sizeof(request.client_id));
 	increment += sizeof(request.client_id);
@@ -114,6 +114,7 @@ int deserialize_request(client_request *request, unsigned char** buffer, uint64_
 
 	if(request->pathlen){
 		request->pathname = calloc(request->pathlen, sizeof(char));
+		CHECKALLOC(request->pathname);
 		memcpy(request->pathname, *buffer + increment, request->pathlen);
 		increment += request->pathlen;
 	}
@@ -125,6 +126,7 @@ int deserialize_request(client_request *request, unsigned char** buffer, uint64_
 	increment += sizeof(request->size);
 	if(request->size){
 		request->data = (unsigned char *)calloc(request->size, sizeof(unsigned char));
+		CHECKALLOC(request->data);
 		memcpy(request->data, *buffer + increment, request->size);
 	}
 	free(*buffer);
@@ -138,6 +140,7 @@ int serialize_response(server_response response, unsigned char** buffer, uint64_
 	unsigned char tmp_long[sizeof(uint64_t)];
 	*buffer_len = sizeof(response.pathlen) + response.pathlen + sizeof(response.code) + sizeof(response.size) + response.size;
 	*buffer = (unsigned char *) calloc(*buffer_len, sizeof(unsigned char));
+	CHECKALLOC(*buffer);
 
 	uint_to_char(response.pathlen, tmp_int);
 	memcpy(*buffer, tmp_int, sizeof(response.pathlen));
@@ -178,6 +181,7 @@ int deserialize_response(server_response *response, unsigned char** buffer, uint
 
 	if(response->pathlen){
 		response->pathname = calloc(response->pathlen, sizeof(char));
+		CHECKALLOC(response->pathname);
 		memcpy(response->pathname, *buffer + increment, response->pathlen);
 		increment += response->pathlen;
 	}
@@ -193,6 +197,7 @@ int deserialize_response(server_response *response, unsigned char** buffer, uint
 	increment += sizeof(response->size);
 	if(response->size){
 		response->data = (unsigned char *)calloc(response->size, sizeof(unsigned char));
+		CHECKALLOC(response->data);
 		memcpy(response->data, *buffer + increment, response->size);
 	}
 	free(*buffer);
@@ -265,6 +270,7 @@ void init_request(client_request* request, pid_t pid, unsigned char command, uns
 	request->pathlen = pathname ? strlen(pathname) + 1 : 0;
 	if(request->pathlen){
 		request->pathname = calloc(request->pathlen, sizeof(char));
+		CHECKALLOC(request->pathname);
 		strcpy(request->pathname, pathname);
 	}
 }

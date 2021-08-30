@@ -4,7 +4,6 @@
 #endif
 #include <sys/stat.h>
 
-
 int openConnection(const char* sockname, int msec, const struct timespec abstime);
 int closeConnection(const char* sockname);
 int openFile(const char* pathname, int flags);

@@ -2,7 +2,7 @@
 
 void insert_client_list(int com, clients_list **head, clients_list **tail){
 	clients_list* new = (clients_list*) malloc(sizeof(clients_list));
-	CHECKALLOC(new, "Errore inserimento nella lista pronti");
+	CHECKALLOC(new);
 	new->com = com;
 	new->next = (*head);
 	new->prev = NULL;

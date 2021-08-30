@@ -8,7 +8,7 @@ typedef struct client_request_{
 	uint32_t client_id;
 	unsigned char command;
 	unsigned char flags;
-	int32_t files_to_read; // Serialized to 0xff 0xff 0xff 0xff
+	int32_t files_to_read; // Serialized to 0xff 0xff 0xff 0xff if files_to_read <= 0
 	uint32_t pathlen; // PATHLEN INCLUDES THE END CHARACTER
 	char *pathname;
 	uint64_t size;

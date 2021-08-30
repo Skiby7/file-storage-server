@@ -144,7 +144,7 @@ int readFile(const char *pathname, void **buf, size_t *size){
 		if(read_response.size){
 			*size = read_response.size;
 			data = calloc(*size, sizeof(unsigned char));
-			CHECKALLOC(data, "Errore di allocazione buffer lettura");
+			CHECKALLOC(data);
 			memcpy(data, read_response.data, *size);
 			*buf = data;
 		}
@@ -219,6 +219,7 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
 	init_request(&append_request, getpid(), APPEND, 0, pathname);
 	append_request.size = size;
 	append_request.data = (unsigned char *)calloc(size, sizeof(unsigned char));
+	CHECKALLOC(append_request.data);
 	memcpy(append_request.data, buf, size);
 	handle_connection(append_request, &append_response);
 	if(append_response.code[0] & FILE_OPERATION_FAILED){
@@ -272,7 +273,7 @@ int writeFile(const char* pathname, const char* dirname){
 	size = file_info.st_size;
 	init_request(&write_request, getpid(), WRITE, 0, pathname);
 	write_request.data = (unsigned char *) calloc(size, sizeof(unsigned char));
-	CHECKALLOC(write_request.data, "Errore di allocazione writeFile");
+	CHECKALLOC(write_request.data);
 	CHECKSCEXIT(read(file, write_request.data, size), true, "Errore lettura file");
 	write_request.size = size;
 	handle_connection(write_request, &write_response);
@@ -365,6 +366,7 @@ ssize_t read_from_server(int com, unsigned char **buffer, size_t *buff_size){
 	*buff_size = char_to_ulong(packet_size_buff);
 	if(!send_ack(com)) return -1;
 	*buffer = realloc(*buffer, *buff_size);
+	CHECKALLOC(*buffer);
 	read_bytes = readn(com, *buffer, *buff_size);
 	return read_bytes;
 }
@@ -397,6 +399,7 @@ int mkpath(const char* pathname){
 	char *tmpstr = NULL;
 	char *token = NULL;
 	char *path = (char *) calloc(strlen(pathname) + 1, sizeof(char));
+	CHECKALLOC(path);
 	char original_dir[PATH_MAX] = {0};
 	CHECKEXIT(getcwd(original_dir, sizeof original_dir) == NULL, true, "Errore getcwd");
 	strcpy(path, pathname);
@@ -428,6 +431,7 @@ int mkpath(const char* pathname){
 int save_to_file(const char* pathname, unsigned char* data, size_t size){
 	int fd = 0;
 	char* path = (char *) calloc(strlen(pathname) + 1, sizeof(char));
+	CHECKALLOC(path);
 	strcpy(path, (pathname[0] == '/') ? pathname + 1 : pathname);
 	errno = 0;
 	if((fd = open(path, O_CREAT | O_RDWR, 0777)) < 0){

@@ -69,17 +69,6 @@
 	#define PIPE_BUF 20
 #endif                                                  
 
-#define WELCOME_MESSAGE  "\n _              __                        \n"\
-						 "|_ o |  _      (_ _|_  _  ._ _.  _   _    \n"\
-						 "|  | | (/_     __) |_ (_) | (_| (_| (/_   \n"\
-						 "                                 _|       \n"\
-						 "      __                                  \n"\
-						 "     (_   _  ._    _  ._                  \n"\
-						 "     __) (/_ | \\/ (/_ |                   \n\n"\
-                            
-						
-#define PRINT_WELCOME printf(ANSI_CLEAR_SCREEN ANSI_COLOR_CYAN"%s"ANSI_COLOR_RESET, WELCOME_MESSAGE); 
-
 
 
 #define CHECKEXIT(condizione, printErrno, msg)			\
@@ -107,9 +96,7 @@
 
 #define CHECKERRNO(condizione, msg)	if(condizione) {perror("Errore -> "msg); fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__); errno = 0;}
 
-#define CHECKALLOC(pointer, msg) if(pointer == NULL) {fprintf(stderr, "Memoria esaurita (file %s, linea %d): "msg"\n", __FILE__, __LINE__);exit(EXIT_FAILURE);}
-// #define CHECKPOLL(poll_val)	if(poll_val == -1) {if(errno == EINTR) continue; else {perror("Errore poll -> "); fprintf(stderr, "(file %s, linea %d)\n", __FILE__, __LINE__); fflush(stderr);}}
-
+#define CHECKALLOC(pointer) if(pointer == NULL) {fprintf(stderr, "Memoria esaurita (file %s, linea %d): "#pointer"\n", __FILE__, __LINE__);exit(EXIT_FAILURE);}
 
 #define SAFELOCK(mutex_var)				\
 	if(pthread_mutex_lock(&mutex_var) != 0){						\

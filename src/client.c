@@ -39,7 +39,7 @@ int main(int argc, char* argv[]){
 	char buffer[100];
 	struct timespec abstime = {
 		.tv_nsec = 0,
-		.tv_sec = 3
+		.tv_sec = SEC_TO_WAIT
 	};
 	memset(&config, 0, sizeof config);
 	memset(buffer, 0, 100);
@@ -168,8 +168,7 @@ int main(int argc, char* argv[]){
 			default:;
 		}
 	}
-
-	if(openConnection(config.sockname, 500, abstime) < 0) return -1;
+	CHECKSCEXIT(openConnection(config.sockname, RETRY_AFTER, abstime), true, "Errore connessione");
 	do_work(&job_queue[0], &job_queue[1]);
 	CHECKERRNO(closeConnection(config.sockname) < 0, "Errore disconnessione");
 	

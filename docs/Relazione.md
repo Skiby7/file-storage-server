@@ -143,11 +143,13 @@ Il contatore `use_stat` viene incrementato di 2 unità ogni volta che il file vi
 
 Dal momento che i *file descriptor* lato server usati per la comunicazione con il client non sono univoci, ma vengono riciclati, ogni client viene identificato dal server tramite il suo PID, che invece, avendo come limite superiore 2^22^, si può considerare univoco. Un possibile sviluppo del progetto potrebbe essere introdurre un flag (ad esempio `-n`) col quale specificare un *token* o un nome univoco con cui autenticarsi in modo da poter lavorare sugli stessi file, magari lasciandoli anche bloccati, in sessioni diverse.
 
+## Comandi
+
+I comandi passati da riga di comando vengono interpretati con `getopt()` e inseriti in una coda `FIFO`, per poi venire eseguiti dal client. L'implementazione si trova in `work.c`, `work.h` e `client.c`.
+
 ## Utilizzo dei path
 
-DA RISCRIVERE
-Il compito di fornire il path assoluto per eseguire le operazioni sui file spetta all'utente, che riceverà un errore dalle API del client in caso il pathname non sia valido o sia relativo. Ho deciso di non permettere di usare un path relativo per l'operazione `-W` per mantenere una consistenza nell'uso del client e nella denominazione dei file lato client e lato server, sebbene, operando su file in locale, questo non sarebbe stato un problema, in quanto i file vengono identificati da un path relativo univoco rispetto alla directory da cui eseguo il client. È comunque possibile usare il comando `$(pwd)/path/to/file` per specificare solo il path relativo. \
-Le opzioni, invece, che non richiedono un path assoluto sono `-d`, `-D` e `-w` in quanto prendono in input il path non di un file, ma di una directory che non ha una corrispondenza lato server.
+Come da specifica, ogni file è identificato dal suo path assoluto (sul quale viene anche calcolato l'hash), pertanto, per evitare ambiguità, tutte le operazioni del client che prendono in input un file richiedono un path assoluto, altrimenti l'operazione fallirà. Fanno eccezione le opzioni `-d`, `-D` e `-w`, poiché prendono in input una cartella e se ne occuperà il client a trasformare il path da relativo ad assoluto. 
 
 ## Salvataggio dei file sul disco
 
@@ -165,18 +167,19 @@ La comunicazione fra il client (C) e il server (S) avviene tramite il protocollo
 
 4. S: Riceve la richiesta, la processa, serializza la risposta e invia la dimensione della risposta
 
-5. C: Legge la lunghezza della risposta invia un byte di acknowledge e alloca la memoria per leggere e processare la risposta
+5. C: Legge la lunghezza della risposta invia un byte di acknowledge e alloca la memoria per leggere la risposta, dopodiché la processa
 
-6. S: Il thread worker invia il descrittore del socket del client al thread dispatcher e si rimette in attesa
+6. S: Il thread Worker invia il descrittore del socket del client al thread Master e si rimette in attesa
 
-Tutti i dati, sia la lunghezza del pacchetto che il pacchetto, vengono inviati come stringa di byte (`unsigned char *`). L'implementazione della conversione da `unsigned int` e `unsigned long` ad array di byte e la serializzazione/deserializzazione delle richieste possono essere consultate in `serialization.c` e `serialization.h`
+Tutti i dati, sia la lunghezza del pacchetto, che il pacchetto, vengono inviati come stringhe di byte (`unsigned char *`). L'implementazione della conversione da `uint32_t` e `uint64_t` ad array di byte e la serializzazione/deserializzazione delle richieste possono essere consultate in `serialization.c` e `serialization.h`
 
-Ho deciso poi di condensare sia i comandi che i codici di errore in un byte per semplicità e per usare il minor spazio possibile.
 
 ## Comandi
 
+Ho deciso di condensare sia i comandi che i codici di errore in un byte per semplicità. Al momento, avendo 8 operazioni possibili ho usato un bit per ogni operazioni, ma, nel caso si volessero implementare delle nuove operazioni, si potrebbe usare una combinazione di bit per identificarla, dal momento che a 1 richiesta corrisponde 1 operazione.
+
 | Operazione 	| Valore 	| Descrizione                                                         	|
-|------------	|--------	|---------------------------------------------------------------------	|
+|------------	|:--------:	|---------------------------------------------------------------------	|
 | OPEN       	| 0x01   	| Operazione di apertura file                                         	|
 | CLOSE      	| 0x02   	| Operazione di chiusura file                                         	|
 | READ       	| 0x04   	| Operazione di lettura file                                          	|
@@ -192,11 +195,11 @@ I flag `O_CREATE` e `O_LOCK` hanno rispettivamente il valore `0x01` e `0x02`
 
 ## Errori
 
-Ho deciso di definire dei codici di errore per estendere gli errori riportati in `errno.h` e dare una spiegazione più specifica del problema, come ad esempio una mancata lock, una open ripetuta o la creazione di un file già esistente. Di seguito la tabella: 
+Ho deciso di definire dei codici di errore per estendere gli errori riportati in `errno.h` e dare una spiegazione più specifica del problema, come ad esempio una mancata lock, una open ripetuta o la creazione di un file già esistente. Gli errori specifici vengono inviati al client nel campo `code[2]` della risposta e si trovano alla posizione 0 (vedere sezione successiva). Di seguito la tabella: 
 
 | Codice                 	| Valore 	| Descrizione                                        	|
-|------------------------	|:------:	|----------------------------------------------------	|
-| FILE_OPERATION_SUCCESS 	|   `0x01` 	| L'operazione è stata completata con successo       	|
+|------------------------	|:--------:	|----------------------------------------------------	|
+| FILE_OPERATION_SUCCESS 	|  `0x01` 	| L'operazione è stata completata con successo       	|
 | FILE_OPERATION_FAILED  	|  `0x02`  	| Si è verificato un errore e                        	|
 |                        	|        	| l'operazione non è stata completata                	|
 | FILE_ALREADY_OPEN      	|  `0x04`  	| Il file che si sta cercando di aprire è già aperto 	|
@@ -236,13 +239,13 @@ typedef struct server_response_{
 } server_response;
 ```
 
-I campi in comune per la richiesta e la risposta sono: `pathlen` che indica la lunghezza della stringa `pathname` (compreso `\0`) e `size` il quale indica la lunghezza del campo `data`, che a sua volta contiene i dati del file (non compressi) inviato/ricevuto. Per quanto riguarda `client_request`, partendo dall'alto si trova:
+I campi in comune per la richiesta e la risposta sono: `pathlen` che indica la lunghezza della stringa `pathname` (compreso `\0`) e `size` il quale indica la lunghezza del campo `data`, che a sua volta contiene i dati (non compressi) del file inviato/ricevuto. Per quanto riguarda `client_request`, partendo dall'alto si trova:
 
-* `client_id`: PID del processo che invia la richiesta
+* `client_id`: `PID` del processo che invia la richiesta
 
-* `command`: comando da eseguire (vedi *sezione x.x*)
+* `command`: comando da eseguire (vedi *5.1 Comandi*)
 
-* `flags`: assume i valori `O_LOCK` e/0 `O_CREATE`
+* `flags`: assume i valori `O_LOCK` e/o `O_CREATE`
 
 * `files_to_read`: numero di file da leggere per l'operazione *readNFile* 
 
@@ -250,11 +253,11 @@ Mentre, per `server_response` abbiamo:
 
 * `has_victim`: indica se dopo la prima risposta il client si deve rimettere in attesa per ricevere i file eliminati in seguito a una scrittura. Vale 0 o 1
 
-* `code[2]`: all'indice 0 si ha l'esito dell'operazione (vedi *sezione x.x*), mentre all'indice 1 si trova un eventuale valore di errore fra quelli definiti in `errno.h` e `errno-base.h`
+* `code[2]`: all'indice 0 si ha l'esito dell'operazione (vedi sezione precedente), mentre all'indice 1 si trova un eventuale valore di errore fra quelli definiti in `errno.h` e `errno-base.h`
 
 ## Serializzazione e deserializzazione
 
-Ho deciso di serializzare le richieste, le risposte e gli interi, piuttosto che inviare campo per campo in modo da utilizzare un numero minore di read (una per la dimensione del pacchetto e una per il pacchetto stesso) e in modo tale da rendere l'applicazione compatibile con la comunicazione via rete senza apportare troppe modifiche.
+Ho deciso di serializzare le richieste, le risposte e gli interi, piuttosto che inviare campo per campo in modo da utilizzare un numero minore di read (una per la dimensione del pacchetto e una per il pacchetto stesso) e in modo tale da rendere l'applicazione compatibile con la comunicazione via rete senza apportare troppe modifiche, infatti a questo scopo per i dati che vengono inviati tramite il socket ho usato i tipi definiti in `stdint.h`.
 In `serialization.c` e `serialization.h` si trova l'implementazione delle funzioni usate per la serializzazione.
 
 # Parti aggiuntive

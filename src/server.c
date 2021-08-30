@@ -57,13 +57,12 @@ int main(int argc, char* argv[]){
 	char SOCKETADDR[AF_UNIX_MAX_PATH] = {0}; // Indirizzo del socket
 	char log_buffer[200] = {0};
 	struct pollfd *com_fd =  (struct pollfd *) malloc(DEFAULTFDS*sizeof(struct pollfd));
+	CHECKALLOC(com_fd);
 	nfds_t com_count = 0;
 	nfds_t com_size = DEFAULTFDS;
 	ready_queue[0] = NULL;
 	ready_queue[1] = NULL;
 
-
-	CHECKALLOC(com_fd, "pollfd");
 	pthread_t *workers;
 	pthread_t signal_handler_thread;
 	pthread_t use_stat_thread;
@@ -86,13 +85,12 @@ int main(int argc, char* argv[]){
 	write_to_log("Inizializzo i workers.");
 
 	workers = (pthread_t *) malloc(configuration.workers*sizeof(pthread_t)); // Pool di workers
-	CHECKALLOC(workers, "workers array");
-	// memset(workers, 0, configuration.workers*sizeof(pthread_t));
+	CHECKALLOC(workers);
 	write_to_log("Workers array inizializzato.");
 
 	free_threads = (bool *) malloc(configuration.workers*sizeof(bool));
+	CHECKALLOC(free_threads);
 	memset(free_threads, true, configuration.workers*sizeof(bool));
-	CHECKALLOC(free_threads, "free_workers array");
 
 	memset(com_fd, -1, sizeof(struct pollfd));
 	CHECKSCEXIT((pipe(good_fd_pipe)), true, "Impossibile inizializzare la pipe");
@@ -120,6 +118,7 @@ int main(int argc, char* argv[]){
 	CHECKEXIT(pthread_create(&use_stat_thread, NULL, &use_stat_update, NULL) != 0, false, "Errore di creazione di use stat thread");
 	if(configuration.tui) {CHECKEXIT(pthread_create(&tui_thread, NULL, &print_tui, NULL) != 0, false, "Errore di creazione di use stat thread");}
 	int *whoami_list = (int *) malloc(configuration.workers*sizeof(int));
+	CHECKALLOC(whoami_list);
 	for (size_t i = 0; i < configuration.workers; i++)
 		whoami_list[i] = i + 1;
 	
@@ -387,7 +386,7 @@ void insert_com_fd(int com, nfds_t *size, nfds_t *count, struct pollfd *com_fd){
 nfds_t realloc_com_fd(struct pollfd **com_fd, nfds_t free_slot){
 	size_t new_size = free_slot + DEFAULTFDS;
 	*com_fd = (struct pollfd* )realloc(*com_fd, new_size*sizeof(struct pollfd));
-	CHECKALLOC(com_fd, "Errore di riallocazione com_fd");
+	CHECKALLOC(com_fd);
 	return new_size;
 }
 

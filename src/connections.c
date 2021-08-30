@@ -52,6 +52,7 @@ int respond_to_client(int com, server_response response){
 	
 	if(get_ack(com)) exit_status = safe_write(com, serialized_response, response_size);
 	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
+	CHECKALLOC(log_buffer);
 	snprintf(log_buffer, LOG_BUFF, "Server sent %ld bytes", response_size + sizeof packet_size_buff);
 	logger(log_buffer);
 	free(log_buffer);
@@ -62,6 +63,7 @@ int respond_to_client(int com, server_response response){
 int sendback_client(int com, bool done){
 	char* buffer = NULL;
 	buffer = calloc(PIPE_BUF+1, sizeof(char));
+	CHECKALLOC(buffer);
 	sprintf(buffer, "%d", com);
 	
 	if(done){ CHECKSCEXIT(write(done_fd_pipe[1], buffer, PIPE_BUF), true, "Errore write done_fd_pipe sendback_client"); }
@@ -74,6 +76,7 @@ void lock_next(char* pathname, bool server_mutex, bool file_mutex){
 	int lock_com = 0, lock_id = 0;
 	server_response response;
 	char *log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
+	CHECKALLOC(log_buffer);
 	memset(&response, 0, sizeof response);
 	if(pop_lock_file_list(pathname, &lock_id, &lock_com, server_mutex, file_mutex) == 0){
 		while (fcntl(lock_com, F_GETFD) != 0 ){
@@ -103,6 +106,7 @@ void lock_next(char* pathname, bool server_mutex, bool file_mutex){
 static int handle_request(int com, int thread, client_request *request){ // -1 error in file operation -2 error responding to client
 	int exit_status = -1, files_read = 0;
 	char* log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
+	CHECKALLOC(log_buffer);
 	char tui_buffer[TUI_BUFF] = {0};
 	char* last_file = NULL;
 	server_response response;
@@ -234,6 +238,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 				clean_response(&response);
 				response.code[0] = FILE_OPERATION_SUCCESS;
 				response.data = (unsigned char *) calloc(1, sizeof(unsigned char));
+				CHECKALLOC(response.data);
 				response.size = 1;
 				if(respond_to_client(com, response) < 0){
 					clean_response(&response);
@@ -278,6 +283,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 				clean_response(&response);
 				response.code[0] = FILE_OPERATION_SUCCESS;
 				response.data = (unsigned char *) calloc(1, sizeof(unsigned char));
+				CHECKALLOC(response.data);
 				response.size = 1;
 				if(respond_to_client(com, response) < 0){
 					clean_response(&response);
@@ -474,11 +480,12 @@ ssize_t read_from_client(int com, unsigned char **buffer, size_t *buff_size){
 	}
 	if(!send_ack(com)) return -1;
 	*buffer = calloc(*buff_size, sizeof(unsigned char));
-	CHECKALLOC(*buffer, "Errore allocazione buffer read");
+	CHECKALLOC(*buffer);
 	
 	
 	read_bytes = safe_read(com, *buffer, *buff_size);
 	log_buffer = (char *) calloc(LOG_BUFF+1, sizeof(char));
+	CHECKALLOC(log_buffer);
 	snprintf(log_buffer, LOG_BUFF, "Server received %ld bytes", *buff_size + sizeof packet_size_buff);
 	logger(log_buffer);
 	free(log_buffer);
@@ -498,7 +505,8 @@ void logger(char *log){
  * 
 */
 void* print_tui(void *args){
-	struct pollfd *pipe_poll =  (struct pollfd *) malloc(sizeof(struct pollfd));
+	struct pollfd *pipe_poll = (struct pollfd *) malloc(sizeof(struct pollfd));
+	CHECKALLOC(pipe_poll);
 	nfds_t count = 1;
 	int poll_val = 0, read_bytes = 0;
 	pipe_poll[0].fd = tui_pipe[0];

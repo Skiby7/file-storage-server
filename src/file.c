@@ -36,6 +36,7 @@ void init_table(int max_file_num, int max_size, bool compression, unsigned short
 	server_storage.compression_level = compression_level;
 	server_storage.replacement_algo = replacement_algo;
 	pthread_mutex_init(&server_storage.storage_access_mtx, NULL);
+	CHECKALLOC(server_storage.storage_table);
 }
 
 
@@ -77,6 +78,7 @@ static int check_client_id_lock(lock_file_queue *head, int id){
 static int insert_client_file_list(open_file_client_list **head, int id){
 	if(check_client_id((*head), id) == -1) return -1;
 	open_file_client_list *new = (open_file_client_list *) malloc(sizeof(open_file_client_list));
+	CHECKALLOC(new);
 	new->id = id;
 	new->next = (*head);
 	(*head) = new;	
@@ -107,6 +109,7 @@ int insert_lock_file_list(char *pathname, int id, int com){
 		return -1;
 	}
 	lock_file_queue *new = (lock_file_queue *) malloc(sizeof(lock_file_queue));
+	CHECKALLOC(new);
 	new->id = id;
 	new->com = com;
 	new->next = file->waiting_lock;
@@ -240,7 +243,7 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 	else if(!file){
 		check_count();
 		file = (fss_file_t *)calloc(1, sizeof(fss_file_t));
-		CHECKALLOC(file, "Errore inserimento nuovo file");
+		CHECKALLOC(file);
 		insert_client_file_list(&file->clients_open, client_id);
 		file->size = 0;
 		file->uncompressed_size = 0;
@@ -265,7 +268,7 @@ int open_file(char *pathname, int flags, int client_id, server_response *respons
 		if(lock_file) file->whos_locking = client_id;
 		else file->whos_locking = -1;
 		file->name = (char *)calloc(strlen(pathname) + 1, sizeof(char));
-		CHECKALLOC(file->name, "Errore inserimento nuovo file");
+		CHECKALLOC(file->name);
 		strcpy(file->name, pathname);
 		file->use_stat = 16;
 		file->readers = 0;
@@ -330,8 +333,6 @@ int delete_entry(int id, char *pathname, victim_queue** queue){
 			start_write(entry, false); // I have to wait that readers have finished to read the file 
 			if(entry->whos_locking == id || id == -2){
 				if(queue && entry->uncompressed_size) enqueue_victim(entry, queue); // If the file is empty I skip equeuing it
-				// entry->name = (char *) realloc(entry->name, 11);
-				// strcpy(entry->name, "deleted");
 				stop_write(entry);
 				server_storage.file_count -= 1;
 				server_storage.size -= entry->size;
@@ -409,7 +410,7 @@ int read_file(char *filename, int client_id, server_response *response){
 	start_read(file, true);
 	if(check_client_id(file->clients_open, client_id) == -1 && (file->whos_locking == -1 || file->whos_locking == client_id)){
 		response->data = (unsigned char *) calloc(file->uncompressed_size, sizeof(unsigned char));
-		CHECKALLOC(response->data, "Errore allocazione memoria read_file");
+		CHECKALLOC(response->data);
 		response->size = file->uncompressed_size;
 		if(server_storage.compression) uncompress2(response->data, &response->size, file->data, &file->size);
 		else memcpy(response->data, file->data, response->size);
@@ -467,17 +468,19 @@ int read_n_file(char **last_file, int client_id, server_response* response){
 		start_read(entry, true);
 		if(entry->whos_locking == -1 || entry->whos_locking == client_id){
 			response->data = (unsigned char *) calloc(entry->uncompressed_size, sizeof(unsigned char));
-			CHECKALLOC(response->data, "Errore allocazione memoria read_file");
+			CHECKALLOC(response->data);
 			response->size = entry->uncompressed_size;
 			if(server_storage.compression) uncompress2(response->data, &response->size, entry->data, &entry->size);
 			else memcpy(response->data, entry->data, response->size);
 			response->pathlen = strlen(entry->name)+1;
 			response->pathname = (char *) calloc(response->pathlen, sizeof(char));
+			CHECKALLOC(response->pathname);
 			strncpy(response->pathname, entry->name, response->pathlen-1);
 			/* QUI HO FINITO DI LEGGERE ED ESCO */
 			stop_read(entry);
 			// SAFEUNLOCK(server_storage.storage_access_mtx);
 			*last_file = (char *) realloc(*last_file, strlen(entry->name)+1);
+			CHECKALLOC(*last_file);
 			strcpy(*last_file, entry->name);
 			response->code[0] = FILE_OPERATION_SUCCESS;
 			return 0;	
@@ -530,7 +533,7 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 	if(file->whos_locking == client_id && check_client_id(file->clients_open, client_id) < 0 && file->data == NULL){
 		if(server_storage.compression){
 			tmp = (unsigned char *) calloc(length+20, sizeof(unsigned char)); // zlib needs some bytes to store header and trailer, so if the input data is small and compress does not have effect, this prevents a seg fault 
-			CHECKALLOC(tmp, "Errore allocazione write_to_file");
+			CHECKALLOC(tmp);
 			size = length + 20;
 			compress2(tmp, &size, data, length, server_storage.compression_level);
 		}
@@ -547,7 +550,7 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		if((*victims)) response->has_victim = 0x01;
 		
 		file->data = (unsigned char *) calloc(size, sizeof(unsigned char));
-		CHECKALLOC(file->data, "Errore allocazione write_to_file");
+		CHECKALLOC(file->data);
 		file->size = size;
 		memcpy(file->data, server_storage.compression ? tmp : data, size);
 		file->uncompressed_size = length;
@@ -617,9 +620,9 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 		if(server_storage.compression){
 			new_size = file->uncompressed_size + new_data_size + 20;
 			uncompressed_buffer = (unsigned char *) calloc(file->uncompressed_size + new_data_size, sizeof(unsigned char)); 
-			CHECKALLOC(uncompressed_buffer, "Errore allocazione append_to_file");
+			CHECKALLOC(uncompressed_buffer);
 			tmp = (unsigned char *) calloc(new_size, sizeof(unsigned char));
-			CHECKALLOC(tmp, "Errore allocazione append_to_file");
+			CHECKALLOC(tmp);
 			uncompress2(uncompressed_buffer, &file->uncompressed_size, file->data, &file->size);
 			memcpy(uncompressed_buffer + file->uncompressed_size, new_data, new_data_size);
 			compress2(tmp, &new_size, uncompressed_buffer, file->uncompressed_size + new_data_size, server_storage.compression_level);
@@ -646,7 +649,7 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 		if((*victims)) response->has_victim = 0x01; 
 
 		file->data = (unsigned char *) realloc(file->data, new_size);
-		CHECKALLOC(file->data, "Errore allocazione append_to_file");
+		CHECKALLOC(file->data);
 		if(server_storage.compression) memcpy(file->data, tmp, new_size);
 		else memcpy(file->data + file->size, new_data, new_data_size);
 		
@@ -780,6 +783,7 @@ char* print_storage_info(){
 	char files_bar[graphic_size+1];
 	char *ret_buf = NULL;
 	ret_buf = (char *) calloc(201, sizeof(char));
+	CHECKALLOC(ret_buf);
 	files_bar[graphic_size] = 0;
 	mem_bar[graphic_size] = 0;
 	memset(files_bar, bg, graphic_size);
@@ -991,12 +995,15 @@ static int compare(const void *a, const void *b) {
 
 static void enqueue_victim(fss_file_t *entry, victim_queue **head){
 	victim_queue* new = (victim_queue *) malloc(sizeof(victim_queue));
+	CHECKALLOC(new);
 	memset(new, 0, sizeof(victim_queue));
 	new->victim.pathlen = strlen(entry->name) + 1;
 	new->victim.pathname = (char *) calloc(new->victim.pathlen, sizeof(char));
+	CHECKALLOC(new->victim.pathname);
 	strcpy(new->victim.pathname, entry->name);
 	new->victim.size = entry->uncompressed_size;
 	new->victim.data = (unsigned char *) calloc(new->victim.size , sizeof(unsigned char));
+	CHECKALLOC(new->victim.data);
 	if(server_storage.compression) uncompress2(new->victim.data, &new->victim.size, entry->data, &entry->size);
 	else memcpy(new->victim.data, entry->data, entry->size);
 	new->next = (*head);
@@ -1009,6 +1016,7 @@ static int select_victim(char* caller, int files_to_delete, uint64_t memory_to_f
 	int counter = 0, j = 0;
 	uint64_t memory_freed = 0;
 	victims = (victim_t *) calloc(server_storage.file_count, sizeof(victim_t));
+	CHECKALLOC(victims);
 	server_storage.total_evictions += 1;
 	for (size_t i = 0; i < server_storage.table_size; i++){
 		entry = server_storage.storage_table[i];
@@ -1020,7 +1028,7 @@ static int select_victim(char* caller, int files_to_delete, uint64_t memory_to_f
 			}
 			start_read(entry, false);
 			victims[counter].pathname = (char*) calloc(strlen(entry->name)+1, sizeof(char));
-			CHECKALLOC(victims[counter].pathname, "Errore allocazione pathname select_victim");
+			CHECKALLOC(victims[counter].pathname);
 			strcpy(victims[counter].pathname, entry->name);
 			victims[counter].last_access = entry->last_access;
 			victims[counter].created_time = entry->created_time;
@@ -1145,6 +1153,7 @@ void clean_attributes(fss_file_t *entry, bool close_com){
 	while (entry->waiting_lock != NULL){
 		response.pathlen = strlen(entry->name) + 1;
 		response.pathname = (char *) calloc(response.pathlen, sizeof(char));
+		CHECKALLOC(response.pathname);
 		strcpy(response.pathname, entry->name);
 		respond_to_client(entry->waiting_lock->com, response);
 		if(close_com) close(entry->waiting_lock->com);

@@ -14,7 +14,7 @@ rm -rf ${CWD}/test_output/*
 sleep 2
 echo -e "${MAGENTA}>> Test con politica FIFO <<${RESET}"
 
-bin/server bin/config2_FIFO.txt &
+bin/server test/config/config2_FIFO.txt &
 
 SERVER=$!
 
@@ -74,7 +74,7 @@ sleep 2
 
 echo -e "${MAGENTA}>> Test con politica LRU <<${RESET}"
 
-bin/server bin/config2_LRU.txt &
+bin/server test/config/config2_LRU.txt &
 SERVER=$!
 sleep 1
 
@@ -114,7 +114,7 @@ sleep 2
 
 echo -e "${MAGENTA}>> Test con politica LFU <<${RESET}"
 
-bin/server bin/config2_LFU.txt &
+bin/server test/config/config2_LFU.txt &
 SERVER=$!
 sleep 1
 
@@ -196,7 +196,7 @@ sleep 2
 
 echo -e "${MAGENTA}>> Test con politica LRFU <<${RESET}"
 
-bin/server bin/config2_LRFU.txt &
+bin/server test/config/config2_LRFU.txt &
 SERVER=$!
 sleep 1
 echo -e "\n${MAGENTA}Carico initial_file_0.txt (40kb)${RESET}"

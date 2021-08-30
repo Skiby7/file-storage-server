@@ -8,12 +8,11 @@
 #include "connections.h"
 #endif
 
-
+// HASH_PJW MACRO
 #define BITS_IN_int     ( sizeof(int) * CHAR_BIT )
 #define THREE_QUARTERS  ((int) ((BITS_IN_int * 3) / 4))
 #define ONE_EIGHTH      ((int) (BITS_IN_int / 8))
 #define HIGH_BITS       ( ~((unsigned int)(~0) >> ONE_EIGHTH ))
-
 
 
 typedef struct clients_{
@@ -21,13 +20,13 @@ typedef struct clients_{
 	struct clients_ *next;
 } open_file_client_list;
 
-typedef struct lockers_{
+typedef struct waiting_lock{
 	int id;
 	int com;
-	struct lockers_ *next;
+	struct waiting_lock *next;
 } lock_file_queue;
 
-typedef struct fssFile_{
+typedef struct fss_file{
 	char *name;
 	unsigned char *data;
 	unsigned short use_stat;
@@ -44,7 +43,7 @@ typedef struct fssFile_{
 	pthread_mutex_t order_mutex;
 	pthread_mutex_t access_mutex;
 	pthread_cond_t go_cond;
-	struct fssFile_ *next;
+	struct fss_file *next;
 } fss_file_t;
 
 typedef struct storage_{
@@ -70,10 +69,6 @@ typedef struct victim_{
 	time_t last_access;
 	time_t created_time;
 } victim_t;
-
-
-
-
 
 void init_table(int max_file_num, int max_size, bool compression, unsigned short compression_level, unsigned char replacement_algo);
 void clean_storage();

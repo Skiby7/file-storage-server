@@ -3,6 +3,8 @@
 #include "common_includes.h"
 #endif
 
+#define SEC_TO_WAIT 3
+#define RETRY_AFTER 500
 typedef struct client_{
 	bool verbose;
 	time_t interval;

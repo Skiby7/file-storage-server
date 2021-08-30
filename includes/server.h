@@ -4,6 +4,16 @@
 #endif
 #include <poll.h>
 
+#define WELCOME_MESSAGE  "\n _              __                        \n"\
+						 "|_ o |  _      (_ _|_  _  ._ _.  _   _    \n"\
+						 "|  | | (/_     __) |_ (_) | (_| (_| (/_   \n"\
+						 "                                 _|       \n"\
+						 "      __                                  \n"\
+						 "     (_   _  ._    _  ._                  \n"\
+						 "     __) (/_ | \\/ (/_ |                   \n\n"\
+                            
+						
+#define PRINT_WELCOME printf(ANSI_CLEAR_SCREEN ANSI_COLOR_CYAN"%s"ANSI_COLOR_RESET, WELCOME_MESSAGE); 
 
 void printconf();
 void init(char* sockname, char* config_file);

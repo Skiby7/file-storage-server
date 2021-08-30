@@ -9,6 +9,7 @@
 
 #include "fssApi.h"
 
+// CLIENT COMMANDS
 #define WRITE_DIR 0x01
 #define WRITE_FILES 0x02
 #define READ_FILES 0x04
@@ -27,7 +28,6 @@ typedef struct work{
 	struct work *next;
 	struct work *prev;
 } work_queue;
-
 
 int handle_read_files(char *args, char* dirname);
 int handle_simple_request(char *args, unsigned char command, const char* dirname);

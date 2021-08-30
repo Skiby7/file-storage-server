@@ -78,12 +78,12 @@ clean_files:
 clean_all: clean clean_files
 	
 gen_files:
-	./generate_file_init.sh
+	./generate_files.sh
 	
 test1: debug
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
-	./test/test1.sh bin/config1.txt
+	./test/test1.sh test/config/config1.txt
 	./statistiche.sh bin/server.log
 
 test2: all
@@ -95,30 +95,30 @@ test2: all
 test3: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
-	./test/test3.sh bin/config3.txt
+	./test/test3.sh test/config/config3.txt
 	./statistiche.sh bin/server.log
 
 
 test1_un: debug
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
-	./test/test1.sh bin/config1_un.txt
+	./test/test1.sh test/config/config1_un.txt
 	./statistiche.sh bin/server.log
 
 test3_un: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
-	./test/test3.sh bin/config3_un.txt
+	./test/test3.sh test/config/config3_un.txt
 	./statistiche.sh bin/server.log
 	
 test3_un_quiet: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
-	./test/test3.sh bin/config3_un_quiet.txt
+	./test/test3.sh test/config/config3_un_quiet.txt
 	./statistiche.sh bin/server.log
 	
 test3_quiet: all
 	$(RM) -r ./test/test_output/*
 	$(RM) -r ./test/output_stress_test/*
-	./test/test3.sh bin/config3_quiet.txt
+	./test/test3.sh test/config/config3_quiet.txt
 	./statistiche.sh bin/server.log
