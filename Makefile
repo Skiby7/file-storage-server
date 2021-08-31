@@ -23,6 +23,7 @@ client: libclient libcommon
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/client.c -o bin/client -L ./libs -lclient -lcommon
 
 binary_test:
+	$(MKDIR) test/binary
 	$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) src/binary_test.c -o test/binary/binary_test
 
 libserver: parser.o client_queue.o log.o file.o
