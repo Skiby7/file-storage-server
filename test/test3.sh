@@ -1,8 +1,7 @@
 #!/bin/bash
 CWD=$(realpath $(dirname $0))
-mkdir ${CWD}/test_output/READ_OUTPUT
-mkdir ${CWD}/test_output/EVICTION_OUTPUT
-
+mkdir ${CWD}/output_stress_test/READ_OUTPUT
+mkdir ${CWD}/output_stress_test/EVICTION_OUTPUT
 bin/server $1 &
 export SERVER=$!
 sleep 2

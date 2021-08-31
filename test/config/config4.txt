@@ -1,8 +1,0 @@
-WORKERS: 4
-MAXMEM: 2050 # 1 MB = 1048576 bytes
-MAXFILES: 5
-SOCKNAME: socket.sk
-LOGFILE: bin/server.log
-TUI: n
-COMPRESSION: y
-C_LEVEL: 6

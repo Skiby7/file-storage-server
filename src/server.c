@@ -52,7 +52,8 @@ int main(int argc, char* argv[]){
 		fprintf(stderr, "Usare %s path/to/config\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
-	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, clients_active = 0, max_clients_active = 0; // i = 0, ready_com = 0
+	int socket_fd = 0, com = 0,  read_bytes = 0, tmp = 0, poll_val = 0, clients_active = 0, max_clients_active = 0; 
+	bool threads_finished = false; // i = 0, ready_com = 0
 	char buffer[PIPE_BUF] = {0}; // Buffer per inviare messaggi sullo stato dell'accettazione al client
 	char SOCKETADDR[AF_UNIX_MAX_PATH] = {0}; // Indirizzo del socket
 	char log_buffer[200] = {0};
@@ -237,10 +238,10 @@ int main(int argc, char* argv[]){
 		}
 		
 	}
+	
 	SAFELOCK(abort_connections_mtx);
 	abort_connections = true;
 	SAFEUNLOCK(abort_connections_mtx);
-	// puts("TEST FINITO");
 	while(true){
 		for (size_t i = 0; i < configuration.workers; i++){
 			SAFELOCK(free_threads_mtx);
@@ -262,25 +263,22 @@ finish:
 	SAFEUNLOCK(ready_queue_mtx);
 	while(true){
 		SAFELOCK(ready_queue_mtx);
-		// if(!ready_queue[1]){
-		// 	SAFEUNLOCK(ready_queue_mtx);
-		// 	break;
-		// }
-		pthread_cond_signal(&client_is_ready); // sveglio tutti i thread
+		pthread_cond_signal(&client_is_ready);
 		SAFEUNLOCK(ready_queue_mtx);
-		for(int i = 0, j = 0; i < configuration.workers; i++){
+		threads_finished = true;
+		for(int i = 0; i < configuration.workers; i++){
 			SAFELOCK(free_threads_mtx);
-			if(!free_threads[i]){
-				// printf("%d -> %s\n", i+1, free_threads[i] ? "TRUE" : "FALSE" );
-				j++;
+			if(free_threads[i]){
+				threads_finished = false;
 				SAFEUNLOCK(free_threads_mtx);
+				break;
 			}
 			SAFEUNLOCK(free_threads_mtx);
-			if(j == configuration.workers-1) goto join_workers;
+			 
 		}
+		if(threads_finished) goto join_workers;
 	}
 join_workers:
-// puts("QUI");
 	for (int i = 0; i < configuration.workers; i++)
 		CHECKEXIT(pthread_join(workers[i], NULL) != 0, false, "Errore durante il join dei workers");
 	

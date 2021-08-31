@@ -136,22 +136,16 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 						fprintf(stderr, ANSI_COLOR_RED"Errore openFile -> %s"ANSI_COLOR_RESET_N, strerror(errno));
 						print_errno_summary();
 					} 
-					// free(real_path);
-					// real_path = NULL;
 					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
 				if((file = open(token, O_RDONLY)) == -1){
 					if(config.verbose) fprintf(stderr, "Errore durante l'apertura del file in locale %s -> %s\n", token, strerror(errno));
-					// free(real_path);
-					// real_path = NULL;
 					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}
 				if(fstat(file, &st) < 0){
 					if (config.verbose) perror("Errore fstat");
-					// free(real_path);
-					// real_path = NULL;	
 					token = strtok_r(NULL, DELIM, &tmpstr);
 					continue;
 				}

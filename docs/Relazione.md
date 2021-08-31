@@ -10,14 +10,15 @@ output:
 		latex_engine: xelatex
 title: Relazione file storage server
 ---
-
+\pagenumbering{gobble}
 \hypersetup{linkcolor=black}
 
 \pagebreak
 \renewcommand{\contentsname}{Indice}
 \tableofcontents
 \pagebreak
-
+\pagenumbering{arabic}
+\setcounter{page}{1}
 # Introduzione
 
 Il progetto è stato testato sulla macchina virtuale fornita dai docenti con 2 cores e **almeno** 2GB di ram.
@@ -56,12 +57,15 @@ Oltre a quelli definiti nella specifica, è possibile usare anche i seguenti tar
 
 # Server
 
-L'applicazione `server` consiste in un programma multithreaded che gestisce più richieste contemporanee di connessione da parte di client diversi. I client comunicano col server tramite un'API, la cui implementazione si trova in `fssApi.c`, e dopodiché vengono serviti da un worker del server il quale esegue un'operazione per poi rimettersi in attesa.
+L'applicazione `server` consiste in un programma multi-threaded che gestisce più richieste contemporanee di connessione da parte di client diversi. I client comunicano col server tramite un'API, la cui implementazione si trova in `fssApi.c`, e dopodiché vengono serviti da un worker del server il quale esegue un'operazione per poi rimettersi in attesa.
 
 ## File di configurazione
 
 Il file di configurazione, passato come argomento da linea di comando all'avvio, è un generico file di testo contenente le seguenti parole chiave seguiti dal carattere `':'` : `WORKERS`, `MAXMEM`, `MAXFILES`, `SOCKNAME`, `LOGFILE`, `TUI`, `REPLACEMENT_ALGO`, `COMPRESSION` e `COMPRESSION_LEVEL`.
 Si può definire `SOCKNAME` come path assoluto o, altrimenti, semplicemente come il nome che si vuole dare al socket, che verrà creato in `/tmp`.
+
+\pagebreak
+
 Le voci `LOGFILE`, `REPLACEMENT_ALGO`, `COMPRESSION` e `TUI` sono opzionali:
 
 * Se `LOGFILE` non è definito non verrà prodotto il file di log. Per specificare il file di log si può usare sia un path relativo che assoluto.
@@ -124,9 +128,7 @@ static int compare(const void *a, const void *b) {
 		case LFU:
 			return a1.use_stat - b1.use_stat;
 		case LRFU:
-			if((a1.use_stat - b1.use_stat) != 0)
-				return a1.use_stat - b1.use_stat;
-
+			if((a1.use_stat - b1.use_stat) != 0) return a1.use_stat - b1.use_stat;
 			else return a1.last_access - b1.last_access;
 	}
 	return a1.created_time - b1.created_time;
@@ -134,26 +136,12 @@ static int compare(const void *a, const void *b) {
 ```
 Come si può vedere, nel caso di una politica `FIFO`, ordino gli elementi solo in base al tempo di creazione, con una politica `LRU` in base all'ultimo accesso effettuato, con una politica `LFU` in base al valore di `use_stat`, mentre con una politica `LRFU` si ordina prima in base a `use_stat` e, se questo è uguale per i due file, si confronta chi è stato usato più recentemente.
 Il thread `use_stat_thread`, che esegue la routine `use_stat_update()`, inoltre, si occupa di sbloccare eventuali file rimasti inutilizzati con `use_stat` uguale 0, passando la lock ai client in attesa. 
-<!-- 
-Ogni volta che avviene una scrittura (sia `WRITE`, che `APPEND`) viene controllato che lo storage non abbia raggiunto il numero massimo di file che può contenere né che il file sia troppo grande né che non ci sia abbastanza spazio libero. Se la condizione non è soddisfatta, si va alla ricerca della vittima: viene allocato un array di `victim_t`, ovvero una struttura in cui verranno copiate le statistiche di utilizzo `use_stat`, il timestamp dell'ultimo accesso al file, la dimensione e il nome di ogni file presente nello storage. Dopo aver inizializzato l'array con i metadati di tutti i file, questo, viene ordinato con `qsort()` in base al campo `use_stat` e, nel caso questo fosse uguale per due file, in ordine crescente rispetto all'ultimo accesso. Questo approccio permette di rimuovere dallo storage i file meno usati e fra questi, a parità di utilizzo, scegliere in base all'ultimo accesso.\
 
-Il contatore `use_stat` viene incrementato di 2 unità ogni volta che il file viene scritto, mentre di 1 punto quando viene letto con una `READ` (non `READ_N`) o se viene bloccato con una `LOCK`. Viene invece decrementato da un thread dedicato `use_stat_update` che, ogniqualvolta viene eseguita un'operazione di scrittura o di una open-create, visita tutto lo storage diminuendo di una unità il contatore. Il contatore di ogni file viene inizializzato a 16, ha un valore massimo di 32 e, una volta che ha raggiunto lo 0, se sul file era stata eseguita la lock, questo, se non viene utilizzato da più di 2 minuti, viene sbloccato automaticamente e la lock viene passata ad un eventuale client in attesa. -->
 
 # Client
 
-Dal momento che i *file descriptor* lato server usati per la comunicazione con il client non sono univoci, ma vengono riciclati, ogni client viene identificato dal server tramite il suo PID, che invece, avendo come limite superiore 2^22^, si può considerare univoco. Un possibile sviluppo del progetto potrebbe essere introdurre un flag (ad esempio `-n`) col quale specificare un *token* o un nome univoco con cui autenticarsi in modo da poter lavorare sugli stessi file, magari lasciandoli anche bloccati, in sessioni diverse.
-
-## Comandi
-
-I comandi passati da riga di comando vengono interpretati con `getopt()` e inseriti in una coda `FIFO`, per poi venire eseguiti dal client. L'implementazione si trova in `work.c`, `work.h` e `client.c`.
-
-## Utilizzo dei path
-
-Come da specifica, ogni file è identificato dal suo path assoluto (sul quale viene anche calcolato l'hash), pertanto, per evitare ambiguità, tutte le operazioni del client che prendono in input un file richiedono un path assoluto, altrimenti l'operazione fallirà. Fanno eccezione le opzioni `-d`, `-D` e `-w`, poiché prendono in input una cartella e se ne occuperà il client a trasformare il path da relativo ad assoluto. 
-
-## Salvataggio dei file sul disco
-
-I file che il server invia al client, vengono salvati nella cartella specificata con i flag `-d` o `-D` ricostruendo l'albero delle directory.
+Il client consiste in un programma single-threaded creato per interfacciarsi col server: una volta avviato, il client, leggerà tutti le opzioni passate come argomento da riga di comando con `getopt()` e le salverà in una coda, per poi connettersi al server ed eseguire i comandi. L'implementazione del client è contenuta in `client.c`, `client.h`, `work.c` e `work.h`. 
+Come da specifica, ogni file è identificato dal suo path assoluto (sul quale viene anche calcolato l'hash), pertanto, per evitare ambiguità, tutte le operazioni del client che prendono in input un file richiedono un path assoluto, altrimenti l'operazione fallirà. Fanno eccezione le opzioni `-d`, `-D` e `-w`, poiché prendono in input una cartella e se ne occuperà il client di trasformare il path da relativo ad assoluto. Inoltre, le opzioni che prevedono il salvataggio dei file sul disco (`-d` o `-D`), ricostruiscono l'albero delle directory a partire dal nome del file, utilizzando come root la cartella specificata.
 
 # Comunicazione client-server
 
@@ -176,26 +164,26 @@ Tutti i dati, sia la lunghezza del pacchetto, che il pacchetto, vengono inviati 
 
 ## Comandi
 
-Ho deciso di condensare sia i comandi che i codici di errore in un byte per semplicità. Al momento, avendo 8 operazioni possibili ho usato un bit per ogni operazioni, ma, nel caso si volessero implementare delle nuove operazioni, si potrebbe usare una combinazione di bit per identificarla, dal momento che a 1 richiesta corrisponde 1 operazione.
+Ho deciso di condensare sia i comandi che i codici di errore in un byte per semplicità. Al momento, avendo solo 8 operazioni possibili ho assegnato un'operazione a un bit del campo `command`, ma, nel caso si volessero implementare delle nuove operazioni, si potrebbe usare una combinazione di bit per identificarla.
 
 | Operazione 	| Valore 	| Descrizione                                                         	|
 |------------	|:--------:	|---------------------------------------------------------------------	|
 | OPEN       	| 0x01   	| Operazione di apertura file                                         	|
 | CLOSE      	| 0x02   	| Operazione di chiusura file                                         	|
 | READ       	| 0x04   	| Operazione di lettura file                                          	|
-| WRITE      	| 0x08   	| Operazione di scrittura nuovo file                                  	|
-| APPEND     	| 0x10   	| Operazione di scrittura in append a un file                         	|
-| REMOVE     	| 0x20   	| Operazione di rimozione file                                        	|
-| QUIT       	| 0x40   	| UNUSED                                                              	|
+| READ_N       	| 0x08   	| Operazione di lettura di N file casuali                              	|
+| WRITE      	| 0x10   	| Operazione di scrittura nuovo file                                  	|
+| APPEND     	| 0x20   	| Operazione di scrittura in append a un file                         	|
+| REMOVE     	| 0x40   	| Operazione di rimozione file                                        	|
 | SET_LOCK   	| 0x80   	| Operazione di lock/unlock file:                                     	|
 |            	|        	| se il campo  flag  della richiesta vale  `O_LOCK`,                  	|
 |            	|        	| viene eseguita l'operazione di lock,  altrimenti si esegue l'unlock 	|
 
-I flag `O_CREATE` e `O_LOCK` hanno rispettivamente il valore `0x01` e `0x02`
+I flag `O_CREATE` e `O_LOCK` hanno, rispettivamente, il valore `0x01` e `0x02`
 
 ## Errori
 
-Ho deciso di definire dei codici di errore per estendere gli errori riportati in `errno.h` e dare una spiegazione più specifica del problema, come ad esempio una mancata lock, una open ripetuta o la creazione di un file già esistente. Gli errori specifici vengono inviati al client nel campo `code[2]` della risposta e si trovano alla posizione 0 (vedere sezione successiva). Di seguito la tabella: 
+Ho deciso di definire dei codici di errore per estendere gli errori riportati in `errno.h` e dare una spiegazione più specifica del problema, come ad esempio una mancata lock o una open ripetuta. Gli errori specifici vengono inviati al client nel campo `code` della risposta e si trovano alla posizione 0 (vedere sezione successiva). Di seguito la tabella: 
 
 | Codice                 	| Valore 	| Descrizione                                        	|
 |------------------------	|:--------:	|----------------------------------------------------	|
@@ -239,9 +227,13 @@ typedef struct server_response_{
 } server_response;
 ```
 
-I campi in comune per la richiesta e la risposta sono: `pathlen` che indica la lunghezza della stringa `pathname` (compreso `\0`) e `size` il quale indica la lunghezza del campo `data`, che a sua volta contiene i dati (non compressi) del file inviato/ricevuto. Per quanto riguarda `client_request`, partendo dall'alto si trova:
+I campi in comune per la richiesta e la risposta sono: `pathlen` che indica la lunghezza della stringa `pathname` (compreso `\0`) e `size` il quale indica la lunghezza del campo `data`, che a sua volta contiene i dati (non compressi) del file inviato/ricevuto. 
 
-* `client_id`: `PID` del processo che invia la richiesta
+\pagebreak
+
+Per quanto riguarda `client_request`, partendo dall'alto si trova:
+
+* `client_id`: ogni client è identificato dal `PID` del suo processo
 
 * `command`: comando da eseguire (vedi *5.1 Comandi*)
 
@@ -257,14 +249,14 @@ Mentre, per `server_response` abbiamo:
 
 ## Serializzazione e deserializzazione
 
-Ho deciso di serializzare le richieste, le risposte e gli interi, piuttosto che inviare campo per campo in modo da utilizzare un numero minore di read (una per la dimensione del pacchetto e una per il pacchetto stesso) e in modo tale da rendere l'applicazione compatibile con la comunicazione via rete senza apportare troppe modifiche, infatti a questo scopo per i dati che vengono inviati tramite il socket ho usato i tipi definiti in `stdint.h`.
+Ho deciso di serializzare le richieste e le risposte piuttosto che inviare campo per campo leggendone e scrivendone uno alla volta, così da utilizzare un numero minore di read/write (una per la dimensione del pacchetto e una per il pacchetto stesso).
 In `serialization.c` e `serialization.h` si trova l'implementazione delle funzioni usate per la serializzazione.
 
 # Parti aggiuntive
 
 ## Compressione
 
-Ho implementato la compressione dei file usando la libreria open-source `zlib`. Nel file di configurazione questa opzione può essere abilitata impostando il parametro `COMPRESSION` su `y` e si può impostare il livello di compressione su un valore compreso fra 1, che è il minimo e 9, che è il massimo (il livello 0 è usato da `zlib` per creare un archivio di più file senza però comprimerli).
+Ho implementato la compressione dei file usando la libreria open-source `zlib`. Nel file di configurazione del server,questa opzione può essere abilitata impostando il parametro `COMPRESSION` su `y` e si può impostare il livello di compressione su un valore compreso fra 1, che è il minimo e 9, che è il massimo (il livello 0 è usato da `zlib` per creare un archivio di più file senza però comprimerli).
 La libreria è stata compilata con il flag `--const` e come libreria statica.
 
 ### Copyright notice
@@ -276,7 +268,6 @@ Direttamente dal README del [repository](https://github.com/madler/zlib) ufficia
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
   arising from the use of this software.
-
   Permission is granted to anyone to use this software for any purpose,
   including commercial applications, and to alter it and redistribute it
   freely, subject to the following restrictions:
@@ -295,8 +286,8 @@ Direttamente dal README del [repository](https://github.com/madler/zlib) ufficia
 
 ## Interfaccia testuale
 
-Per rendere più interattivo il test3 e per avere qualche informazione utile durante l'uso del server, ho implementato una semplice interfaccia testuale con la quale avere una panoramica sia della configurazione del server, che dell'uso delle risorse del server. Per ridurre al minimo l'impatto sulle performance, invece che far ridisegnare a ogni thread Worker l'intera schermata ogni volta che esegue un'operazione che modifichi i file in numero o in dimensione, ho preferito utilizzare un thread dedicato, il quale si mette in ascolto con una `poll()` su una pipe. La pipe viene utilizzata dai Worker per notificare l'inizio e la fine di un'operazione di `READ`/`READ END` o di `WRITE`/`WRITE END`, così che il thread possa ridisegnare l'interfaccia in base all'azione eseguita. L'accesso alle informazioni dello storage, quindi la lock della mutex globale dello storage, viene effettuato solo quando viene ricevuta una `WRITE END`. 
+Per rendere più interattivo il test3 e per avere qualche informazione utile durante l'uso del server, ho implementato una semplice interfaccia testuale con la quale avere una panoramica sia della configurazione del server, che dell'uso delle risorse del server. Per ridurre al minimo l'impatto sulle performance, invece che far ristampare a ogni thread Worker l'intera schermata ogni volta che esegue un'operazione che modifichi i file in numero o in dimensione, ho preferito utilizzare un thread dedicato, il quale si mette in ascolto con una `poll()` su una pipe. La pipe viene utilizzata dai Worker per notificare l'inizio e la fine di un'operazione di `READ`/`READ END` o di `WRITE`/`WRITE END`, così che il thread possa ridisegnare l'interfaccia in base all'azione eseguita. L'accesso alle informazioni dello storage, quindi la lock della mutex globale dello storage, viene effettuato solo quando viene ricevuta una `WRITE END`. 
 
 ## Opzione -x
 
-Ho introdotto, per il client, l'opzione `-x` da usare dopo `-w` per permettere di sbloccare tutti i file caricati, questo per avere la possibilità di caricare un'intera cartella, senza dover sbloccare a mano ogni file.
+Ho introdotto, per il client, l'opzione `-x` da usare dopo `-w`: l'opzione permette di sbloccare tutti i file caricati dalla cartella, senza dover sbloccare a mano ogni file.

@@ -5,7 +5,7 @@ while true
 do
 	SMALL_FILE_NUM=$((RANDOM % 100))
 	MEDIUM_FILE_NUM=$((RANDOM % 10))
-	LARGE_FILE_NUM=$((RANDOM % 5))
+	LARGE_FILE_NUM=0
 	bin/client -f /tmp/socket.sk -W ${CWD}/small_files/small_${SMALL_FILE_NUM}.txt -D ${CWD}/output_stress_test/EVICTION_OUTPUT -u ${CWD}/small_files/small_${SMALL_FILE_NUM}.txt -R 5 -d ${CWD}/output_stress_test/READ_OUTPUT -W ${CWD}/medium_files/medium_${MEDIUM_FILE_NUM}.txt -D ${CWD}/output_stress_test/EVICTION_OUTPUT -u ${CWD}/medium_files/medium_${MEDIUM_FILE_NUM}.txt -W ${CWD}/test_2/initial_file_0.txt -D ${CWD}/output_stress_test/EVICTION_OUTPUT -u ${CWD}/test_2/initial_file_0.txt -l ${CWD}/test_2/initial_file_0.txt -c ${CWD}/test_2/initial_file_0.txt -t 0 &> /dev/null
 	
 	if [[ $(($RANDOM % 2)) -eq 0 ]]

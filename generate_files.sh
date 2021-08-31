@@ -35,18 +35,14 @@ chmod 777 -R ${CWD}/test/medium_files
 echo ""
 
 mkdir ${CWD}/test/large_files &> /dev/null
-for i in {0..4}
-do
-	if [[ -f ${CWD}/test/large_files/large_${i}.txt ]]
-	then
-		continue
-	fi
-	base64 /dev/urandom | head -c 30000000 > ${CWD}/test/large_files/large_${i}.txt
-	NUM=$((i+1))
-	echo -e "${LINE_UP}Generati ${NUM} file grandi"
-done
-chmod 777 -R ${CWD}/test/large_files
-echo ""
+
+if ! [[ -f ${CWD}/test/large_files/large_${i}.txt ]]
+then
+	base64 /dev/urandom | head -c 30000000 > ${CWD}/test/large_files/large_0.txt
+	echo -e "${LINE_UP}Generato 1 file grande"
+	chmod 777 -R ${CWD}/test/large_files
+	echo ""
+fi
 mkdir ${CWD}/test/test_2 &> /dev/null
 for i in {0..9}
 do

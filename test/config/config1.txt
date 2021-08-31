@@ -1,5 +1,5 @@
 WORKERS: 1
-MAXMEM: 128000000 
+MAXMEM: 128000000 # Questo è un commento
 MAXFILES: 10000
 SOCKNAME: socket.sk
 LOGFILE: bin/server.log

@@ -114,6 +114,7 @@ static int handle_request(int com, int thread, client_request *request){ // -1 e
 	memset(&response, 0, sizeof(response));
 	sprintf(log_buffer, "[ Thread %d ] Serving client %d", thread, request->client_id);
 	logger(log_buffer);
+	errno = 0;
 	if(configuration.tui){
 		if(request->command & REMOVE || request->command & WRITE || request->command & APPEND){
 			strcpy(tui_buffer, "WRITE");
@@ -388,32 +389,31 @@ void* worker(void* args){
 			CHECKEXIT(pthread_cond_wait(&client_is_ready, &ready_queue_mtx) != 0, false, "Errore cond_wait worker");
 		}
 		SAFELOCK(free_threads_mtx);
-		free_threads[whoami] = false;
+		free_threads[whoami-1] = false;
 		SAFEUNLOCK(free_threads_mtx);
 		com = pop_client(&ready_queue[0], &ready_queue[1]); // Pop dalla lista dei socket ready che va fatta durante il lock		
 		SAFEUNLOCK(ready_queue_mtx);
 		if(com == -1){ // Falso allarme
 			SAFELOCK(free_threads_mtx);
-			free_threads[whoami] = true;
+			free_threads[whoami-1] = true;
 			SAFEUNLOCK(free_threads_mtx);
 			continue;
 		}
 		if(com == -2){
 			SAFELOCK(free_threads_mtx);
-			free_threads[whoami] = false;
+			free_threads[whoami-1] = false;
 			SAFEUNLOCK(free_threads_mtx);
-			// puts("RICEVUTO -2");
 			return NULL;
 		}
 		memset(&request, 0, sizeof request);
 		read_status = read_from_client(com, &request_buffer, &request_buffer_size);
 		if(read_status < 0){
 			if(read_status == -1){
-				sprintf(log_buffer,"[Thread %d] Error handling client with fd %d request", whoami, com);
+				sprintf(log_buffer,"Error handling client with fd %d", com);
 				logger(log_buffer);
 			}
 			SAFELOCK(free_threads_mtx);
-			free_threads[whoami] = true;
+			free_threads[whoami-1] = true;
 			SAFEUNLOCK(free_threads_mtx);
 			continue;
 		}
@@ -422,18 +422,19 @@ void* worker(void* args){
 		
 		
 		request_status = handle_request(com, whoami, &request); // Response is set and log is updated
-		clean_request(&request);
 		
 		if(request_status < 0){
-			sprintf(log_buffer,"Error handling client %d request", request.client_id);
+			sprintf(log_buffer,"Error handling client %d request -> Request command: 0x%.2x - Request pathname: %s", request.client_id, request.command, request.pathname);
 			logger(log_buffer);
+			clean_request(&request);
 			SAFELOCK(free_threads_mtx);
-			free_threads[whoami] = true;
+			free_threads[whoami-1] = true;
 			SAFEUNLOCK(free_threads_mtx);
 			continue;
 		}
+		clean_request(&request);
 		SAFELOCK(free_threads_mtx);
-		free_threads[whoami] = true;
+		free_threads[whoami-1] = true;
 		SAFEUNLOCK(free_threads_mtx);
 
 	}

@@ -5,7 +5,7 @@ DEFINES += -D_GNU_SOURCE=1
 INCLUDES = -I includes/
 TARGETS = server client
 LIBS = -L ./libs/zlib -lz
-.PHONY: clean clean_files clean_all gen_files test1 test2 test3 test1_un test3_un test3_un_quiet test3_quiet debug
+.PHONY: clean clean_files clean_test clean_all gen_files test1 test2 test3 test1_un test3_un test3_un_quiet test3_quiet debug
 .SUFFIXES: .c .h
 
 test1: CFLAGS = -Wall -pedantic -std=c99 -g3
@@ -69,11 +69,14 @@ work.o:
 zlib:
 	cd libs/zlib/ && ./configure --static --const && make -j
 
-clean: 
-	$(RM) libs/*.a src/*.h.gch bin/client bin/server libs/zlib/libz.a test/binary/binary_test
+clean: clean_test
+	$(RM) libs/*.a src/*.h.gch bin/client bin/server libs/zlib/libz.a 
 
 clean_files:
 	$(RM) test/large_files/* test/medium_files/* test/small_files/* test/test_2/*
+
+clean_test:
+	$(RM) -r test/binary/binary_test test/test_output/* test/output_stress_test/* 
 
 clean_all: clean clean_files
 	
@@ -81,44 +84,30 @@ gen_files:
 	./generate_files.sh
 	
 test1: debug
-	$(RM) -r ./test/test_output/*
-	$(RM) -r ./test/output_stress_test/*
 	./test/test1.sh test/config/config1.txt
 	./statistiche.sh bin/server.log
 
 test2: all
-	$(RM) -r ./test/test_output/*
-	$(RM) -r ./test/output_stress_test/*
 	./test/test2.sh
 	
 
-test3: all
-	$(RM) -r ./test/test_output/*
-	$(RM) -r ./test/output_stress_test/*
+test3: debug
 	./test/test3.sh test/config/config3.txt
 	./statistiche.sh bin/server.log
 
 
 test1_un: debug
-	$(RM) -r ./test/test_output/*
-	$(RM) -r ./test/output_stress_test/*
 	./test/test1.sh test/config/config1_un.txt
 	./statistiche.sh bin/server.log
 
 test3_un: all
-	$(RM) -r ./test/test_output/*
-	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh test/config/config3_un.txt
 	./statistiche.sh bin/server.log
 	
 test3_un_quiet: all
-	$(RM) -r ./test/test_output/*
-	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh test/config/config3_un_quiet.txt
 	./statistiche.sh bin/server.log
 	
 test3_quiet: all
-	$(RM) -r ./test/test_output/*
-	$(RM) -r ./test/output_stress_test/*
 	./test/test3.sh test/config/config3_quiet.txt
 	./statistiche.sh bin/server.log
