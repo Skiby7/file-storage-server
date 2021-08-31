@@ -36,7 +36,7 @@ echo ""
 
 mkdir ${CWD}/test/large_files &> /dev/null
 
-if ! [[ -f ${CWD}/test/large_files/large_${i}.txt ]]
+if ! [[ -f ${CWD}/test/large_files/large_0.txt ]]
 then
 	base64 /dev/urandom | head -c 30000000 > ${CWD}/test/large_files/large_0.txt
 	echo -e "${LINE_UP}Generato 1 file grande"
