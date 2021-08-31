@@ -1124,7 +1124,7 @@ void* use_stat_update(void *args){
 				start_write(file, false);
 				if(file->use_stat != 0)
 					file->use_stat -= 1;
-				if(file->use_stat == 0 && (file->last_access - time(NULL)) > 120){
+				if(file->use_stat == 0 && (time(NULL) - file->last_access) > 120){
 					file->whos_locking = -1; // Automatic unlock if the file is not used for more than 2 minutes
 					lock_next(file->name, false, false); // Then next client in lock queue acquires lock
 				} 

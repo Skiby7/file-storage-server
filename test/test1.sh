@@ -16,24 +16,27 @@ done
 sleep 1
 echo -e "\n"
 
+# Carico una cartella e occupo un po' di spazio
+bin/client -f /tmp/socket.sk -w ${CWD}/small_files,10 -x -p -t 200 
+bin/client -f /tmp/socket.sk -w ${CWD}/small_files,10 -x -p -t 200 
 bin/client -f /tmp/socket.sk -w ${CWD}/small_files,10 -x -p -t 200 
 
-bin/client -f /tmp/socket.sk -w ${CWD}/small_files,10 -x -p -t 200 
-
-bin/client -f /tmp/socket.sk -w ${CWD}/small_files,10 -x -p -t 200 
-
+# Leggo tutti i file caricati
 bin/client -f /tmp/socket.sk -R 0 -d ${CWD}/test_output -p -t 200
 
+# Carico un file con -W
 bin/client -f /tmp/socket.sk -W ${CWD}/medium_files/medium_0.txt -u ${CWD}/medium_files/medium_0.txt -p -t 200 
 
+# Leggo un file con -r e lo salvo
 bin/client -f /tmp/socket.sk -r ${CWD}/medium_files/medium_0.txt -d ${CWD}/test_output -p -t 200 
 
+# Blocco il file per 2 secondi e faccio mettere in attesa un altro client
 bin/client -f /tmp/socket.sk -l ${CWD}/medium_files/medium_0.txt -u ${CWD}/medium_files/medium_0.txt -p -t 2000 &
 
-sleep 1
-
+# Cancello il file appena posso bloccarlo 
 bin/client -f /tmp/socket.sk -l ${CWD}/medium_files/medium_0.txt -c ${CWD}/medium_files/medium_0.txt -p -t 200 
 
+# Test per verifivare che la compressione funzioni sui file binari
 echo -e "\n\x1b[33mEseguo un file binario prima di inviarlo al server\x1b[0m"
 
 ${CWD}/binary/binary_test Originale
