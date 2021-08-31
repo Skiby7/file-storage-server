@@ -176,7 +176,7 @@ int readNFile(int N, const char* dirname){
 	client_request read_n_request;
 	server_response read_n_response;
 	bool good_path = (check_path(dirname) == 0) ? true : false;
-	int i = 0; // First file is read outside the loop
+	int i = 0; 
 	unsigned char* buffer = NULL;
 	size_t buff_size = 0;
 	char current_dir[PATH_MAX] = {0};

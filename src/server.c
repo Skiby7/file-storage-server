@@ -150,6 +150,9 @@ int main(int argc, char* argv[]){
 			SAFEUNLOCK(can_accept_mtx);
 			if(com < 0){ CHECKERRNO(com < 0, "Errore durante la accept"); }
 			else{
+				SAFELOCK(log_access_mtx);
+				write_to_log("New client accepted");
+				SAFEUNLOCK(log_access_mtx);
 				clients_active++;
 				if (clients_active > max_clients_active) max_clients_active = clients_active;
 				if (com_size - com_count < 3){

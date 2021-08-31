@@ -43,7 +43,6 @@ int serialize_request(client_request request, unsigned char** buffer, uint64_t* 
 	int increment = 0;
 	unsigned char tmp_int[sizeof(uint32_t)];
 	unsigned char tmp_long[sizeof(uint64_t)];
-	// printf("client: %u\ncommand: 0x%.2x\nflags: 0x%.2x\npath: %s\nsize: %lu\n", request.client_id,request.command,request.flags,request.pathname,request.size);
 	*buffer_len = sizeof(request.client_id) + sizeof(request.command) + sizeof(request.flags) + sizeof(request.files_to_read) + sizeof(request.pathlen) + request.pathlen + sizeof(request.size) + request.size;
 	(*buffer) = (unsigned char *) calloc(*buffer_len, sizeof(unsigned char));
 	CHECKALLOC(*buffer);
@@ -84,7 +83,6 @@ int serialize_request(client_request request, unsigned char** buffer, uint64_t* 
 
 int deserialize_request(client_request *request, unsigned char** buffer, uint64_t buffer_len){
 
-	// int increment = sizeof(uint64_t);
 	int increment = 0;
 	unsigned char tmp_int[sizeof(uint32_t)];
 	unsigned char tmp_long[sizeof(uint64_t)];
@@ -168,7 +166,6 @@ int serialize_response(server_response response, unsigned char** buffer, uint64_
 
 int deserialize_response(server_response *response, unsigned char** buffer, uint64_t buffer_len){
 
-	// int increment = sizeof(uint64_t);
 	int increment = 0;
 	unsigned char tmp_int[sizeof(uint32_t)];
 	unsigned char tmp_long[sizeof(uint64_t)];

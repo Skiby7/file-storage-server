@@ -19,16 +19,14 @@ extern bool abort_connections;
 fss_storage_t server_storage;
 pthread_cond_t start_victim_selector = PTHREAD_COND_INITIALIZER;
 
-// int check_input(char* pathname, client id)
-
 
 void init_table(int max_file_num, int max_size, bool compression, unsigned short compression_level, unsigned char replacement_algo){
-	server_storage.file_limit = max_file_num; // nbuckets
+	server_storage.file_limit = max_file_num; 
 	server_storage.size_limit = max_size;
 	server_storage.size = 0;
 	server_storage.max_size_reached = 0;
 	server_storage.max_file_num_reached = 0;
-	server_storage.file_count = 0; // nentries
+	server_storage.file_count = 0; 
 	server_storage.total_evictions = 0;
 	server_storage.table_size = server_storage.file_limit * 1.33;
 	server_storage.storage_table = (fss_file_t **) calloc(server_storage.table_size, sizeof(fss_file_t *));
@@ -350,7 +348,7 @@ int delete_entry(int id, char *pathname, victim_queue** queue){
 				server_storage.size -= entry->size;
 				
 				if(!prev) server_storage.storage_table[index] = entry->next;
-				else prev->next = entry->next; // Operations that access this field are blocked on server_storage.storage_access_mtx, so it's safe to do this without write
+				else prev->next = entry->next; // Operations that access this field are blocked on server_storage.storage_access_mtx, so it's safe to do this without start_write
 				break;
 			}
 			stop_write(entry);
@@ -488,9 +486,7 @@ int read_n_file(char **last_file, int client_id, server_response* response){
 			response->pathname = (char *) calloc(response->pathlen, sizeof(char));
 			CHECKALLOC(response->pathname);
 			strncpy(response->pathname, entry->name, response->pathlen-1);
-			/* QUI HO FINITO DI LEGGERE ED ESCO */
 			stop_read(entry);
-			// SAFEUNLOCK(server_storage.storage_access_mtx);
 			*last_file = (char *) realloc(*last_file, strlen(entry->name)+1);
 			CHECKALLOC(*last_file);
 			strcpy(*last_file, entry->name);
@@ -538,10 +534,8 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		response->code[1] = ENOENT;
 		return -1;
 	}
-	/* QUI INIZIA LO SCRITTORE */
 	start_write(file, false); 
 
-	/* QUI SI SCRIVE */
 	if(file->whos_locking == client_id && check_client_id(file->clients_open, client_id) < 0 && file->data == NULL){
 		if(server_storage.compression){
 			tmp = (unsigned char *) calloc(length+20, sizeof(unsigned char)); // zlib needs some bytes to store header and trailer, so if the input data is small and compress does not have effect, this prevents a seg fault 
@@ -570,7 +564,6 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		file->last_access = time(NULL);
 		server_storage.size += size;
 		if(server_storage.size > server_storage.max_size_reached)  server_storage.max_size_reached = server_storage.size;
-		/* QUI HO FINITO DI SCRIVERE ED ESCO */
 		stop_write(file);
 		pthread_cond_signal(&start_victim_selector);
 		SAFEUNLOCK(server_storage.storage_access_mtx);
@@ -801,7 +794,6 @@ char* print_storage_info(){
 	memset(files_bar, bg, graphic_size);
 	memset(mem_bar, bg, graphic_size);
 
-	// printf("\033[2A");
 	SAFELOCK(server_storage.storage_access_mtx);
 	percent_float_mem = (float) server_storage.size/server_storage.size_limit;
 	percent_float_files = (float) server_storage.file_count/server_storage.file_limit;
@@ -825,8 +817,10 @@ void print_summary(){
 	char memory[20];
 	char files[20];
 	fss_file_t* file = NULL;
+	double max_size = (double) server_storage.max_size_reached/1000000.0;
+	double limit = (double) server_storage.size_limit/1000000.0;
 	puts("\n");
-	snprintf(memory, 20, "%lu/%lu", server_storage.max_size_reached, server_storage.size_limit); 
+	snprintf(memory, 20, "%.2f/%.2f MB", max_size, limit); 
 	snprintf(files, 20, "%u/%u", server_storage.max_file_num_reached, server_storage.file_limit); 
 	printf(ANSI_COLOR_GREEN CONF_LINE_TOP
 		"│ %-12s\t"ANSI_COLOR_YELLOW"%20s"ANSI_COLOR_GREEN" │\n" CONF_LINE
@@ -877,7 +871,7 @@ void destroy_table_entry(fss_file_t* entry){
 }
 
 /**
- * Clean all the heap allocated memory of the fss_storage_t
+ * Clean all the heap allocated memory of server_storage
  * 
  */
 void clean_storage(){
@@ -962,7 +956,6 @@ static void stop_read(fss_file_t* entry){
 static void start_write(fss_file_t* entry, bool unlock_server_mtx){
 	SAFELOCK(entry->order_mutex); // ACQUIRE ORDER
 	SAFELOCK(entry->access_mutex); // ACQUIRE ACCESS
-	// if(entry->writers > 0) printf("OOOOOH, QUI E' TUTTO UN CASINO -> %s\n", caller);
 	if(unlock_server_mtx) SAFEUNLOCK(server_storage.storage_access_mtx);
 	while (entry->readers > 0 || entry->writers > 0){
 		if(pthread_cond_wait(&entry->go_cond, &entry->access_mutex) != 0){
@@ -970,7 +963,6 @@ static void start_write(fss_file_t* entry, bool unlock_server_mtx){
 			exit(EXIT_FAILURE);
 		}
 	}
-	// puts("INFATTI QUI NON ARRIVO");
 	entry->writers += 1;
 	SAFEUNLOCK(entry->order_mutex); 
 	SAFEUNLOCK(entry->access_mutex); 

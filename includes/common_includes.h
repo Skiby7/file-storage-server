@@ -38,7 +38,7 @@
 #define FILE_NOT_OPEN 0x40
 #define STOP 0x80
 
-// REPLACEMENTS ALGOS
+// REPLACEMENTS ALGORITHMS
 #define FIFO 0x01
 #define LRU 0x02
 #define LFU 0x03

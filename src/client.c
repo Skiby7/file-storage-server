@@ -162,7 +162,7 @@ int main(int argc, char* argv[]){
 			case ':': 
 				printf("l'opzione '-%c' richiede un argomento\n", optopt);
 				break;
-			case '?':  // restituito se getopt trova una opzione non riconosciuta
+			case '?':  
 				printf("l'opzione '-%c' non e' gestita\n", optopt);
 				break;
 			default:;

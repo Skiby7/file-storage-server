@@ -25,7 +25,7 @@ Il progetto è stato testato sulla macchina virtuale fornita dai docenti con 2 c
 È possibile consultare il repository di git al [seguente link](https://github.com/Skiby7/file-storage-server).
 Sono state sviluppate delle parti opzionali quali:
 
-* Algoritmi di rimpiazzamento più avanzati di quello `FIFO` (vedi *3.5 Rimpiazzamento file*): quali `LRU`, `LFU` e una via di mezzo fra questi, che chiamerò per comodità `LRFU`
+* Algoritmi di rimpiazzamento più avanzati di quello `FIFO` (vedere le sezioni *3.5 Rimpiazzamento file*): quali `LRU`, `LFU` e una via di mezzo fra questi, che chiamerò per comodità `LRFU`
 
 * L'opzione -x per il client
 
@@ -55,7 +55,7 @@ Oltre a quelli definiti nella specifica, è possibile usare anche i seguenti tar
 
 * `gen_files`: genera i file testuali usati per i test
 
-* `test3_un`, `test3_quiet`, `test3_un_quiet`: per eseguire il test 3 rispettivamente con la compressione disabilita, con il parametro `TUI` del file di configurazione disabilitato (vedi le sezioni *3.1 File di configurazione* e *6.2 Interfaccia testuale*) e, infine, con la compressione e `TUI` disabilitati. 
+* `test3_un`, `test3_quiet`, `test3_un_quiet`: per eseguire il test 3 rispettivamente con la compressione disabilita, con il parametro `TUI` del file di configurazione disabilitato (vedere le sezioni *3.1 File di configurazione* e *6.2 Interfaccia testuale*) e, infine, con la compressione e `TUI` disabilitati. 
 
 # Server
 
@@ -185,7 +185,7 @@ I flag `O_CREATE` e `O_LOCK` hanno, rispettivamente, il valore `0x01` e `0x02`
 
 ## Errori
 
-Ho deciso di definire dei codici di errore per estendere gli errori riportati in `errno.h` e dare una spiegazione più specifica del problema, come ad esempio una mancata lock o una open ripetuta. Gli errori specifici vengono inviati al client nel campo `code` della risposta e si trovano alla posizione 0 (vedi sezione successiva). Di seguito la tabella: 
+Ho deciso di definire dei codici di errore per estendere gli errori riportati in `errno.h` e dare una spiegazione più specifica del problema, come ad esempio una mancata lock o una open ripetuta. Gli errori specifici vengono inviati al client nel campo `code` della risposta e si trovano alla posizione 0 (vedere sezione successiva). Di seguito la tabella: 
 
 | Codice                 	| Valore 	| Descrizione                                        	|
 |------------------------	|:--------:	|----------------------------------------------------	|
@@ -237,7 +237,7 @@ Per quanto riguarda `client_request`, partendo dall'alto si trova:
 
 * `client_id`: ogni client è identificato dal `PID` del suo processo
 
-* `command`: comando da eseguire (vedi *5.1 Comandi*)
+* `command`: comando da eseguire (vedere sezione *5.1 Comandi*)
 
 * `flags`: assume i valori `O_LOCK` e/o `O_CREATE`
 
@@ -247,7 +247,7 @@ Mentre, per `server_response` abbiamo:
 
 * `has_victim`: indica se dopo la prima risposta il client si deve rimettere in attesa per ricevere i file eliminati in seguito a una scrittura. Vale 0 o 1
 
-* `code[2]`: all'indice 0 si ha l'esito dell'operazione (vedi sezione precedente), mentre all'indice 1 si trova un eventuale valore di errore fra quelli definiti in `errno.h` e `errno-base.h`
+* `code[2]`: all'indice 0 si ha l'esito dell'operazione (vedere sezione precedente), mentre all'indice 1 si trova un eventuale valore di errore fra quelli definiti in `errno.h` e `errno-base.h`
 
 ## Serializzazione e deserializzazione
 
@@ -261,7 +261,7 @@ In `serialization.c` e `serialization.h` si trova l'implementazione delle funzio
 
 ## Compressione
 
-Ho implementato la compressione dei file usando la libreria open-source `zlib`. Nel file di configurazione del server, questa opzione può essere abilitata impostando il parametro `COMPRESSION` su `y` e si può impostare il livello di compressione su un valore compreso fra 1, che è il minimo e 9, che è il massimo (il livello 0 è usato da `zlib` per creare un archivio di più file senza però comprimerli).
+Ho implementato la compressione dei file usando la libreria open-source `zlib`. Nel file di configurazione del server, questa opzione può essere abilitata impostando il parametro `COMPRESSION` su `y` e si può impostare il livello di compressione su un valore compreso fra 0, che è il minimo e 9, che è il massimo (il livello 0 è usato da `zlib` per creare un archivio di più file senza però comprimerli).
 La libreria è stata compilata con il flag `--const` e come libreria statica.
 
 ### Copyright notice

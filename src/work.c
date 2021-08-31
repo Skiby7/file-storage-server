@@ -167,8 +167,6 @@ int handle_simple_request(char *args, const unsigned char command, const char* d
 			}
 			else{
 				if (config.verbose) check_errno(token, open_file_val, OPEN, 0);
-				// free(real_path);
-				// real_path = NULL;
 				token = strtok_r(NULL, DELIM, &tmpstr);
 				continue;
 			}

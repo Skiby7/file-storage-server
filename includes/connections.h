@@ -19,7 +19,7 @@ typedef struct server_response_{
 	uint32_t pathlen; // PATHLEN INCLUDES THE END CHARACTER
 	char *pathname;
 	unsigned char has_victim;
-	unsigned char code[2]; // 1 -> RESULT 2 -> ERRNO
+	unsigned char code[2]; // 1 -> RESULT AND SPECIFIC ERROR 2 -> ERRNO
 	uint64_t size;
 	unsigned char* data;
 } server_response;

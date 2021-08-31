@@ -20,12 +20,12 @@ typedef struct client_{
 			"-x dirname\tSblocca automaticamente i file inviati al server con -w\n\n" \
 			"-D dirname\tSpecifica la cartella dove salvare i file espulsi in seguito a una APPEND o WRITE\n\n" \
 			"-R [n = 0]\tQuesta opzione permettere di leggere n file qualsiasi memorizzati sul server.\n          \tSe n non è specificato, si leggeranno tutti i file presenti sul server.\n\n" \
-			"-d dirname\tSpecifica dove salvare i file letti da server.\n"ANSI_COLOR_RED"          \tSe non viene specificata la cartella, i file non verranno salvati!\n\n" ANSI_COLOR_RESET \
-			"-t time\t\tTempo in millisecondi che intercorre fra l'invio di due richieste successive al server.\n       \t\tSe non specificato (-t 0), non si ha delay fra le richieste\n\n" \
+			"-d dirname\tSpecifica dove salvare i file letti dal server.\n"ANSI_COLOR_RED"          \tSe non viene specificata la cartella, i file non verranno salvati!\n\n" ANSI_COLOR_RESET \
+			"-t time\t\tTempo in millisecondi che intercorre fra l'invio di due richieste successive al server.\n       \t\tSe non specificato, non si ha delay fra le richieste (-t 0)\n\n" \
 			"-W file1[,fileN]\tFile da inviare al server separati da una virgola\n\n" \
 			"-r file1[,file2]\tFile da leggere dal server separati da una virgola\n\n" \
-			"-l file1[,file2]\tFile su cui acquisire la mutex\n\n" \
-			"-u file1[,file2]\tFile su cui rilasciare la mutex\n\n" \
+			"-l file1[,file2]\tFile su cui acquisire la lock\n\n" \
+			"-u file1[,file2]\tFile su cui rilasciare la lock\n\n" \
 			"-c file1[,file2]\tFile da rimuovere dal server" \
 			"\n"); \
 		exit(EXIT_SUCCESS)
