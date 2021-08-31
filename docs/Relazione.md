@@ -22,10 +22,10 @@ title: Relazione file storage server
 # Introduzione
 
 Il progetto è stato testato sulla macchina virtuale fornita dai docenti con 2 cores e **almeno** 2GB di ram.
-È possibile consultare il repository di git al [seguente link](https://github.com/Skiby7/file-storage-server),
+È possibile consultare il repository di git al [seguente link](https://github.com/Skiby7/file-storage-server).
 Sono state sviluppate delle parti opzionali quali:
 
-* Sono stati realizzati più algoritmi di rimpiazzamento (vedere sezione numero)
+* Algoritmi di rimpiazzamento più avanzati di quello `FIFO` (vedi *3.5 Rimpiazzamento file*): quali `LRU`, `LFU` e una via di mezzo fra questi, che chiamerò per comodità `LRFU`
 
 * L'opzione -x per il client
 
@@ -34,12 +34,12 @@ Sono state sviluppate delle parti opzionali quali:
 
 # Compilazione ed esecuzione
 
-Una volta scompattato l'archivio, sarà sufficiente spostarsi dentro la root del progetto, compilare il progetto con il comando `make` o `make -j`, dopodiché i file eseguibili si troveranno dentro `bin`. Inoltre, è possibile testare il progetto con i comandi `make testX` dove `X` è il numero del test che si vuole eseguire. 
+Una volta scompattato l'archivio, sarà sufficiente spostarsi dentro la root del progetto, compilare il progetto con il comando `make` o `make -j` e dopodiché i file eseguibili si troveranno dentro `bin`. Inoltre, è possibile testare il progetto con i comandi `make testX` dove `X` è il numero del test che si vuole eseguire. 
 Nel caso si volesse clonare il progetto direttamente da Github, è necessario usare l'opzione `--recursive` per scaricare anche il sorgente di zlib, necessario per la compilazione del progetto:
-```bash
+```
 git clone https://github.com/Skiby7/file-storage-server --recursive
 ```
-Inoltre, appena scaricato il progetto da Github, non sono presenti i file necessari per eseguire i test, perciò la compilazione richiederà qualche minuto, in quanto verrà eseguito uno script che genererà dei file di testo. 
+Inoltre, appena scaricato il progetto da Github, non sono presenti i file necessari per eseguire i test, perciò la compilazione richiederà qualche secondo in più, in quanto verrà eseguito uno script per generare i file di testo. 
 
 ## Makefile targets
 
@@ -49,73 +49,73 @@ Oltre a quelli definiti nella specifica, è possibile usare anche i seguenti tar
 
 * `clean_files`: rimuove i file usati per i test
 
+* `clean_test`: rimuove i file generati dai test
+
 * `clean_all`: esegue `clean` e `clean_files`
 
 * `gen_files`: genera i file testuali usati per i test
 
-* `test3_un`, `test3_quiet`, `test3_un_quiet`: per eseguire il test 3 rispettivamente con la compressione disabilita, con il parametro `TUI` del file di configurazione disabilitato (*vedere sezione 3.1*) e, infine, con la compressione e `TUI` disabilitati. 
+* `test3_un`, `test3_quiet`, `test3_un_quiet`: per eseguire il test 3 rispettivamente con la compressione disabilita, con il parametro `TUI` del file di configurazione disabilitato (vedi le sezioni *3.1 File di configurazione* e *6.2 Interfaccia testuale*) e, infine, con la compressione e `TUI` disabilitati. 
 
 # Server
 
-L'applicazione `server` consiste in un programma multi-threaded che gestisce più richieste contemporanee di connessione da parte di client diversi. I client comunicano col server tramite un'API, la cui implementazione si trova in `fssApi.c`, e dopodiché vengono serviti da un worker del server il quale esegue un'operazione per poi rimettersi in attesa.
+L'applicazione `server` consiste in un programma multi-threaded che gestisce più richieste contemporanee di connessione da parte di client diversi. I client comunicano col server tramite un'API, la cui implementazione si trova in `fssApi.c` e dopodiché vengono serviti da un worker del server il quale esegue un'operazione per poi rimettersi in attesa.
 
 ## File di configurazione
 
 Il file di configurazione, passato come argomento da linea di comando all'avvio, è un generico file di testo contenente le seguenti parole chiave seguiti dal carattere `':'` : `WORKERS`, `MAXMEM`, `MAXFILES`, `SOCKNAME`, `LOGFILE`, `TUI`, `REPLACEMENT_ALGO`, `COMPRESSION` e `COMPRESSION_LEVEL`.
-Si può definire `SOCKNAME` come path assoluto o, altrimenti, semplicemente come il nome che si vuole dare al socket, che verrà creato in `/tmp`.
-
-\pagebreak
+`SOCKNAME` è il nome che si vuole dare al socket, che verrà creato in `/tmp`. Se si imposta un path, sia assoluto, che relativo, verrà considerato solo il nome del file (vedere `man 3 basename`).
 
 Le voci `LOGFILE`, `REPLACEMENT_ALGO`, `COMPRESSION` e `TUI` sono opzionali:
 
-* Se `LOGFILE` non è definito non verrà prodotto il file di log. Per specificare il file di log si può usare sia un path relativo che assoluto.
+* Se `LOGFILE` non è definito non verrà prodotto il file di log. Per specificare il file di log si può usare sia un path relativo che assoluto, ma in entrambi i casi non verranno create le parent directory.
 
-* `REPLACEMENT_ALGO` può essere impostato sui valori `FIFO`, `LRU`, `LFU`, `LRFU`. Se non specificato, viene usato l'algoritmo `FIFO`
+* `REPLACEMENT_ALGO` può essere impostato sui valori `FIFO`, `LRU`, `LFU`, `LRFU`. Se non specificato, viene usato l'algoritmo `FIFO`.
 
-* `TUI` (l'acronimo di *textual user interface*), indica se si vuole stampare sullo standard output un sommario della configurazione e visualizzare in tempo reale la quantità di file presenti nel server e la dimensione occupata. Se vale `y`, l'output verrà prodotto, altrimenti no.  
+* `TUI` (l'acronimo di *textual user interface*), indica se si vuole stampare sullo standard output un sommario della configurazione e visualizzare in tempo reale le operazioni che avvengono nel server. Se vale `y`, l'output verrà prodotto, altrimenti no.  
 
-* Per attivare la compressione basta settare la voce `COMPRESSION` su `y`, specificando il livello di compressione settando `COMPRESSION_LEVEL` su un valore compreso fra 0-9 (dove 9 è il massimo della compressione) o, se non si specifica, verrà automaticamente impostato su 6.
+* Per attivare la compressione è necessario settare la voce `COMPRESSION` su `y`, specificando il livello di compressione settando `COMPRESSION_LEVEL` su un valore compreso fra 0 e 9 (dove 9 è il massimo della compressione e 0 è il minimo) altrimenti, se non si specifica, verrà automaticamente impostato su 6.
 
 Se manca una voce non opzionale o l'input di una voce non opzionale non è valido, il server non parte. Inoltre è possibile inserire linee vuote e definire commenti con il carattere `#` (tutto quello che segue `#` verrà ignorato). L'implementazione del parser è contenuta in `parser.c` e `parser.h`.
 
 
 ## Polling
 
-In `server.c` è possibile consultare l'implementazione del thread Master e del signal handler. Una volta fatto partire il server, il thread main si mette in ascolto della `struct pollfd com_fd` (la quale viene creata con dimensione `DEFAULTFDS` e riallocata dinamicamente una volta che i client connessi aumentano) con una `poll()`. Le prime 3 posizioni di `com_fd` sono riservate come segue:
+In `server.c` è possibile consultare l'implementazione del thread Master e del signal handler. Una volta fatto partire il server, il thread Master si mette in ascolto di `com_fd` (il quale viene creato con dimensione `DEFAULTFDS` e riallocato dinamicamente mano a mano che i client connessi aumentano) con una `poll()`. Le prime 3 posizioni di `com_fd` sono riservate come segue:
 
-0. il socket su cui eseguire l'`accept()`
+0. Il socket su cui eseguire l'`accept()`.
 
-1. la pipe sulla quale i thread Worker restituiscono i file descriptor dei client ancora connessi (`good_fd_pipe`) 
+1. La pipe sulla quale i thread Worker restituiscono i file descriptor dei client ancora connessi (`good_fd_pipe`) .
 
-2. la pipe su cui, sempre i thread Worker, restituiscono i file descriptor dei client che hanno effettuato la disconnessione, che sono crashati o che hanno con un fd corrotto (`done_fd_pipe`), così da chiuderli e aggiornare il numero di client connessi (`clients_active`).
+2. La pipe su cui, sempre i thread Worker, restituiscono i file descriptor dei client che hanno effettuato la disconnessione, che sono crashati o che hanno un fd corrotto (`done_fd_pipe`), così da chiuderli e aggiornare il numero di client connessi (`clients_active`).
 
 ## Signal handling e terminazione
 
-La gestione dei segnali è demandata a un thread dedicato, in modo da non far interferire i segnali stessi con la `poll()` e le altre chiamate di sistema. All'avvio del server, infatti, vengono mascherati tutti i segnali ad eccezione di `SIGSEGV` e viene poi avviato il thread `signal_handler_thread` sulla routine `sig_wait_thread()`. Qui, il thread si mette in ascolto dei seguenti segnali:
+La gestione dei segnali è demandata a un thread dedicato: all'avvio del server vengono mascherati tutti i segnali ad eccezione di `SIGSEGV` e viene poi avviato il thread `signal_handler_thread` sulla routine `sig_wait_thread()`. Qui, il thread si mette in ascolto dei seguenti segnali:
 
 * `SIGINT` e `SIGQUIT`: alla ricezione di uno di questi due segnali, il flag globale `abort_connections` viene settato su `true`, mentre `can_accept` viene settato su `false`. Dopodiché viene inviata la stringa *termina* al thread Master tramite `good_fd_pipe`, così che, nel caso fosse in attesa sulla `poll()`, si svegli e termini.
 
-* `SIGHUP`: in questo caso il thread handler setta solo `can_accept` su `true`, in modo che il Master non accetti più connessioni e attenda che il counter dei client attivi arrivi a `0` per poi terminare.
+* `SIGHUP`: in questo caso il thread setta solo `can_accept` su `false`, in modo che il Master non accetti più connessioni e attenda che il counter dei client attivi arrivi a `0` per poi terminare.
 
-* `SIGUSR1`: questo segnale è dedicato alla terminazione di `signal_handler_thread`, infatti gli viene inviato dal thread Master prima di terminare.
+* `SIGUSR1`: questo segnale è dedicato alla terminazione di `signal_handler_thread`, infatti gli viene inviato dal thread Master prima della chiusura del programma.
 
-Il thread master, una volta uscito dal loop principale, svuota la coda dei lavori e la riempie con il valore `-2` per poi svegliare i thread Worker e farli terminare. Dopodiché cancella il thread `use_stat_thread`, invia il segnale `SIGUSR1` al `signal_handler_thread`, logga gli ultimi dati ed infine libera la memoria allocata dinamicamente.
+Il thread Master, una volta uscito dal loop principale, imposta `abort_connections` su `true`, svuota la coda dei lavori e la riempie con il valore `-2` per poi svegliare i thread Worker e farli così terminare. Dopodiché sveglia il thread `use_stat_thread`, che termina quando `abort_connections` è impostato su `true`, invia il segnale `SIGUSR1` al `signal_handler_thread`, logga gli ultimi dati ed infine libera la memoria allocata dinamicamente.
 
 ## Storage
 
 L'implementazione dello storage vero e proprio può essere consultata nei file `file.c` e `file.h`, dove sono definite le funzioni che i workers possono usare per modificare i dati all'interno del server. Ho deciso di implementare lo storage con una tabella hash con liste di trabocco, la cui dimensione è 1,33 volte il numero massimo di file che il server può gestire, così da mantenere il fattore di carico sotto il 75% e avere delle buone prestazioni (come da letteratura). Per il calcolo dell'hash ho usato l'algoritmo di Peter Jay Weinberger (la cui [implementazione](http://didawiki.cli.di.unipi.it/lib/exe/fetch.php/informatica/sol/laboratorio21/esercitazionib/icl_hash.tgz) è stata fornita a laboratorio). \
 Le strutture che definiscono la memoria del server, `fss_file_t` e `fss_storage_t`, sono consultabili in `file.h`:
 
-* `fss_file_t` contiene, oltre che i metadati e i dati del file stesso, due mutex, una *condition variable* e due contatori `readers` e `writers` con i quali ho implementato la procedura *lettore-scrittore* vista a lezione. La struttura contiene, inoltre, il timestamp dell'ultimo accesso, il timestamp della creazione e un contatore di utilizzo `use_stat`, che vedremo in seguito nella sezione dedicata all'algoritmo di rimpiazzamento.
+* `fss_file_t` contiene, oltre ai metadati e ai dati del file stesso, due mutex, una *condition variable* e due contatori `readers` e `writers` con i quali ho implementato la procedura *lettore-scrittore* vista a lezione. La struttura contiene, inoltre, il timestamp dell'ultimo accesso, il timestamp della creazione e un contatore di utilizzo `use_stat`, che vedremo in seguito nella sezione dedicata all'algoritmo di rimpiazzamento.
 
-* `fss_storage_t` contiene, oltre alla tabella hash, la dimensione della tabella stessa e i parametri di configurazione, una mutex per garantire l'accesso mutualmente esclusivo all'intera tabella e delle variabili in cui salvare i dati per generare le statistiche al termine dell'esecuzione.
+* `fss_storage_t` contiene, oltre alla tabella hash, la dimensione della tabella stessa e i parametri di configurazione, una mutex per garantire l'accesso mutualmente esclusivo a tutti i campi dello storage e delle variabili in cui salvare i dati per generare le statistiche al termine dell'esecuzione.
 
 ## Rimpiazzamento dei file
 
-Come detto prima, ogni file ha un contatore `use_stat` il quale viene impostato a 16 al momento della creazione e varia fra 0 e 32. Viene quindi aumentato ogni volta che il file viene letto, scritto (solo in questo caso di 2 punti) o bloccato e viene decrementato da un thread dedicato che viene svegliato ogniqualvolta viene effettuata una scrittura o viene creato un nuovo file.
-Inoltre, ogni volta che si accede a un file, viene aggiornato il suo campo `last_access`.
+Come detto prima, ogni file ha un contatore `use_stat` il quale viene impostato a 16 al momento della creazione e varia fra 0 e 32. Viene quindi aumentato di una unità ogni volta che il file viene letto, scritto (in questo caso di 2 unità) o bloccato e viene decrementato da un thread dedicato, il quale viene svegliato in seguito a una scrittura o alla creazione di un nuovo file all'interno del server.
+Inoltre, ogni volta che si accede a un file in lettura o in scrittura, viene aggiornato il suo campo `last_access`.
 Una volta che si deve liberare dello spazio in memoria, viene chiamata la funzione `select_victim()`, che non fa altro che scorrere tutta la tabella e copiare i metadati dei file (eccetto del file che ha causato la chiamata di `select_victim()`) in un array di tipo `victim_t`. Questo array viene poi ordinato con `qsort()` e, finché non viene liberata abbastanza memoria, si elimina il file con pathname uguale a `victims[i].pathname`.
-Di seguito la funzione compare:
+Di seguito la funzione `compare()` utilizzata in `qsort()`:
 
 ```c
 static int compare(const void *a, const void *b) {
@@ -140,8 +140,8 @@ Il thread `use_stat_thread`, che esegue la routine `use_stat_update()`, inoltre,
 
 # Client
 
-Il client consiste in un programma single-threaded creato per interfacciarsi col server: una volta avviato, il client, leggerà tutti le opzioni passate come argomento da riga di comando con `getopt()` e le salverà in una coda, per poi connettersi al server ed eseguire i comandi. L'implementazione del client è contenuta in `client.c`, `client.h`, `work.c` e `work.h`. 
-Come da specifica, ogni file è identificato dal suo path assoluto (sul quale viene anche calcolato l'hash), pertanto, per evitare ambiguità, tutte le operazioni del client che prendono in input un file richiedono un path assoluto, altrimenti l'operazione fallirà. Fanno eccezione le opzioni `-d`, `-D` e `-w`, poiché prendono in input una cartella e se ne occuperà il client di trasformare il path da relativo ad assoluto. Inoltre, le opzioni che prevedono il salvataggio dei file sul disco (`-d` o `-D`), ricostruiscono l'albero delle directory a partire dal nome del file, utilizzando come root la cartella specificata.
+Il client consiste in un programma single-threaded creato per interfacciarsi col server: una volta avviato, il client leggerà con `getopt()` tutti le opzioni passate come argomento da riga di comando e le salverà in una coda, per poi connettersi al server ed eseguire i comandi. L'implementazione del client è contenuta in `client.c`, `client.h`, `work.c` e `work.h`. 
+Come da specifica, ogni file è identificato dal suo path assoluto (sul quale viene calcolato l'hash), pertanto, per evitare ambiguità, tutte le operazioni del client che prendono in input un file richiedono un path assoluto, altrimenti l'operazione fallirà. Fanno eccezione le opzioni `-d`, `-D` e `-w`, poiché prendono in input una cartella e se ne occuperà il client di trasformare il path da relativo ad assoluto. Inoltre, le opzioni che prevedono il salvataggio dei file sul disco (`-d` o `-D`), ricostruiscono l'albero delle directory a partire dal nome del file, utilizzando come *root* la cartella specificata.
 
 # Comunicazione client-server
 
@@ -157,14 +157,14 @@ La comunicazione fra il client (C) e il server (S) avviene tramite il protocollo
 
 5. C: Legge la lunghezza della risposta invia un byte di acknowledge e alloca la memoria per leggere la risposta, dopodiché la processa
 
-6. S: Il thread Worker invia il descrittore del socket del client al thread Master e si rimette in attesa
+6. S: Il thread Worker invia il file descriptor del client al thread Master e si rimette in attesa
 
-Tutti i dati, sia la lunghezza del pacchetto, che il pacchetto, vengono inviati come stringhe di byte (`unsigned char *`). L'implementazione della conversione da `uint32_t` e `uint64_t` ad array di byte e la serializzazione/deserializzazione delle richieste possono essere consultate in `serialization.c` e `serialization.h`
+
 
 
 ## Comandi
 
-Ho deciso di condensare sia i comandi che i codici di errore in un byte per semplicità. Al momento, avendo solo 8 operazioni possibili ho assegnato un'operazione a un bit del campo `command`, ma, nel caso si volessero implementare delle nuove operazioni, si potrebbe usare una combinazione di bit per identificarla.
+Ho deciso di condensare sia i comandi in un byte per semplicità: al momento avendo solo 8 operazioni possibili, a ogni bit del campo `command` corrisponde un'operazione e, nel caso se ne volessero implementare altre, basterebbe usare una combinazione di bit per identificare quelle nuove.
 
 | Operazione 	| Valore 	| Descrizione                                                         	|
 |------------	|:--------:	|---------------------------------------------------------------------	|
@@ -181,9 +181,11 @@ Ho deciso di condensare sia i comandi che i codici di errore in un byte per semp
 
 I flag `O_CREATE` e `O_LOCK` hanno, rispettivamente, il valore `0x01` e `0x02`
 
+\pagebreak
+
 ## Errori
 
-Ho deciso di definire dei codici di errore per estendere gli errori riportati in `errno.h` e dare una spiegazione più specifica del problema, come ad esempio una mancata lock o una open ripetuta. Gli errori specifici vengono inviati al client nel campo `code` della risposta e si trovano alla posizione 0 (vedere sezione successiva). Di seguito la tabella: 
+Ho deciso di definire dei codici di errore per estendere gli errori riportati in `errno.h` e dare una spiegazione più specifica del problema, come ad esempio una mancata lock o una open ripetuta. Gli errori specifici vengono inviati al client nel campo `code` della risposta e si trovano alla posizione 0 (vedi sezione successiva). Di seguito la tabella: 
 
 | Codice                 	| Valore 	| Descrizione                                        	|
 |------------------------	|:--------:	|----------------------------------------------------	|
@@ -249,14 +251,17 @@ Mentre, per `server_response` abbiamo:
 
 ## Serializzazione e deserializzazione
 
-Ho deciso di serializzare le richieste e le risposte piuttosto che inviare campo per campo leggendone e scrivendone uno alla volta, così da utilizzare un numero minore di read/write (una per la dimensione del pacchetto e una per il pacchetto stesso).
+Tutti i dati, sia la lunghezza del pacchetto, che il pacchetto, vengono inviati come array di `unsigned char`. L'implementazione della conversione da `uint32_t` e `uint64_t` ad array di byte e la serializzazione/deserializzazione delle richieste possono essere consultate in `serialization.c` e `serialization.h`.
+Ho deciso di serializzare le richieste e le risposte piuttosto che inviare campo per campo leggendone e scrivendone uno alla volta, in modo da utilizzare un numero minore di read/write (una per la dimensione del pacchetto e una per il pacchetto stesso). Inoltre questo approccio permette di aggiornare facilmente il programma per comunicare attraverso la rete, piuttosto che in locale.
 In `serialization.c` e `serialization.h` si trova l'implementazione delle funzioni usate per la serializzazione.
+
+\pagebreak
 
 # Parti aggiuntive
 
 ## Compressione
 
-Ho implementato la compressione dei file usando la libreria open-source `zlib`. Nel file di configurazione del server,questa opzione può essere abilitata impostando il parametro `COMPRESSION` su `y` e si può impostare il livello di compressione su un valore compreso fra 1, che è il minimo e 9, che è il massimo (il livello 0 è usato da `zlib` per creare un archivio di più file senza però comprimerli).
+Ho implementato la compressione dei file usando la libreria open-source `zlib`. Nel file di configurazione del server, questa opzione può essere abilitata impostando il parametro `COMPRESSION` su `y` e si può impostare il livello di compressione su un valore compreso fra 1, che è il minimo e 9, che è il massimo (il livello 0 è usato da `zlib` per creare un archivio di più file senza però comprimerli).
 La libreria è stata compilata con il flag `--const` e come libreria statica.
 
 ### Copyright notice
@@ -286,8 +291,8 @@ Direttamente dal README del [repository](https://github.com/madler/zlib) ufficia
 
 ## Interfaccia testuale
 
-Per rendere più interattivo il test3 e per avere qualche informazione utile durante l'uso del server, ho implementato una semplice interfaccia testuale con la quale avere una panoramica sia della configurazione del server, che dell'uso delle risorse del server. Per ridurre al minimo l'impatto sulle performance, invece che far ristampare a ogni thread Worker l'intera schermata ogni volta che esegue un'operazione che modifichi i file in numero o in dimensione, ho preferito utilizzare un thread dedicato, il quale si mette in ascolto con una `poll()` su una pipe. La pipe viene utilizzata dai Worker per notificare l'inizio e la fine di un'operazione di `READ`/`READ END` o di `WRITE`/`WRITE END`, così che il thread possa ridisegnare l'interfaccia in base all'azione eseguita. L'accesso alle informazioni dello storage, quindi la lock della mutex globale dello storage, viene effettuato solo quando viene ricevuta una `WRITE END`. 
+Per rendere più interattivo il test3 e per avere qualche informazione utile durante l'uso del server, ho implementato una semplice interfaccia testuale con la quale avere una panoramica sia della configurazione del server, che dell'uso delle risorse del server. Per ridurre al minimo l'impatto sulle performance, invece che far ristampare a ogni thread Worker l'intera schermata ogni volta che esegue un'operazione che modifichi i file in numero o in dimensione, ho preferito utilizzare un thread dedicato, il quale si mette in ascolto con una `poll()` su una pipe. La pipe viene utilizzata dai Worker per notificare l'inizio e la fine di un'operazione di `READ`/`READ END` o di `WRITE`/`WRITE END`, così che il thread possa ridisegnare l'interfaccia in base all'azione eseguita. L'accesso alle informazioni dello storage, quindi la lock della mutex globale dello storage, viene effettuata solo quando viene ricevuta una `WRITE END`. 
 
 ## Opzione -x
 
-Ho introdotto, per il client, l'opzione `-x` da usare dopo `-w`: l'opzione permette di sbloccare tutti i file caricati dalla cartella, senza dover sbloccare a mano ogni file.
+Ho introdotto, per il client, l'opzione `-x` da usare dopo `-w`: l'opzione permette di sbloccare tutti i file caricati dalla cartella passata come parametro, senza doverli sbloccare manualmente uno ad uno.

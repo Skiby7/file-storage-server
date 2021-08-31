@@ -13,7 +13,7 @@
 #define THREE_QUARTERS  ((int) ((BITS_IN_int * 3) / 4))
 #define ONE_EIGHTH      ((int) (BITS_IN_int / 8))
 #define HIGH_BITS       ( ~((unsigned int)(~0) >> ONE_EIGHTH ))
-
+#define TIME_BEFORE_UNLOCK 2 // In seconds
 
 typedef struct clients_{
 	int id;

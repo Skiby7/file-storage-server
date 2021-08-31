@@ -130,8 +130,20 @@ int insert_lock_file_list(char *pathname, int id, int com){
  */
 int pop_lock_file_list(char *pathname, int *id, int *com, bool server_mutex, bool file_mutex){
 	lock_file_queue *scanner = NULL;
+	unsigned int index = hash_pjw(pathname);
+	fss_file_t* file = NULL;
 	if(server_mutex) SAFELOCK(server_storage.storage_access_mtx);
-	fss_file_t* file = search_file(pathname);
+	if(!pathname) file = NULL;
+	else{
+		for (file = server_storage.storage_table[index]; file; file = file->next){
+				if(file_mutex) start_read(file, false);
+				if(strncmp(pathname, file->name, strlen(pathname)) == 0){
+					if(file_mutex) stop_read(file);
+					break;
+				}
+				if(file_mutex) stop_read(file);
+		}
+	}
 	if(!file){
 		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
 		return -1;
@@ -414,7 +426,7 @@ int read_file(char *filename, int client_id, server_response *response){
 		response->size = file->uncompressed_size;
 		if(server_storage.compression) uncompress2(response->data, &response->size, file->data, &file->size);
 		else memcpy(response->data, file->data, response->size);
-		file->use_stat += 1;
+		if(file->use_stat < 32) file->use_stat += 1;
 
 		SAFELOCK(file->last_access_mtx);
 		file->last_access = time(NULL);
@@ -554,7 +566,7 @@ int write_to_file(unsigned char *data, int length, char *pathname, int client_id
 		file->size = size;
 		memcpy(file->data, server_storage.compression ? tmp : data, size);
 		file->uncompressed_size = length;
-		file->use_stat += 2;
+		if(file->use_stat < 32) file->use_stat += 2;
 		file->last_access = time(NULL);
 		server_storage.size += size;
 		if(server_storage.size > server_storage.max_size_reached)  server_storage.max_size_reached = server_storage.size;
@@ -656,7 +668,7 @@ int append_to_file(unsigned char* new_data, int new_data_size, char *pathname, i
 		file->size = new_size;
 		file->uncompressed_size += new_data_size;
 
-		file->use_stat += 2;
+		if(file->use_stat < 32) file->use_stat += 2;
 		file->last_access= time(NULL);
 
 		stop_write(file);
@@ -709,7 +721,7 @@ int lock_file(char *pathname, int client_id, bool server_mutex, bool file_mutex,
 
 	if(file->whos_locking == -1){
 		file->whos_locking = client_id;
-		file->use_stat += 1;
+		if(file->use_stat < 32) file->use_stat += 1;
 		file->last_access = time(NULL);
 		if(file_mutex) stop_write(file);
 		if(server_mutex) SAFEUNLOCK(server_storage.storage_access_mtx);
@@ -1124,7 +1136,7 @@ void* use_stat_update(void *args){
 				start_write(file, false);
 				if(file->use_stat != 0)
 					file->use_stat -= 1;
-				if(file->use_stat == 0 && (time(NULL) - file->last_access) > 120){
+				if(file->use_stat == 0 && (time(NULL) - file->last_access) > TIME_BEFORE_UNLOCK){ // 
 					file->whos_locking = -1; // Automatic unlock if the file is not used for more than 2 minutes
 					lock_next(file->name, false, false); // Then next client in lock queue acquires lock
 				} 
