@@ -168,11 +168,7 @@ echo ""
 echo ""
 sleep 2
 
-echo -e "\n${MAGENTA}Provoco una seconda espulsione scrivendo di nuovo in eviction_file_1.txt${RESET}"
-# for i in {0..14}
-# do
-# 	bin/client -f /tmp/socket.sk -r ${CWD}/test_2/initial_file_0.txt -p 2> /dev/null 
-# done
+echo -e "\n${MAGENTA}Provoco una seconda espulsione scrivendo di nuovo in eviction_file_1.txt${RESET}"	
 
 bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_file_1.txt -D ${CWD}/test_output -p  
 bin/client -f /tmp/socket.sk -W ${CWD}/test_2/eviction_file_1.txt -D ${CWD}/test_output -p  

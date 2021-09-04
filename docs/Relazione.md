@@ -8,7 +8,7 @@ geometry: "left=2cm,right=2cm,top=2cm,bottom=2cm"
 output:
 	pdf_document:
 		latex_engine: xelatex
-title: Relazione file storage server
+title: Relazione Progetto "File Storage Server"
 ---
 \pagenumbering{gobble}
 \hypersetup{linkcolor=black}
